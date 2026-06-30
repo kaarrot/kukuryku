@@ -12,6 +12,53 @@ Orpheus is a Llama-3.2-3B fine-tune that emits SNAC audio tokens; the SNAC codec
 GGUF decode path — and through the [kaarrot CPU-decode fork](https://github.com/kaarrot/candle/tree/feature/cpu-decode-optim-squashed)
 this project is wired to, which gives a ~3.4× decode speedup on this workload.
 
+This repo has **two binaries**: `speak` (Orpheus-3B, most natural, ~10× slower than realtime on CPU)
+and `kokoro` (Kokoro-82M, soft-realtime on CPU — see [the kokoro section](#kokoro--soft-realtime-cpu-tts-prototype)).
+
+## Build & test (quickstart)
+
+**1. Install system dependencies**
+
+```bash
+sudo apt install -y ffmpeg espeak-ng         # ffplay playback + (kokoro) phonemizer
+pip install --user onnxruntime               # (kokoro) onnxruntime shared library
+```
+(`espeak-ng` and `onnxruntime` are only needed for the `kokoro` binary.)
+
+**2. Build**
+
+```bash
+# speak (Orpheus): target-cpu=native enables the fork's AVX2 kernels.
+# First build compiles the whole Candle stack (a few minutes); later builds are seconds.
+RUSTFLAGS='-C target-cpu=native' cargo build --release --bin speak
+
+# kokoro (Kokoro-82M / ONNX): seconds to build.
+cargo build --release --bin kokoro
+```
+
+**3. Test** (each downloads its model on first run, then is cached)
+
+```bash
+# Orpheus — needs the executor env var; ~48s for a short clip on CPU, then plays.
+CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "Hello, this is a local text to speech test."
+
+# Kokoro — soft-realtime, plays smoothly within a few seconds.
+./target/release/kokoro "Hello, this is a local text to speech test."
+```
+
+**4. Verify without speakers** (headless / CI) — dump a WAV and check it:
+
+```bash
+SPEAK_WAV=/tmp/s.wav  CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "testing one two three"
+KOKORO_WAV=/tmp/k.wav ./target/release/kokoro "testing one two three"
+
+# Inspect duration / level (sox, or any wav tool):
+soxi /tmp/k.wav 2>/dev/null || python3 -c "import wave;w=wave.open('/tmp/k.wav');print(w.getnframes()/w.getframerate(),'s @',w.getframerate(),'Hz')"
+```
+
+Both binaries print a metrics line (audio seconds, throughput/RTF, timings); `speak` should report
+`decode fast path: engaged` and `kokoro` an `RTF` well below 1.0.
+
 ## Prerequisites
 
 - **Rust** (1.90+; edition 2024).
