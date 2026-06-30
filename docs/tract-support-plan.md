@@ -59,6 +59,36 @@ Outcome decides everything:
 - **Loads & runs** → shapes were the only issue; this is roughly a **1-day** job (Step 1 + 3).
 - **Dies at op X** → we see the real wall (likely in the vocoder); estimate Step 2 accordingly.
 
+### Step 0 results (2026-06-30)
+Ran a direct-tract probe (`examples/tract_probe.rs`, `--features tract-probe`) against the fp32
+`onnx/model.onnx`, bypassing the `ort` shim. tract parses all **3012 nodes**; the wall is **static
+shape inference**, not a missing op (vocoder still unexamined behind it). Two cases:
+
+- **Symbolic `input_ids` (`[1, sequence_length]`)** → reproduces the documented failure exactly:
+  node **#1802 `/encoder/predictor/text_encoder/Concat_1`** `InferenceConcat`,
+  `rule inputs[0].shape[1] == inputs[1].shape[1]`, *"Impossible to unify Sym(sequence_length) with
+  Val(1)"*.
+- **Pinned `input_ids` (e.g. `[1, 32]`)** → fails *earlier*, node **#550
+  `/encoder/bert/embeddings/word_embeddings/Gather`**, unifying `Sym(sequence_length)` with
+  `Val(32)`. Pinning a constant conflicts with the model's own `sequence_length` symbol baked into
+  intermediate value_infos — so a fixed length is the *wrong* lever; keep it symbolic.
+
+**Root cause of the #1802 Concat** (dumped via `PROBE_DUMP_NODE=1802`): it concatenates on the
+feature axis (512+128→640):
+- input[0] `?,?,512` ← `/encoder/bert_encoder/Add`
+- input[1] `?,?,128` ← node **#1801 `/encoder/predictor/text_encoder/Expand` (`MultiBroadcastTo`)**
+
+The `Expand`'s broadcast **target length is data-dependent** (computed from a runtime Shape chain),
+so tract infers its seq axis as `1` instead of `sequence_length`, and the Concat's non-concat-axis
+equality rule then can't unify `sequence_length` with `1`. This is the dynamic-shape pattern Step 2
+warned about, surfacing already in the text encoder.
+
+**Implication for next step:** the lever is making `Expand` (#1801) carry `sequence_length` on axis
+1 — either by feeding tract symbolic shape info it can propagate through the Shape→…→Expand chain,
+by graph surgery on that subgraph, or via the **static-shape re-export** track (which removes the
+dynamic `Expand` target entirely and is probably the lowest-risk path to getting *past* #1802 and
+finally seeing the vocoder).
+
 ### Step 1 — Shape resolution (likely hours–1 day)
 Replace the `ort`-API inference path in `kokoro.rs` with a **direct tract** path so we control
 input facts. Use a symbolic phoneme-length dim (or a fixed max, e.g. 510) so tract can analyse the
@@ -96,6 +126,10 @@ known work and already solves deployment — prefer it unless the pure-Rust goal
 
 ## References
 
+- Editable tract: the 0.22.3 tract crates are checked in under `third_party/tract/` and overridden
+  via `[patch.crates-io]` in `Cargo.toml`, so edits to tract are picked up by *both* the probe and
+  the `ort-tract` shim. Shape inference / `InferenceConcat` live in `third_party/tract/tract-hir`.
+- Step 0 probe: `examples/tract_probe.rs` (`cargo run --release --example tract_probe --features tract-probe`; env `PROBE_LEN`, `PROBE_RUN_LEN`, `PROBE_DUMP_NODE`).
 - Binary / backend wiring: `src/bin/kokoro.rs` (`ort::set_api(ort_tract::api())` under `#[cfg(feature = "tract")]`).
 - Feature: `Cargo.toml` `[features] tract = ["dep:ort-tract", "ort/alternative-backend"]`.
 - Versions: `ort` 2.0.0-rc.12, `ort-tract` 0.3.0+0.22 (tract-onnx 0.22).
