@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
@@ -52,27 +53,110 @@ fn phonemize(text: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).replace('\n', " ").trim().to_string())
 }
 
-/// onnxruntime is dlopened at runtime from `ORT_DYLIB_PATH`. If unset, auto-detect
-/// the pip-installed onnxruntime .so so this works out of the box.
+/// onnxruntime is dlopened at runtime from `ORT_DYLIB_PATH`. If unset, search the
+/// filesystem for a `libonnxruntime.so` (no Python needed): Termux `$PREFIX/lib`,
+/// `LD_LIBRARY_PATH`, common system dirs, and pip's `onnxruntime/capi`. If nothing
+/// is found, leave it unset and let ort's loader try the system search path.
 fn ensure_ort_dylib() {
     if std::env::var_os("ORT_DYLIB_PATH").is_some() {
         return;
     }
-    let out = Command::new("python3")
-        .args([
-            "-c",
-            "import onnxruntime,glob,os;d=os.path.dirname(onnxruntime.__file__);print(sorted(glob.glob(d+'/capi/libonnxruntime.so*'))[-1])",
-        ])
-        .output();
-    if let Ok(o) = out {
-        if o.status.success() {
-            let p = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if !p.is_empty() {
-                // SAFE: single-threaded, before any ort call reads the var.
-                unsafe { std::env::set_var("ORT_DYLIB_PATH", &p) };
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Some(prefix) = std::env::var_os("PREFIX") {
+        dirs.push(Path::new(&prefix).join("lib")); // Termux
+    }
+    dirs.push(PathBuf::from("/data/data/com.termux/files/usr/lib"));
+    if let Some(ld) = std::env::var_os("LD_LIBRARY_PATH") {
+        dirs.extend(std::env::split_paths(&ld));
+    }
+    for d in [
+        "/usr/lib",
+        "/usr/local/lib",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+        "/lib",
+    ] {
+        dirs.push(PathBuf::from(d));
+    }
+    // pip-installed onnxruntime: {~/.local/lib,/usr/lib,...}/python3*/site-packages/onnxruntime/capi
+    if let Some(home) = std::env::var_os("HOME") {
+        collect_pip_capi(&Path::new(&home).join(".local/lib"), &mut dirs);
+    }
+    collect_pip_capi(Path::new("/usr/lib"), &mut dirs);
+    collect_pip_capi(Path::new("/usr/local/lib"), &mut dirs);
+
+    // Gather all libonnxruntime.so* candidates and pick the highest version that
+    // is new enough for our C API (>= 1.24 for api-24). A stray older runtime can
+    // be ABI-incompatible (it may even hang), so we skip anything below the min
+    // and the unversioned symlink (whose version we can't read from the name).
+    const MIN_VER: (u32, u32) = (1, 24);
+    let mut best: Option<((u32, u32, u32), PathBuf)> = None;
+    for dir in &dirs {
+        let Ok(rd) = std::fs::read_dir(dir) else { continue };
+        for e in rd.flatten() {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("libonnxruntime.so") {
+                continue;
+            }
+            let path = e.path();
+            // Version from the filename; for the unversioned `libonnxruntime.so`
+            // symlink, resolve it and read the version from the real target name.
+            let ver = if name == "libonnxruntime.so" {
+                match std::fs::canonicalize(&path) {
+                    Ok(real) => parse_version(
+                        real.file_name()
+                            .map(|f| f.to_string_lossy().into_owned())
+                            .unwrap_or_default()
+                            .strip_prefix("libonnxruntime.so")
+                            .unwrap_or(""),
+                    ),
+                    Err(_) => (0, 0, 0),
+                }
+            } else {
+                parse_version(name.strip_prefix("libonnxruntime.so").unwrap_or(""))
+            };
+            if (ver.0, ver.1) < MIN_VER {
+                continue;
+            }
+            if best.as_ref().is_none_or(|(bv, _)| ver > *bv) {
+                best = Some((ver, path));
             }
         }
     }
+    if let Some((_, p)) = best {
+        eprintln!("[kokoro] onnxruntime: {}", p.display());
+        // SAFE: single-threaded, before any ort call reads the var.
+        unsafe { std::env::set_var("ORT_DYLIB_PATH", &p) };
+    } else {
+        eprintln!("[kokoro] no onnxruntime >= 1.24 auto-detected; set ORT_DYLIB_PATH");
+    }
+}
+
+/// Append `python3*/site-packages/onnxruntime/capi` dirs found under `base`.
+fn collect_pip_capi(base: &Path, dirs: &mut Vec<PathBuf>) {
+    if let Ok(rd) = std::fs::read_dir(base) {
+        for e in rd.flatten() {
+            if e.file_name().to_string_lossy().starts_with("python3") {
+                dirs.push(e.path().join("site-packages/onnxruntime/capi"));
+            }
+        }
+    }
+}
+
+/// Parse the version from the part after "libonnxruntime.so" (e.g. ".1.24.4" ->
+/// (1,24,4)). The bare ".so" (or anything non-numeric) parses to (0,0,0).
+fn parse_version(rest: &str) -> (u32, u32, u32) {
+    let n: Vec<u32> = rest
+        .trim_start_matches('.')
+        .split('.')
+        .map(|x| x.parse().unwrap_or(0))
+        .collect();
+    (
+        n.first().copied().unwrap_or(0),
+        n.get(1).copied().unwrap_or(0),
+        n.get(2).copied().unwrap_or(0),
+    )
 }
 
 fn main() -> Result<()> {

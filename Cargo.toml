@@ -5,7 +5,10 @@ edition = "2024"
 
 [dependencies]
 # ONNX Runtime, loaded dynamically (dlopen a libonnxruntime.so at runtime).
-ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
+# default-features=false drops `download-binaries`, so the build never fetches a
+# prebuilt onnxruntime (important on aarch64/Termux). `api-24` keeps the C-API
+# bindings complete (matches onnxruntime 1.24+; 1.26 is backward-compatible).
+ort = { version = "=2.0.0-rc.12", default-features = false, features = ["load-dynamic", "api-24"] }
 hf-hub = "0.4"
 serde_json = "1"
 bytemuck = "1"
