@@ -160,6 +160,23 @@ fn main() -> Result<()> {
     let mut on_fast_path = false; // true once forward_decode_token_into engaged
     let mut index_pos = prompt_len;
 
+    // Streaming playback state: as frames complete we SNAC-decode a sliding
+    // window and pipe the new samples to ffplay immediately, so the first audio
+    // is heard a second or two into generation instead of after the whole
+    // utterance. (Generation is slower than realtime, so playback is choppy —
+    // the win is latency-to-first-sound, not smooth realtime audio.)
+    let want_wav = std::env::var("SPEAK_WAV").is_ok();
+    // Streaming is opt-in (SPEAK_STREAM=1): it gets you audio ~a few seconds into
+    // generation, but because CPU generation is ~10x slower than realtime, ffplay
+    // underruns between chunks and the voice breaks up. Default (off) buffers the
+    // whole utterance and plays it once — higher latency, but smooth.
+    let stream = std::env::var("SPEAK_STREAM").is_ok();
+    let mut player: Option<Player> = None;
+    let mut all_samples: Vec<f32> = Vec::new();
+    let mut emitted_frames = 0usize;
+    let mut emitted_samples = 0usize;
+    let mut first_audio_at: Option<f64> = None;
+
     for _ in 0..max_tokens {
         let next = if on_fast_path {
             logits_processor.sample_f32_slice(&logits_slice)?
@@ -191,6 +208,29 @@ fn main() -> Result<()> {
             logits_tensor = Some(model.forward(&next_input, index_pos)?.squeeze(0)?);
         }
         index_pos += 1;
+
+        // Stream out completed frames, holding MARGIN frames back for right-context.
+        let total_frames = audio_tokens.len() / 7;
+        if stream
+            && total_frames > emitted_frames + MARGIN_FRAMES
+            && total_frames - emitted_frames >= STEP_FRAMES
+        {
+            stream_emit(
+                &snac,
+                &device,
+                &audio_tokens,
+                total_frames,
+                total_frames - MARGIN_FRAMES,
+                &mut emitted_frames,
+                &mut emitted_samples,
+                &mut player,
+                &mut all_samples,
+                want_wav,
+            )?;
+            if first_audio_at.is_none() {
+                first_audio_at = Some(total_start.elapsed().as_secs_f64());
+            }
+        }
     }
     let decode_secs = decode_start.elapsed().as_secs_f64();
     if generated > 0 {
@@ -207,93 +247,170 @@ fn main() -> Result<()> {
         );
     }
 
-    // ---- de-interleave audio tokens into 3 SNAC codebooks (7 tokens per frame) ----
-    let mut codes0: Vec<u32> = Vec::new();
-    let mut codes1: Vec<u32> = Vec::new();
-    let mut codes2: Vec<u32> = Vec::new();
-    for frame in audio_tokens.chunks_exact(7) {
-        codes0.push(frame[0]);
-        for i in [1, 4] {
-            codes1.push(frame[i]);
-        }
-        for i in [2, 3, 5, 6] {
-            codes2.push(frame[i]);
+    // Final flush: emit any remaining frames, including the held-back margin.
+    let total_frames = audio_tokens.len() / 7;
+    if total_frames > emitted_frames {
+        stream_emit(
+            &snac,
+            &device,
+            &audio_tokens,
+            total_frames,
+            total_frames,
+            &mut emitted_frames,
+            &mut emitted_samples,
+            &mut player,
+            &mut all_samples,
+            want_wav,
+        )?;
+        if first_audio_at.is_none() {
+            first_audio_at = Some(total_start.elapsed().as_secs_f64());
         }
     }
-    let codes0 = Tensor::new(codes0, &device)?.unsqueeze(0)?;
-    let codes1 = Tensor::new(codes1, &device)?.unsqueeze(0)?;
-    let codes2 = Tensor::new(codes2, &device)?.unsqueeze(0)?;
 
-    // ---- SNAC decode -> f32 PCM ----
-    eprintln!("[speak] snac decode...");
-    let pcm = snac.decode(&[&codes0, &codes1, &codes2])?;
-    // pcm shape is (1, 1, samples); flatten to Vec<f32>.
-    let pcm = pcm.i(0)?.i(0)?;
-    let samples: Vec<f32> = pcm.to_vec1::<f32>()?;
-
-    let audio_secs = samples.len() as f64 / SAMPLE_RATE as f64;
+    let audio_secs = emitted_samples as f64 / SAMPLE_RATE as f64;
     let rtf = if decode_secs > 0.0 {
         audio_secs / decode_secs
     } else {
         f64::INFINITY
     };
     eprintln!(
-        "[speak] {gen} tokens | {frames} frames | {audio:.2}s audio @ {sr} Hz | decode {tps:.1} tok/s | realtime x{rtf:.2} | total {total:.1}s",
+        "[speak] {gen} tokens | {frames} frames | {audio:.2}s audio @ {sr} Hz | decode {tps:.1} tok/s | realtime x{rtf:.2} | first-sound {fa:.1}s | total {total:.1}s",
         gen = generated,
-        frames = audio_tokens.len() / 7,
+        frames = total_frames,
         audio = audio_secs,
         sr = SAMPLE_RATE,
         tps = generated as f64 / decode_secs,
         rtf = rtf,
+        fa = first_audio_at.unwrap_or(0.0),
         total = total_start.elapsed().as_secs_f64(),
     );
 
-    // ---- optional WAV dump ----
-    if let Ok(wav_path) = std::env::var("SPEAK_WAV") {
-        write_wav_i16(&wav_path, &samples, SAMPLE_RATE)
-            .with_context(|| format!("writing wav to {wav_path}"))?;
-        eprintln!("[speak] wrote {wav_path}");
+    // ---- optional WAV dump (the streamed audio, concatenated) ----
+    if want_wav {
+        if let Ok(wav_path) = std::env::var("SPEAK_WAV") {
+            write_wav_i16(&wav_path, &all_samples, SAMPLE_RATE)
+                .with_context(|| format!("writing wav to {wav_path}"))?;
+            eprintln!("[speak] wrote {wav_path}");
+        }
     }
 
-    // ---- play aloud via ffplay ----
-    play_via_ffplay(&samples)?;
+    // ---- wait for playback to finish draining ----
+    if let Some(player) = player {
+        player.finish()?;
+    }
     Ok(())
 }
 
-/// Pipe raw f32le mono PCM to `ffplay`, which renders it through the system
-/// (PulseAudio/WSLg) audio server. No temp file, no audio crate.
-fn play_via_ffplay(samples: &[f32]) -> Result<()> {
-    use std::process::{Command, Stdio};
-    let mut child = Command::new("ffplay")
-        .args([
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-nodisp",
-            "-autoexit",
-            "-f",
-            "f32le",
-            "-ar",
-            &SAMPLE_RATE.to_string(),
-            "-ac",
-            "1",
-            "-i",
-            "pipe:0",
-        ])
-        .stdin(Stdio::piped())
-        .spawn()
-        .context("spawning ffplay (is ffmpeg installed?)")?;
-    {
-        let mut stdin = child.stdin.take().context("ffplay stdin unavailable")?;
-        // x86/aarch64 are little-endian, so the f32 slice is already f32le.
-        stdin
-            .write_all(bytemuck::cast_slice::<f32, u8>(samples))
-            .context("writing pcm to ffplay")?;
-    } // drop stdin -> EOF
-    let status = child.wait().context("waiting for ffplay")?;
-    if !status.success() {
-        bail!("ffplay exited with {status}");
+// Streaming decode/playback tuning, in SNAC frames (~85 ms each).
+const CONTEXT_FRAMES: usize = 3; // left context fed into each window decode
+const MARGIN_FRAMES: usize = 1; // right frames held back for context (adds latency)
+const STEP_FRAMES: usize = 4; // emit roughly every this many newly completed frames
+
+/// Streaming audio sink: a single persistent `ffplay` process fed raw f32le PCM
+/// over a pipe. It renders through the system (PulseAudio/WSLg) audio server —
+/// no temp file, no audio crate. Started lazily on the first chunk.
+struct Player {
+    child: std::process::Child,
+    stdin: std::process::ChildStdin,
+}
+
+impl Player {
+    fn start() -> Result<Self> {
+        use std::process::{Command, Stdio};
+        let mut child = Command::new("ffplay")
+            .args([
+                "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                "-fflags", "nobuffer", "-flags", "low_delay",
+                "-f", "f32le", "-ar", &SAMPLE_RATE.to_string(), "-ac", "1", "-i", "pipe:0",
+            ])
+            .stdin(Stdio::piped())
+            .spawn()
+            .context("spawning ffplay (is ffmpeg installed?)")?;
+        let stdin = child.stdin.take().context("ffplay stdin unavailable")?;
+        Ok(Self { child, stdin })
     }
+
+    fn write_samples(&mut self, samples: &[f32]) -> Result<()> {
+        // x86/aarch64 are little-endian, so the f32 slice is already f32le.
+        self.stdin
+            .write_all(bytemuck::cast_slice::<f32, u8>(samples))
+            .context("writing pcm to ffplay")
+    }
+
+    fn finish(self) -> Result<()> {
+        let Player { mut child, stdin } = self;
+        drop(stdin); // EOF -> ffplay drains its buffer and exits (-autoexit)
+        let status = child.wait().context("waiting for ffplay")?;
+        if !status.success() {
+            bail!("ffplay exited with {status}");
+        }
+        Ok(())
+    }
+}
+
+/// Decode SNAC frames `[start_frame, end_frame)` from the flat 7-tokens-per-frame
+/// buffer into f32 PCM. Returns `(pcm, samples_per_frame)`.
+fn decode_frames(
+    snac: &SnacModel,
+    audio_tokens: &[u32],
+    start_frame: usize,
+    end_frame: usize,
+    device: &Device,
+) -> Result<(Vec<f32>, usize)> {
+    let toks = &audio_tokens[start_frame * 7..end_frame * 7];
+    let (mut c0, mut c1, mut c2) = (Vec::new(), Vec::new(), Vec::new());
+    for f in toks.chunks_exact(7) {
+        c0.push(f[0]);
+        c1.push(f[1]);
+        c1.push(f[4]);
+        c2.push(f[2]);
+        c2.push(f[3]);
+        c2.push(f[5]);
+        c2.push(f[6]);
+    }
+    let t0 = Tensor::new(c0, device)?.unsqueeze(0)?;
+    let t1 = Tensor::new(c1, device)?.unsqueeze(0)?;
+    let t2 = Tensor::new(c2, device)?.unsqueeze(0)?;
+    let pcm = snac.decode(&[&t0, &t1, &t2])?;
+    let pcm: Vec<f32> = pcm.i(0)?.i(0)?.to_vec1::<f32>()?;
+    let spf = pcm.len() / (end_frame - start_frame);
+    Ok((pcm, spf))
+}
+
+/// Decode the sliding window `[emitted-CONTEXT, total)` and stream the samples
+/// for frames `[emitted, target)` to the player, lazily starting it on first use.
+/// Decoding with a few frames of left/right context keeps the chunk seams from
+/// clicking; only the central, fully-contextualised samples are emitted.
+#[allow(clippy::too_many_arguments)]
+fn stream_emit(
+    snac: &SnacModel,
+    device: &Device,
+    audio_tokens: &[u32],
+    total_frames: usize,
+    target_frames: usize,
+    emitted_frames: &mut usize,
+    emitted_samples: &mut usize,
+    player: &mut Option<Player>,
+    all_samples: &mut Vec<f32>,
+    want_wav: bool,
+) -> Result<()> {
+    if target_frames <= *emitted_frames {
+        return Ok(());
+    }
+    let ws = emitted_frames.saturating_sub(CONTEXT_FRAMES);
+    let (pcm, spf) = decode_frames(snac, audio_tokens, ws, total_frames, device)?;
+    let off = (*emitted_frames - ws) * spf;
+    let end = ((target_frames - ws) * spf).min(pcm.len());
+    let slice = &pcm[off..end];
+    if player.is_none() {
+        *player = Some(Player::start()?);
+    }
+    player.as_mut().unwrap().write_samples(slice)?;
+    if want_wav {
+        all_samples.extend_from_slice(slice);
+    }
+    *emitted_frames = target_frames;
+    *emitted_samples += slice.len();
     Ok(())
 }
 
