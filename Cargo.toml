@@ -1,39 +1,15 @@
 [package]
-name = "speak_tts"
+name = "kokoro"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "speak"
-path = "src/main.rs"
-
-[[bin]]
-name = "kokoro"
-path = "src/bin/kokoro.rs"
-
 [dependencies]
-# kaarrot fork: CPU decode fast path (forward_decode_token_into + repack kernels).
-# Enable at runtime with CANDLE_CPU_DECODE_EXECUTOR=1 and build with
-# RUSTFLAGS='-C target-cpu=native' (AVX2+FMA) to engage the SIMD kernels.
-candle-core = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed" }
-candle-nn = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed" }
-candle-transformers = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed" }
-tokenizers = "0.20"
+# ONNX Runtime, loaded dynamically (dlopen a libonnxruntime.so at runtime).
+ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
 hf-hub = "0.4"
 serde_json = "1"
 bytemuck = "1"
 anyhow = "1"
-# Kokoro prototype (bin: kokoro) — ONNX Runtime via load-dynamic: the binary
-# dlopens an onnxruntime .so at runtime (ORT_DYLIB_PATH) instead of static-linking
-# a prebuilt one. Avoids the glibc-2.38 mismatch of ort's bundled binary on this
-# glibc-2.35 box; kokoro auto-detects the pip-installed onnxruntime .so.
-ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
-# Pure-Rust backend (no native onnxruntime .so), for Termux/aarch64. Enable with
-# `cargo build --features tract --bin kokoro`.
-ort-tract = { version = "0.3.0+0.22", optional = true }
-
-[features]
-tract = ["dep:ort-tract", "ort/alternative-backend"]
 
 [profile.release]
 opt-level = 3
