@@ -132,8 +132,11 @@ fn main() -> Result<()> {
 
     // ---- build prompt: [START] + ids("{voice}: {text}") + [END...] ----
     let prompt = format!("{voice}: {text}");
+    // add_special_tokens = true so the tokenizer prepends <|begin_of_text|> (128000),
+    // matching the upstream orpheus example. Without BOS the model starts in an
+    // ill-defined state and emits the stop token prematurely on some prompts.
     let encoded = tokenizer
-        .encode(prompt, false)
+        .encode(prompt, true)
         .map_err(anyhow::Error::msg)
         .context("encoding prompt")?;
     let mut ids: Vec<u32> = Vec::new();
