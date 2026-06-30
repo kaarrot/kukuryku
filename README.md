@@ -239,6 +239,26 @@ the public `onnx-community/Kokoro-82M-v1.0-ONNX` repo via hf-hub.
 > Prototype caveat: phonemization uses raw `espeak-ng` rather than Kokoro's reference
 > phonemizer (misaki), so pronunciation is close but not identical on tricky words.
 
+### Backends (onnxruntime vs tract) and Termux
+
+Default builds use ONNX Runtime via `ort`'s `load-dynamic` — the binary dlopens an
+onnxruntime `.so` at runtime. On glibc Linux, `pip install onnxruntime` provides it and
+`kokoro` auto-detects it.
+
+There's also a `tract` feature (`cargo build --features tract --bin kokoro`) that swaps in
+the **pure-Rust** [tract](https://github.com/sonos/tract) backend — no native `.so`, trivial
+to cross-compile. **However, tract 0.22 currently fails to load the Kokoro v1.0 model**
+(`Failed analyse … Concat … InferenceConcat`): tract does static shape inference and can't
+resolve the model's dynamic phoneme-length axis. So onnxruntime is required for now; the
+`tract` feature is kept for future use (a newer tract, a static-shape re-export, or pinning
+input facts).
+
+**Termux / Android (aarch64):** the glibc pip wheel will *not* load under Android's bionic
+libc. Use the **`onnxruntime-android` AAR**, which contains an arm64-v8a `libonnxruntime.so`
+built for Android — extract it and point `ORT_DYLIB_PATH` at it. Also `pkg install espeak-ng
+ffmpeg`, and start PulseAudio with `module-sles-sink` for playback. Prefer the quantized
+`onnx/model_q8f16.onnx` on phone CPUs.
+
 vs Orpheus: you trade Orpheus's expressiveness/emotion tags for tiny size, smooth realtime
 playback, and ~80 MB RAM. For a "type text → hear it now" tool, Kokoro is the usable path.
 

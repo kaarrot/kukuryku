@@ -67,6 +67,7 @@ fn phonemize(text: &str, lang: &str) -> Result<String> {
 /// With ort's `load-dynamic`, onnxruntime is dlopened at runtime from
 /// `ORT_DYLIB_PATH`. If unset, auto-detect the pip-installed onnxruntime .so
 /// (manylinux build, glibc-compatible) so this works out of the box.
+#[cfg(not(feature = "tract"))]
 fn ensure_ort_dylib() {
     if std::env::var_os("ORT_DYLIB_PATH").is_some() {
         return;
@@ -91,7 +92,18 @@ fn ensure_ort_dylib() {
 
 fn main() -> Result<()> {
     let t0 = std::time::Instant::now();
-    ensure_ort_dylib();
+    // Select the ort backend. `tract` feature = pure-Rust (no native .so);
+    // otherwise dlopen onnxruntime.
+    #[cfg(feature = "tract")]
+    {
+        ort::set_api(ort_tract::api());
+        eprintln!("[kokoro] backend: tract (pure Rust)");
+    }
+    #[cfg(not(feature = "tract"))]
+    {
+        ensure_ort_dylib();
+        eprintln!("[kokoro] backend: onnxruntime");
+    }
     let text = read_text()?;
     let voice = env_or("KOKORO_VOICE", "af_heart");
     let model_file = env_or("KOKORO_MODEL", "onnx/model.onnx");

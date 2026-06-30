@@ -28,6 +28,12 @@ anyhow = "1"
 # a prebuilt one. Avoids the glibc-2.38 mismatch of ort's bundled binary on this
 # glibc-2.35 box; kokoro auto-detects the pip-installed onnxruntime .so.
 ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
+# Pure-Rust backend (no native onnxruntime .so), for Termux/aarch64. Enable with
+# `cargo build --features tract --bin kokoro`.
+ort-tract = { version = "0.3.0+0.22", optional = true }
+
+[features]
+tract = ["dep:ort-tract", "ort/alternative-backend"]
 
 [profile.release]
 opt-level = 3
