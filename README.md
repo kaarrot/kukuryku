@@ -162,6 +162,39 @@ CPU TTS *usable*, not realtime.
 - **401 fetching the tokenizer** — the canonical repo is gated; the default unsloth mirror avoids
   this. Set `SPEAK_TOKENIZER_REPO` only if you intend to use a gated repo with an HF token.
 
+## `kokoro` — soft-realtime CPU TTS (prototype)
+
+A second binary, `kokoro`, is a prototype of the *other* TTS family: **Kokoro-82M**,
+a small non-autoregressive model run via ONNX Runtime. Unlike Orpheus it predicts the
+whole utterance in one forward pass, so it runs **faster than realtime on CPU**
+(measured **RTF ~0.4**, ~2.5× realtime) — playback is smooth with no streaming tricks.
+
+Pipeline: text → `espeak-ng` IPA phonemes → phoneme-id tokens → Kokoro ONNX (+ per-voice
+style vector) → 24 kHz waveform → ffplay.
+
+Prereqs (beyond ffmpeg): **espeak-ng** (`apt install espeak-ng`) and an **onnxruntime
+shared library**. The build uses `ort` with `load-dynamic`, and `kokoro` auto-detects the
+pip-installed runtime — so `pip install onnxruntime` is the easiest way to provide it
+(its manylinux build sidesteps glibc-version issues with `ort`'s bundled binary). Override
+the path with `ORT_DYLIB_PATH` if needed.
+
+```bash
+cargo build --release --bin kokoro
+./target/release/kokoro "what is for lunch today?"
+KOKORO_VOICE=am_michael ./target/release/kokoro "I could go for some pizza."
+```
+
+Config: `KOKORO_VOICE` (default `af_heart`; e.g. `am_michael`, `bf_emma`, …),
+`KOKORO_MODEL` (default `onnx/model.onnx`; try `onnx/model_q8f16.onnx` for a smaller/faster
+variant), `KOKORO_LANG` (default `en-us`), `KOKORO_SPEED`, `KOKORO_WAV`. Assets come from
+the public `onnx-community/Kokoro-82M-v1.0-ONNX` repo via hf-hub.
+
+> Prototype caveat: phonemization uses raw `espeak-ng` rather than Kokoro's reference
+> phonemizer (misaki), so pronunciation is close but not identical on tricky words.
+
+vs Orpheus: you trade Orpheus's expressiveness/emotion tags for tiny size, smooth realtime
+playback, and ~80 MB RAM. For a "type text → hear it now" tool, Kokoro is the usable path.
+
 ## How it works
 
 See [`plan.md`](plan.md) for the full design rationale and the model-options comparison. The

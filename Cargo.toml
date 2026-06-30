@@ -7,6 +7,10 @@ edition = "2024"
 name = "speak"
 path = "src/main.rs"
 
+[[bin]]
+name = "kokoro"
+path = "src/bin/kokoro.rs"
+
 [dependencies]
 # kaarrot fork: CPU decode fast path (forward_decode_token_into + repack kernels).
 # Enable at runtime with CANDLE_CPU_DECODE_EXECUTOR=1 and build with
@@ -19,6 +23,11 @@ hf-hub = "0.4"
 serde_json = "1"
 bytemuck = "1"
 anyhow = "1"
+# Kokoro prototype (bin: kokoro) — ONNX Runtime via load-dynamic: the binary
+# dlopens an onnxruntime .so at runtime (ORT_DYLIB_PATH) instead of static-linking
+# a prebuilt one. Avoids the glibc-2.38 mismatch of ort's bundled binary on this
+# glibc-2.35 box; kokoro auto-detects the pip-installed onnxruntime .so.
+ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
 
 [profile.release]
 opt-level = 3
