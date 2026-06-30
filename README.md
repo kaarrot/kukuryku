@@ -251,7 +251,8 @@ to cross-compile. **However, tract 0.22 currently fails to load the Kokoro v1.0 
 (`Failed analyse … Concat … InferenceConcat`): tract does static shape inference and can't
 resolve the model's dynamic phoneme-length axis. So onnxruntime is required for now; the
 `tract` feature is kept for future use (a newer tract, a static-shape re-export, or pinning
-input facts).
+input facts). See [`docs/tract-support-plan.md`](docs/tract-support-plan.md) for the deferred
+plan to make the model run on tract.
 
 **Termux / Android (aarch64):** the glibc pip wheel will *not* load under Android's bionic
 libc. Use the **`onnxruntime-android` AAR**, which contains an arm64-v8a `libonnxruntime.so`
