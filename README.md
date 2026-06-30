@@ -101,7 +101,22 @@ SPEAK_MODEL=orpheus-3b-Q6_K_L.gguf CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release
 | `SPEAK_TEMP` | `0.6` | Sampling temperature |
 | `SPEAK_SEED` | `299792458` | RNG seed |
 | `SPEAK_WAV` | _(unset)_ | If set, also write a 16-bit PCM WAV to this path |
+| `SPEAK_STREAM` | _(unset)_ | If set, stream audio as it's generated (low latency, but choppy — see below) |
 | `SPEAK_TOKENIZER_REPO` | `unsloth/orpheus-3b-0.1-ft` | Override the tokenizer source repo |
+
+### Latency vs. smoothness (SPEAK_STREAM)
+
+By default `speak` generates the whole utterance, then plays it as one smooth
+buffer — so you wait the full generation time (~17 s load + ~N s decode) before
+any sound, but playback is clean.
+
+`SPEAK_STREAM=1` instead pipes audio to `ffplay` as each chunk is decoded, so you
+hear the first words a few seconds into generation. **The catch:** CPU generation
+is ~10× slower than realtime, so `ffplay` drains each chunk and then waits for the
+next — the voice **breaks up** (audible gaps). This is buffer underrun, not a bug;
+it's fundamental to sub-realtime generation. Use streaming only when you want the
+fastest possible feedback and can tolerate choppy audio. For smooth *and* fast you
+need faster generation (a smaller model or a GPU), not a setting.
 
 Fork runtime gates (advanced): `CANDLE_CPU_DECODE_EXECUTOR=1` (required for the fast path),
 `CANDLE_MATVEC_THREADS=N` (matvec pool size; defaults to 4 and plateaus there — the workload is
