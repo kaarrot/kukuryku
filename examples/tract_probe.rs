@@ -53,6 +53,26 @@ fn main() -> TractResult<()> {
     let mut model = tract_onnx::onnx().model_for_path(&model_path)?;
     eprintln!("[probe] OK: model_for_path (parsed {} nodes)", model.nodes().len());
 
+    // --- PROBE_OPS=1: op-type inventory + missing-op scan, then exit ---------
+    // Unregistered ONNX ops become UnimplementedOp placeholders (op name
+    // "Unimplemented(<OpType>)"), so this enumerates exactly which ops tract
+    // lacks for this model — independent of the shape-inference wall.
+    if std::env::var("PROBE_OPS").is_ok() {
+        op_inventory(&model);
+        return Ok(());
+    }
+
+    // --- PROBE_FIND=<substr>: list node ids whose op name contains substr -----
+    if let Ok(needle) = std::env::var("PROBE_FIND") {
+        eprintln!("[probe] nodes with op name containing '{needle}':");
+        for node in model.nodes() {
+            if node.op().name().contains(&needle) {
+                eprintln!("  #{} '{}' op={}", node.id, node.name, node.op().name());
+            }
+        }
+        return Ok(());
+    }
+
     // --- discover input order + names, pin facts in that order --------------
     let inputs = model.input_outlets()?.to_vec();
     let names: Vec<String> = inputs.iter().map(|o| model.node(o.node).name.clone()).collect();
@@ -83,8 +103,9 @@ fn main() -> TractResult<()> {
     // --- optional: dump a node + its input producers (pre-analyse) ----------
     // Use PROBE_DUMP_NODE=1802 to inspect the failing Concat's neighbourhood.
     if let Some(id) = std::env::var("PROBE_DUMP_NODE").ok().and_then(|s| s.parse::<usize>().ok()) {
-        eprintln!("[probe] --- dump of node #{id} and its inputs ---");
-        dump_node(&model, id);
+        let depth: usize = std::env::var("PROBE_DUMP_DEPTH").ok().and_then(|s| s.parse().ok()).unwrap_or(1);
+        eprintln!("[probe] --- backtrace of node #{id} (depth {depth}) ---");
+        dump_node(&model, id, depth, 0);
     }
 
     // --- shape inference: this is where the documented InferenceConcat dies --
@@ -128,11 +149,47 @@ fn main() -> TractResult<()> {
     Ok(())
 }
 
-/// Print a node, its op, and for each input the producing node (name/op) and the
-/// pre-analyse fact on that wire. Helps see what shapes a failing node is fed.
-fn dump_node(model: &InferenceModel, id: usize) {
+/// Histogram every node's op name and call out UnimplementedOp placeholders —
+/// the ops tract has no parser for (the real "missing op" list for this model).
+fn op_inventory(model: &InferenceModel) {
+    use std::collections::BTreeMap;
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut missing: BTreeMap<String, usize> = BTreeMap::new();
+    for node in model.nodes() {
+        let name = node.op().name().to_string();
+        *counts.entry(name.clone()).or_default() += 1;
+        if let Some(inner) = name.strip_prefix("Unimplemented(").and_then(|s| s.strip_suffix(")")) {
+            *missing.entry(inner.to_string()).or_default() += 1;
+        }
+    }
+
+    // sort histogram by count desc
+    let mut by_count: Vec<(String, usize)> = counts.into_iter().collect();
+    by_count.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    eprintln!("[probe] op-type inventory ({} distinct ops):", by_count.len());
+    for (name, c) in &by_count {
+        eprintln!("  {c:>5}  {name}");
+    }
+
+    eprintln!();
+    if missing.is_empty() {
+        eprintln!("[probe] MISSING OPS: none — tract has a parser registered for every op in the model.");
+    } else {
+        let total: usize = missing.values().sum();
+        eprintln!("[probe] MISSING OPS: {} node(s) across {} op type(s) tract cannot build:", total, missing.len());
+        for (op, c) in &missing {
+            eprintln!("  {c:>5}  {op}");
+        }
+    }
+}
+
+/// Recursively print a node and its input producers up to `depth` levels, with
+/// the pre-analyse fact on each wire. Helps see the shape-source chain feeding a
+/// failing node (e.g. what computes an Expand's target length).
+fn dump_node(model: &InferenceModel, id: usize, depth: usize, indent: usize) {
+    let pad = "  ".repeat(indent + 1);
     let node = model.node(id);
-    eprintln!("  node #{id} '{}' op={}", node.name, node.op().name());
+    eprintln!("{pad}#{id} '{}' op={}", node.name, node.op().name());
     for (i, inlet) in node.inputs.iter().enumerate() {
         let producer = model.node(inlet.node);
         let fact = model
@@ -140,11 +197,14 @@ fn dump_node(model: &InferenceModel, id: usize) {
             .map(|f| format!("{f:?}"))
             .unwrap_or_else(|e| format!("<err: {e}>"));
         eprintln!(
-            "    input[{i}] <- #{} '{}' op={} | fact={}",
+            "{pad}  input[{i}] <- #{} '{}' op={} | fact={}",
             inlet.node,
             producer.name,
             producer.op().name(),
             fact
         );
+        if depth > 0 {
+            dump_node(model, inlet.node, depth - 1, indent + 2);
+        }
     }
 }

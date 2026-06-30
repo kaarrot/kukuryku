@@ -78,16 +78,66 @@ feature axis (512+128→640):
 - input[0] `?,?,512` ← `/encoder/bert_encoder/Add`
 - input[1] `?,?,128` ← node **#1801 `/encoder/predictor/text_encoder/Expand` (`MultiBroadcastTo`)**
 
-The `Expand`'s broadcast **target length is data-dependent** (computed from a runtime Shape chain),
-so tract infers its seq axis as `1` instead of `sequence_length`, and the Concat's non-concat-axis
-equality rule then can't unify `sequence_length` with `1`. This is the dynamic-shape pattern Step 2
-warned about, surfacing already in the text encoder.
+The `Expand`'s target shape is the PyTorch `tensor.expand(-1,-1,-1)` ONNX lowering:
+`Where(Equal(Concat[Gather(Shape(x),0), Gather(Shape(x),1), -1], -1), [1,1,1], …)`. The seq element
+is `Shape(x)[1]` — i.e. **`sequence_length`, *not* a duration-derived length** — but tract can't
+carry the symbol through that `Where`/`Equal`/`ConstantOfShape` control-flow pattern, so axis 1
+collapses to `1` and the Concat's non-concat-axis equality rule can't unify `sequence_length` with
+`1`. This is a *symbol-propagation* failure, not a genuinely dynamic axis. See the next section.
 
-**Implication for next step:** the lever is making `Expand` (#1801) carry `sequence_length` on axis
-1 — either by feeding tract symbolic shape info it can propagate through the Shape→…→Expand chain,
-by graph surgery on that subgraph, or via the **static-shape re-export** track (which removes the
-dynamic `Expand` target entirely and is probably the lowest-risk path to getting *past* #1802 and
-finally seeing the vocoder).
+### What needs to be done — investigation (2026-06-30)
+
+Used the probe's op inventory (`PROBE_OPS=1`) and node backtraces (`PROBE_DUMP_NODE`/`PROBE_FIND`) to
+scope the *whole* model, not just the first wall.
+
+**Op support is NOT the problem.** The model uses **50 distinct op types across 3012 nodes, and
+tract has a registered parser for every one of them** (`MISSING OPS: none`; unregistered ops would
+show up as `Unimplemented(<op>)` placeholders — there are none). This **retires the doc's biggest
+fear**: the iSTFTNet vocoder's `STFT` (×1) and `ConvTranspose` (×6) are both present, plus `LSTM`,
+`Resize`, `LayerNorm`, `Gemm`, etc. There is no "reimplement a chunk of DSP" task lurking behind the
+shape wall. The remaining risk is op *correctness/optimization*, not op *existence*.
+
+**The real problem is shape inference, and it splits into two distinct classes:**
+
+1. **Symbol-propagation failures (fixable).** The text encoder repeatedly uses the PyTorch
+   `expand(-1,…)` lowering (`Shape → Gather → Unsqueeze → Concat → Equal → Where → Expand`) and
+   similar `Reshape`/control-flow patterns. The dims involved are just `sequence_length` (a clean
+   input symbol), but tract loses the symbol through the `Where`/`Equal`/`ConstantOfShape` value
+   logic. #1802 (and #550 when pinned) are instances. These are removable by constant-folding /
+   `onnx-simplifier` on re-export, by graph surgery on the subgraph, or by improving tract's
+   symbolic propagation.
+
+2. **A genuinely data-dependent axis (NOT fixable by symbol propagation).** Kokoro's **length
+   regulator** turns predicted phoneme durations into a frame axis:
+   `#1865 /encoder/CumSum → #1866 Gather → #1870 /encoder/Range(0, total_frames, 1)`, where
+   `total_frames = sum(round(durations))` — a tensor **value**, not a shape. tract's static analyser
+   cannot represent a value-derived length as a shape symbol, so no re-export or simplifier removes
+   this; it is intrinsic to the model. Everything downstream (decoder + iSTFTNet vocoder) runs on
+   this frame axis. (The other data-dependent ops — `NonZero` #2989, `ScatterND` #3005, `Range`
+   #2985, `m_source` `CumSum` #2067 — live *inside* the STFT / harmonic source generator and operate
+   on constant or now-concrete data; they are not outer-graph shape drivers.)
+
+**Recommended approach: split the model at the length regulator (graph surgery / two-stage).**
+- **Stage 1 (tract):** `input_ids, style, speed` → BERT/text encoder + duration predictor →
+  per-phoneme **durations** + phoneme-level prosody/features. Shapes here key only on
+  `sequence_length`.
+- **Rust glue:** round/clamp durations, `total_frames = sum`, build the phoneme→frame alignment
+  matrix (a few loops). This removes the entire data-dependent shape region (CumSum/Range/alignment)
+  from any ONNX graph tract has to analyse.
+- **Stage 2 (tract):** frame-level features (concrete `total_frames` per utterance, fed as the input
+  dim) → decoder + iSTFTNet vocoder → 24 kHz waveform.
+
+Both stages then have static-or-cleanly-symbolic shapes, which also sidesteps class (1) (each
+subgraph is simpler and the worst `expand` patterns are around the alignment). The cost is producing
+two ONNX subgraphs — cleanest via a re-export from the HF PyTorch model split at the alignment, or
+ONNX graph surgery (`onnx.utils.extract_model`) on the existing file. This supersedes the
+"static-shape re-export" alternative below: re-export alone won't remove the data-dependent frame
+axis; **the split is what makes the model tract-able.**
+
+Effort re-estimate: with op support already proven present, the work is (a) the two-stage split +
+Rust length-regulator (~1–2 days incl. parity checks) and (b) shaking out op-correctness/optimize
+issues per stage (uncertain but bounded — no missing ops). The earlier "weeks / reimplement-a-chunk"
+vocoder scenario looks unlikely.
 
 ### Step 1 — Shape resolution (likely hours–1 day)
 Replace the `ort`-API inference path in `kokoro.rs` with a **direct tract** path so we control
