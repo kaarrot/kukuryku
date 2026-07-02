@@ -289,9 +289,37 @@ diffing.
 ~0.4–1.2). Caching optimized plans per phoneme-count is a later concern, not a
 blocker.
 
-**Remaining:** (a) Stage-2 vocoder numerical fidelity (STFT/iSTFT); (b) optional
-plan caching for perf; (c) ship/generate the split subgraphs as part of the tract
-build flow.
+### Where the ~0.94 vocoder gap comes from (2026-07-02)
+
+Bisected Stage 2 tract-vs-ORT with intermediate probe points (add tensors as extra
+graph outputs; `kokoro-tract` dumps all stage-2 outputs under `KOKORO_TRACT_DUMP`,
+compared against onnxruntime fed the same stage-1 dumps). Result, for "Hello world.":
+
+| Probe point | tract-vs-ORT corr |
+|---|---|
+| forward STFT (`generator/STFT`, my rank-2 patch) | **1.00000** |
+| harmonic source (`m_source` Tanh) | **1.00000** |
+| `ups.0` ConvTranspose | **1.0**, max\|Δ\| 0.0 (bit-exact) |
+| resblocks.0 AdaIN variance | 0.99935 |
+| `ups.1` ConvTranspose | 0.9975 |
+| `conv_post` (log-magnitude) | 0.9989, max\|Δ\| **1.34** |
+| `Exp` → magnitude spectrogram | **0.937** |
+| waveform | 0.942 |
+
+So the STFT rank-2 patch and the iSTFT are **not** the cause (both ~1.0). The gap is
+**diffuse ~0.1–0.3% numerical divergence** accumulating through the decoder generator's
+conv / AdaIN-instance-norm / Snake stack — no single broken op — which the final
+`Exp` (log-magnitude → linear magnitude) **amplifies** (a max\|Δ\| of 1.34 in log space
+→ up to ~e^1.34 ≈ 3.8× at some bins), producing the audible ringing. This is
+consistent with tract's f32 CPU kernels (and possibly its SIMD-approximate
+transcendentals: `Exp`/`Sin`/`Tanh` used in the final Exp, Snake activations, and
+phase) differing subtly from onnxruntime — not a logic bug. Closing it likely needs a
+precision-oriented pass (exact transcendentals / accumulation), with uncertain payoff;
+acceptable-as-is for a prototype.
+
+**Remaining:** (a) Stage-2 vocoder numerical fidelity (diffuse decoder precision +
+`Exp` amplification — above); (b) optional plan caching for perf; (c) ship/generate the
+split subgraphs as part of the tract build flow.
 
 ## Effort & decision criteria
 
