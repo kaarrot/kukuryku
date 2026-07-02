@@ -25,7 +25,13 @@ impl Expansion for Range {
             move |s, dt0, dt1, dt2| {
                 let dt =
                     DatumType::super_type_for([dt0, dt1, dt2]).context("No supertype found")?;
-                s.equals(dt, &outputs[0].datum_type)
+                // A TDim bound (e.g. Range(0, Shape(x)[0], 1)) makes the supertype
+                // TDim, but the core Range op resolves such a range to concrete I64
+                // indices (see tract_core Range::output_facts). Mirror that here so
+                // the inferred output type matches — and doesn't conflict with a
+                // downstream consumer that already pinned the indices to I64.
+                let out_dt = if dt.is_tdim() { i64::datum_type() } else { dt };
+                s.equals(out_dt, &outputs[0].datum_type)
             },
         )?;
         s.equals(&inputs[0].rank, 0)?;

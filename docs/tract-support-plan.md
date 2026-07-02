@@ -231,14 +231,22 @@ value_info (`sequence_length`, `num_samples`) that *conflicts* with the concrete
 pin — stripping all intermediate value_info + clearing output shapes fixes it (and
 also restores the real `input_ids` i64 dtype). `tools/split_kokoro.py` does this.
 
-Re-running the finalized **Stage 2** (with the MatMuls included; alignment fed as
-`[N, total_frames]`) passes analyse end-to-end and hits the *same* remaining wall:
-`Range(0, Shape(signal)[0], 1)` in the iSTFT → `TDim` vs `I64`. So the two MatMuls
-are fully supported; the only outstanding tract-code item for the whole pipeline is
-that single `Range`/`Shape`→`TDim` type-coherence fix.
+**Range/`Shape`→`TDim` fix (done).** The finalized **Stage 2** (MatMuls included,
+alignment fed as `[N, total_frames]`) initially hit `Range(0, Shape(signal)[0], 1)`
+in the iSTFT → `TDim` vs `I64`. Root cause: tract's core `Range` already resolves a
+TDim-bounded range to concrete **I64** indices (`tract-core` `Range::output_facts`),
+but the **HIR** expansion's inference rule forced the output datum type to
+`super_type_for([I64, TDim, I64])` = `TDim`, contradicting the core op and any
+downstream consumer that pinned the indices to I64. Patched
+`tract-hir/src/ops/array/range.rs` to mirror the core op: when the supertype is
+TDim, the inferred output is I64. Small and low-risk — only changes the TDim-input
+case, to the type the core op already produces.
 
-**Status: both stages structurally validated in tract.** Remaining work is (a) the
-one Stage-2 `Range` fix, (b) the Rust length regulator, (c) wiring two tract
+**Status: BOTH stages fully load, optimize, AND run in tract.** Stage 1 →
+`[1,640,N]`, `[1,512,N]`, `[1,N]`; Stage 2 → `waveform [1, total_frames*hop]`
+(validated at N=frames=64 → 38400 samples). The two tract patches (STFT rank-2,
+Range TDim→I64) are the entire tract-code footprint. Remaining work is pure Rust:
+(a) the length regulator (durations → alignment matrix), (b) wiring the two tract
 sessions behind the kokoro backend. No missing ops, no re-export required.
 
 ## Effort & decision criteria
