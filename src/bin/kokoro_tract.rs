@@ -81,12 +81,19 @@ mod tract_backend {
         let names: Vec<String> =
             outlets.iter().map(|o| model.node(o.node).name.clone()).collect();
 
+        // Cast each supplied tensor to the model's declared input dtype, so an
+        // f64-cast subgraph (KOKORO_TRACT_F64 experiment) runs transparently with
+        // the same f32 features from stage 1.
+        let mut ordered: Vec<Tensor> = Vec::with_capacity(names.len());
         for (ix, name) in names.iter().enumerate() {
             let (_, t) = inputs
                 .iter()
                 .find(|(n, _)| n == name)
                 .with_context(|| format!("{}: no tensor supplied for input '{name}'", path.display()))?;
-            model.set_input_fact(ix, InferenceFact::dt_shape(t.datum_type(), t.shape()))?;
+            let want = model.outlet_fact(outlets[ix])?.datum_type().unwrap_or_else(|| t.datum_type());
+            let ct = t.cast_to_dt(want)?.into_owned();
+            model.set_input_fact(ix, InferenceFact::dt_shape(want, ct.shape()))?;
+            ordered.push(ct);
         }
 
         let t_opt = std::time::Instant::now();
@@ -96,13 +103,7 @@ mod tract_backend {
             .into_runnable()?;
         let opt_secs = t_opt.elapsed().as_secs_f64();
 
-        let run_inputs: TVec<TValue> = names
-            .iter()
-            .map(|name| {
-                let (_, t) = inputs.iter().find(|(n, _)| n == name).unwrap();
-                t.clone().into()
-            })
-            .collect();
+        let run_inputs: TVec<TValue> = ordered.into_iter().map(|t| t.into()).collect();
         let t_run = std::time::Instant::now();
         let out = runnable
             .run(run_inputs)
@@ -119,7 +120,8 @@ mod tract_backend {
     /// little-endian bytes (shape known by the caller) for offline diffing.
     fn dump(name: &str, v: &TValue) -> Result<()> {
         if let Some(dir) = std::env::var_os("KOKORO_TRACT_DUMP") {
-            let data: Vec<f32> = v.to_array_view::<f32>()?.iter().copied().collect();
+            let t = v.cast_to::<f32>()?;
+            let data: Vec<f32> = t.to_array_view::<f32>()?.iter().copied().collect();
             std::fs::write(
                 std::path::Path::new(&dir).join(format!("{name}.f32")),
                 bytemuck::cast_slice::<f32, u8>(&data),
@@ -128,9 +130,11 @@ mod tract_backend {
         Ok(())
     }
 
-    /// Copy an f32 output tensor (features cross the stage boundary as f32).
+    /// Copy an output tensor as an f32 Tensor (features cross the stage boundary
+    /// as f32; casts down if a subgraph ran in f64).
     fn f32_tensor(v: &TValue) -> Result<Tensor> {
-        let view = v.to_array_view::<f32>()?;
+        let t = v.cast_to::<f32>()?;
+        let view = t.to_array_view::<f32>()?;
         let shape: Vec<usize> = view.shape().to_vec();
         let data: Vec<f32> = view.iter().copied().collect();
         Ok(Tensor::from_shape(&shape, &data)?)
@@ -163,7 +167,8 @@ mod tract_backend {
                 feat512.shape()
             );
         }
-        let durations = s1[2].to_array_view::<f32>()?;
+        let dur_t = s1[2].cast_to::<f32>()?;
+        let durations = dur_t.to_array_view::<f32>()?;
 
         // ---- Rust length regulator: durations -> alignment matrix -----------
         // Round the (already clipped) per-phoneme durations to frame counts, then
@@ -201,6 +206,7 @@ mod tract_backend {
         for (i, o) in s2.iter().enumerate() {
             dump(&format!("s2_out{i}"), o)?;
         }
-        Ok(s2[0].to_array_view::<f32>()?.iter().copied().collect())
+        let wav = s2[0].cast_to::<f32>()?;
+        Ok(wav.to_array_view::<f32>()?.iter().copied().collect())
     }
 }

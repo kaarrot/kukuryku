@@ -333,6 +333,23 @@ corr 1.0). This is an inherent instability amplifying a tiny STFT difference, no
 logic bug. Candidate fixes: higher-precision (f64) STFT / source-analysis so the sign
 near zero-crossings matches; or stabilize the phase op. Non-trivial; uncertain payoff.
 
+**f64 experiment (2026-07-02) — did not pan out.** Two attempts:
+- *Targeted STFT-in-f64* (compute the forward DFT in f64 internally): **no effect on
+  the waveform** (byte-identical 0.94205 vs ORT). The forward STFT is a 20-point DFT,
+  already f32-accurate — the ~0.003 real-part error is *inherited* from the source
+  signal (m_source is ~0.0007 off), not produced by the STFT. Reverted.
+- *Full-stage-2 in f64* (cast all initializers/IO to double): **blocked by tract's
+  incomplete f64 support.** `Resize` requires f32 scale/roi params even on an f64
+  graph, and `Gemm`'s `beta` is materialized as f32 regardless of operand dtype
+  (`tensor is F32, accessed as F64` at `resblocks.*/adain*/fc/Gemm.beta_c`).
+
+Conclusion: the phase instability is driven by the **source path** differing from
+onnxruntime by ~0.0007 (f32 accumulation), amplified near real≈0. Matching it needs
+the source path in f64, which tract 0.22 can't do without first fixing its f32-hardcoded
+`Gemm`/`Resize` internals — and f64 is ~2× slower. Realistic options: accept the
+ringing; fix tract's f64 `Gemm`/`Resize` then run the source path in f64 (slow, proof
+of fix); or graph-surgery a numerically-stable atan2 into the model.
+
 **Remaining:** (a) Stage-2 vocoder numerical fidelity (diffuse decoder precision +
 `Exp` amplification — above); (b) optional plan caching for perf; (c) ship/generate the
 split subgraphs as part of the tract build flow.
