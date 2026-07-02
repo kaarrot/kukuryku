@@ -196,7 +196,11 @@ mod tract_backend {
                 ("style", style_t),
             ],
         )?;
-        dump("s2_waveform", &s2[0])?;
+        // s2[0] is the waveform; any extra outputs are debug probe points (added
+        // to a stage2_dbg.onnx) — dump them all for offline diffing vs onnxruntime.
+        for (i, o) in s2.iter().enumerate() {
+            dump(&format!("s2_out{i}"), o)?;
+        }
         Ok(s2[0].to_array_view::<f32>()?.iter().copied().collect())
     }
 }
