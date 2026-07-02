@@ -306,16 +306,32 @@ compared against onnxruntime fed the same stage-1 dumps). Result, for "Hello wor
 | `Exp` → magnitude spectrogram | **0.937** |
 | waveform | 0.942 |
 
-So the STFT rank-2 patch and the iSTFT are **not** the cause (both ~1.0). The gap is
-**diffuse ~0.1–0.3% numerical divergence** accumulating through the decoder generator's
-conv / AdaIN-instance-norm / Snake stack — no single broken op — which the final
-`Exp` (log-magnitude → linear magnitude) **amplifies** (a max\|Δ\| of 1.34 in log space
-→ up to ~e^1.34 ≈ 3.8× at some bins), producing the audible ringing. This is
-consistent with tract's f32 CPU kernels (and possibly its SIMD-approximate
-transcendentals: `Exp`/`Sin`/`Tanh` used in the final Exp, Snake activations, and
-phase) differing subtly from onnxruntime — not a logic bug. Closing it likely needs a
-precision-oriented pass (exact transcendentals / accumulation), with uncertain payoff;
-acceptable-as-is for a prototype.
+So the STFT rank-2 patch and the iSTFT are **not** the cause (both ~1.0).
+
+**Root cause (2026-07-02, deeper bisection): the harmonic source's phase computation
+is numerically unstable and tract's tiny STFT difference triggers it.** The source
+module computes phase as `atan(imag/real)` + quadrant correction
+(`Div → Atan → Where(±π)`), then feeds that *raw phase* straight into a conv
+(`noise_convs.0`). Probing the source-analysis chain (tract vs ORT, same inputs):
+
+| tensor | corr |
+|---|---|
+| source magnitude (`Sqrt(real²+imag²)`) | **1.00000** |
+| `Div = imag/real` | nan/inf (real≈0 crossings) |
+| `Atan` raw | 0.40, max\|Δ\| **π** |
+| phase (`Where_1`, after quadrant fix) | **0.11**, max\|Δ\| **2π** |
+| `Concat_3` source features → conv | 0.11 |
+
+tract's `Atan` is exact libm; the divergence is in `Div`. tract's f32 STFT differs
+from onnxruntime's by only ~0.003 (corr 1.0), but **near `real ≈ 0` that flips the
+sign of `imag/real`** → `atan(±∞)` = ±π/2 (the π jump), which the `Where(±π)` quadrant
+correction doubles to 2π. The corrupted *raw phase* (used directly as a conv feature,
+not via sin/cos) poisons the whole source/noise path, which is added into the decoder
+→ wrong magnitude/phase spectrograms → ringing. The transcendental-precision
+hypothesis is **refuted** (`Sin`/`Exp`/`Atan` are libm-exact; `m_source` Tanh is
+corr 1.0). This is an inherent instability amplifying a tiny STFT difference, not a
+logic bug. Candidate fixes: higher-precision (f64) STFT / source-analysis so the sign
+near zero-crossings matches; or stabilize the phase op. Non-trivial; uncertain payoff.
 
 **Remaining:** (a) Stage-2 vocoder numerical fidelity (diffuse decoder precision +
 `Exp` amplification — above); (b) optional plan caching for perf; (c) ship/generate the
