@@ -28,15 +28,17 @@ anyhow = "1"
 # a prebuilt one. Avoids the glibc-2.38 mismatch of ort's bundled binary on this
 # glibc-2.35 box; kokoro auto-detects the pip-installed onnxruntime .so.
 ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
-# Pure-Rust backend (no native onnxruntime .so), for Termux/aarch64. Enable with
-# `cargo build --features tract --bin kokoro`.
-ort-tract = { version = "0.3.0+0.22", optional = true }
-# Direct tract driver used by the bounded probe (examples/tract_probe.rs), bypassing
-# the `ort` shim so we control input facts. Same tract 0.22 as ort-tract pulls in.
+# Pure-Rust backend (no native onnxruntime .so), for Termux/aarch64. The `tract`
+# feature drives tract-onnx *directly* (see src/bin/kokoro.rs): the model is split
+# at the length regulator into two subgraphs (tools/split_kokoro.py) and each is
+# optimized per-utterance with a concrete phoneme count — the `ort-tract` shim
+# can't do this (it optimizes at load with a symbolic sequence_length and hits the
+# #1802 Concat). Also used by the bounded probe (examples/tract_probe.rs).
 tract-onnx = { version = "0.22.3", optional = true }
 
 [features]
-tract = ["dep:ort-tract", "ort/alternative-backend"]
+# Pure-Rust two-stage tract backend for kokoro: `cargo build --features tract --bin kokoro`.
+tract = ["dep:tract-onnx"]
 # Step 0 of docs/tract-support-plan.md: `cargo run --example tract_probe --features tract-probe`
 tract-probe = ["dep:tract-onnx"]
 

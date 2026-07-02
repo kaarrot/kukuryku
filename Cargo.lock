@@ -1818,17 +1818,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ort-tract"
-version = "0.3.0+0.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cf5d858eff9d54a3a8935eff574c01a2962cb1ae7dc2dc0f531f75cafb8b17e"
-dependencies = [
- "ort-sys",
- "parking_lot",
- "tract-onnx",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2593,7 +2582,6 @@ dependencies = [
  "candle-transformers",
  "hf-hub",
  "ort",
- "ort-tract",
  "serde_json",
  "tokenizers 0.20.4",
  "tract-onnx",

@@ -249,6 +249,49 @@ Range TDim→I64) are the entire tract-code footprint. Remaining work is pure Ru
 (a) the length regulator (durations → alignment matrix), (b) wiring the two tract
 sessions behind the kokoro backend. No missing ops, no re-export required.
 
+## Two-stage pipeline wired + validated end-to-end (2026-07-02)
+
+`kokoro --features tract` now runs the full pure-Rust two-stage pipeline (no
+onnxruntime, no native `.so`). Key design decision: **it drives `tract-onnx`
+directly, not the `ort-tract` shim.** The shim optimizes the model at session-load
+from the ONNX-declared *symbolic* `sequence_length`, which re-hits the #1802 Concat
+(`Sym(sequence_length)` vs `Val(1)`); driving tract directly lets us pin a concrete
+N per utterance before `into_optimized()`, which is what makes shape inference
+succeed. The `tract` feature was repointed from `ort-tract` to `tract-onnx`.
+
+Implementation (`src/bin/kokoro.rs`, `mod tract_backend`): load `stage1.onnx`, pin
+input facts to concrete shapes, optimize+run → features + durations; Rust length
+regulator builds the `[N, total_frames]` block-expansion alignment; load
+`stage2.onnx`, feed the two features + `style` + alignment, optimize+run → waveform.
+Subgraph dir via `KOKORO_TRACT_DIR` (default: next to `model.onnx`); produce the
+subgraphs with `tools/split_kokoro.py`.
+
+**Numerical validation (input "Hello world.", vs onnxruntime full model):**
+
+| Check | Result |
+|---|---|
+| Split fidelity: stage1+stage2 **in ORT** vs full model | **corr 1.0** (bit-exact) |
+| Length regulator: Rust alignment vs model `Cast_4` | **exact** (identical [15,65]) |
+| Stage 1 in **tract** vs ORT (features + durations) | **corr 1.0**, max|Δ| 0.0 |
+| Stage 2 in **tract** vs ORT (same inputs) | **corr 0.942**, rel-RMS 0.36 |
+| End-to-end tract vs ORT waveform | corr 0.941 |
+
+So the split, the length regulator, and Stage 1 are exact; the **only** correctness
+gap is Stage 2's decoder + iSTFTNet vocoder (~0.94 — recognizable speech with
+spectral artifacts). The nonstandard tract behavior there is the STFT rank-2 patch,
+so that (and the iSTFT reconstruction) is the prime suspect for the follow-up. Two
+onnxruntime runs are bit-identical, so the gap is a real tract op difference, not
+model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
+diffing.
+
+**Perf:** RTF ~4.6 (re-optimizes both stages every utterance; onnxruntime is
+~0.4–1.2). Caching optimized plans per phoneme-count is a later concern, not a
+blocker.
+
+**Remaining:** (a) Stage-2 vocoder numerical fidelity (STFT/iSTFT); (b) optional
+plan caching for perf; (c) ship/generate the split subgraphs as part of the tract
+build flow.
+
 ## Effort & decision criteria
 
 | Outcome | Effort |
