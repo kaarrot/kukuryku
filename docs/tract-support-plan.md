@@ -251,8 +251,9 @@ sessions behind the kokoro backend. No missing ops, no re-export required.
 
 ## Two-stage pipeline wired + validated end-to-end (2026-07-02)
 
-`kokoro --features tract` now runs the full pure-Rust two-stage pipeline (no
-onnxruntime, no native `.so`). Key design decision: **it drives `tract-onnx`
+The `kokoro-tract` binary (`cargo build --features tract`, or
+`--no-default-features --features tract --bin kokoro-tract` for a no-onnxruntime
+build) now runs the full pure-Rust two-stage pipeline. Key design decision: **it drives `tract-onnx`
 directly, not the `ort-tract` shim.** The shim optimizes the model at session-load
 from the ONNX-declared *symbolic* `sequence_length`, which re-hits the #1802 Concat
 (`Sym(sequence_length)` vs `Val(1)`); driving tract directly lets us pin a concrete

@@ -241,18 +241,35 @@ the public `onnx-community/Kokoro-82M-v1.0-ONNX` repo via hf-hub.
 
 ### Backends (onnxruntime vs tract) and Termux
 
-Default builds use ONNX Runtime via `ort`'s `load-dynamic` — the binary dlopens an
-onnxruntime `.so` at runtime. On glibc Linux, `pip install onnxruntime` provides it and
-`kokoro` auto-detects it.
+There are two Kokoro binaries with the same pipeline and CLI, differing only in the
+inference engine, so you can run them side by side:
 
-There's also a `tract` feature (`cargo build --features tract --bin kokoro`) that swaps in
-the **pure-Rust** [tract](https://github.com/sonos/tract) backend — no native `.so`, trivial
-to cross-compile. **However, tract 0.22 currently fails to load the Kokoro v1.0 model**
-(`Failed analyse … Concat … InferenceConcat`): tract does static shape inference and can't
-resolve the model's dynamic phoneme-length axis. So onnxruntime is required for now; the
-`tract` feature is kept for future use (a newer tract, a static-shape re-export, or pinning
-input facts). See [`docs/tract-support-plan.md`](docs/tract-support-plan.md) for the deferred
-plan to make the model run on tract.
+- **`kokoro`** — ONNX Runtime via `ort`'s `load-dynamic` (the binary dlopens an onnxruntime
+  `.so` at runtime; on glibc Linux `pip install onnxruntime` provides it and `kokoro`
+  auto-detects it). Fast, reference-quality audio.
+- **`kokoro-tract`** — **pure-Rust** [tract](https://github.com/sonos/tract) backend, no
+  native `.so`, trivial to cross-compile (Termux/aarch64).
+
+```bash
+cargo build --release --features tract          # builds BOTH binaries
+python3 tools/split_kokoro.py                    # one-time: writes stage1.onnx + stage2.onnx
+./target/release/kokoro       "Hello world."     # onnxruntime
+./target/release/kokoro-tract "Hello world."     # pure Rust
+# Termux / no onnxruntime at all:
+cargo build --release --no-default-features --features tract --bin kokoro-tract
+```
+
+tract can't optimize the monolithic Kokoro graph (its static shape inference can't represent
+the length regulator's data-dependent frame axis), so `kokoro-tract` **splits the model at the
+length regulator** into two subgraphs with a Rust length regulator between them, optimizing
+each with a concrete phoneme count per utterance. Produce the subgraphs with
+`tools/split_kokoro.py` (needs `pip install onnx`); `kokoro-tract` looks for them next to the
+cached `model.onnx` by default, or in `KOKORO_TRACT_DIR`.
+
+Status: `kokoro-tract` runs end-to-end and produces recognizable speech. The encoder/duration
+stage is bit-exact vs onnxruntime; the decoder + iSTFTNet vocoder is ~0.94 correlated (audible
+artifacts, being tracked) and currently ~3–4× slower (it re-optimizes per utterance). See
+[`docs/tract-support-plan.md`](docs/tract-support-plan.md) for the full write-up.
 
 **Termux / Android (aarch64):** the glibc pip wheel will *not* load under Android's bionic
 libc. Use the **`onnxruntime-android` AAR**, which contains an arm64-v8a `libonnxruntime.so`

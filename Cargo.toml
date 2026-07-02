@@ -10,6 +10,13 @@ path = "src/main.rs"
 [[bin]]
 name = "kokoro"
 path = "src/bin/kokoro.rs"
+required-features = ["onnx"]
+
+# Pure-Rust counterpart of `kokoro`; same pipeline, tract instead of onnxruntime.
+[[bin]]
+name = "kokoro-tract"
+path = "src/bin/kokoro_tract.rs"
+required-features = ["tract"]
 
 [dependencies]
 # kaarrot fork: CPU decode fast path (forward_decode_token_into + repack kernels).
@@ -27,7 +34,7 @@ anyhow = "1"
 # dlopens an onnxruntime .so at runtime (ORT_DYLIB_PATH) instead of static-linking
 # a prebuilt one. Avoids the glibc-2.38 mismatch of ort's bundled binary on this
 # glibc-2.35 box; kokoro auto-detects the pip-installed onnxruntime .so.
-ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
+ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"], optional = true }
 # Pure-Rust backend (no native onnxruntime .so), for Termux/aarch64. The `tract`
 # feature drives tract-onnx *directly* (see src/bin/kokoro.rs): the model is split
 # at the length regulator into two subgraphs (tools/split_kokoro.py) and each is
@@ -37,7 +44,12 @@ ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"] }
 tract-onnx = { version = "0.22.3", optional = true }
 
 [features]
-# Pure-Rust two-stage tract backend for kokoro: `cargo build --features tract --bin kokoro`.
+# onnxruntime backend (the `kokoro` binary); default so `cargo build` behaves as
+# before. `tract` builds the pure-Rust `kokoro-tract` binary alongside it — build
+# with `--features tract` to get BOTH and compare them; `--no-default-features
+# --features tract` builds only the tract binary (no onnxruntime, for Termux).
+default = ["onnx"]
+onnx = ["dep:ort"]
 tract = ["dep:tract-onnx"]
 # Step 0 of docs/tract-support-plan.md: `cargo run --example tract_probe --features tract-probe`
 tract-probe = ["dep:tract-onnx"]
