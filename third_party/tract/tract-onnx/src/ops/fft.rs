@@ -184,7 +184,13 @@ impl Expansion for Stft {
         )?;
         check_output_arity(outputs, 1)?;
         s.equals(&inputs[0].datum_type, &outputs[0].datum_type)?;
-        s.equals(&inputs[0].rank, 3)?;
+        // ONNX spec requires a rank-3 signal [batch, length, 1|2], but some
+        // exporters (e.g. Kokoro/StyleTTS2's iSTFTNet generator) feed a rank-2
+        // [batch, length] real signal that onnxruntime accepts as [.., 1]. Allow
+        // either; `wire()` lifts a rank-2 signal to rank-3 before the core op. The
+        // frame/bin rules below only reference shape[0] and shape[1], which are the
+        // batch and length axes in both the rank-2 and rank-3 layouts. Output rank
+        // is always 4 ([batch, frames, dft_bins, 2]).
         s.equals(&outputs[0].rank, 4)?;
         s.equals(&outputs[0].shape[0], &inputs[0].shape[0])?;
         s.equals(&outputs[0].shape[3], 2.to_dim())?;
@@ -232,8 +238,18 @@ impl Expansion for Stft {
         model: &mut TypedModel,
         inputs: &[OutletId],
     ) -> TractResult<TVec<OutletId>> {
-        let fact = model.outlet_fact(inputs[0])?.clone();
+        let mut fact = model.outlet_fact(inputs[0])?.clone();
         let mut wire: TVec<OutletId> = tvec!(inputs[0]);
+        // Lift a rank-2 [batch, length] real signal to rank-3 [batch, length, 1]
+        // so the trailing-axis (complex) convention below applies uniformly.
+        if fact.rank() == 2 {
+            wire = model.wire_node(
+                format!("{prefix}.add_real_axis"),
+                tract_core::ops::change_axes::AxisOp::Add(2),
+                &wire,
+            )?;
+            fact = model.outlet_fact(wire[0])?.clone();
+        }
         let (frame, window) = if let Some(w) = self.optional_window_input {
             let window = model
                 .outlet_fact(inputs[w])?

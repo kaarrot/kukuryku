@@ -11,19 +11,25 @@
 //! Run:
 //!   cargo run --release --example tract_probe --features tract-probe -- [MODEL.onnx]
 //!
-//! Env:
-//!   PROBE_LEN   if set, PIN input_ids dim1 to this fixed length (experiment B).
-//!               if UNSET (default), leave input_ids symbolic — the model already
-//!               declares it as [1, sequence_length] — and only feed a concrete
-//!               length at run time (experiment A, the Step 1 approach).
-//!   PROBE_RUN_LEN  concrete length used for the run() dummy tensors, default 32.
+//! Works on the full model or on an extracted subgraph (name-agnostic): every
+//! input's symbolic/unknown dims are concretized — the leading (batch) axis to 1,
+//! any other unknown axis to `run_len` — then facts are pinned and dummy tensors
+//! built from the discovered dtypes/shapes.
 //!
-//! Input contract (mirrors src/bin/kokoro.rs):
+//! Env:
+//!   PROBE_RUN_LEN  concrete length for each unknown non-batch axis, default 32.
+//!   PROBE_SYMBOLIC if set, leave the ONNX facts untouched (reproduce the full
+//!                  model's symbolic shape-inference failure) instead of pinning.
+//!   PROBE_OPS / PROBE_FIND=<substr> / PROBE_DUMP_NODE=<id> PROBE_DUMP_DEPTH=<n>
+//!                  inspection modes (op inventory, find nodes, backtrace).
+//!
+//! Full-model input contract (mirrors src/bin/kokoro.rs):
 //!   input_ids : [1, N] i64   (phoneme ids, 0-padded both ends)
 //!   style     : [1, 256] f32 (per-voice style row)
 //!   speed     : [1] f32      (speed multiplier)
 
 use tract_onnx::prelude::*;
+use tract_onnx::tract_hir::infer::Factoid;
 
 const DEFAULT_MODEL: &str = concat!(
     env!("HOME"),
@@ -31,23 +37,19 @@ const DEFAULT_MODEL: &str = concat!(
     "/snapshots/1939ad2a8e416c0acfeecc08a694d14ef25f2231/onnx/model.onnx"
 );
 
-const STYLE_DIM: usize = 256;
-
 fn main() -> TractResult<()> {
     let model_path = std::env::args().nth(1).unwrap_or_else(|| DEFAULT_MODEL.to_string());
-    // When set, pin input_ids to a fixed length; otherwise keep it symbolic.
-    let pin_len: Option<usize> = std::env::var("PROBE_LEN").ok().and_then(|s| s.parse().ok());
+    // Every symbolic/unknown input dim is concretized to run_len (unless
+    // PROBE_SYMBOLIC=1, which leaves the ONNX facts untouched to reproduce the
+    // full model's symbolic shape-inference failure).
     let run_len: usize = std::env::var("PROBE_RUN_LEN")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(32);
+    let symbolic = std::env::var("PROBE_SYMBOLIC").is_ok();
 
-    eprintln!("[probe] model       = {model_path}");
-    match pin_len {
-        Some(n) => eprintln!("[probe] input_ids   = PINNED to [1, {n}]"),
-        None => eprintln!("[probe] input_ids   = SYMBOLIC (model's own sequence_length)"),
-    }
-    eprintln!("[probe] run length  = {run_len}");
+    eprintln!("[probe] model      = {model_path}");
+    eprintln!("[probe] symbolic   = {symbolic} (concretize unknown dims to run_len={run_len})");
 
     // --- load raw inference model -------------------------------------------
     let mut model = tract_onnx::onnx().model_for_path(&model_path)?;
@@ -73,32 +75,36 @@ fn main() -> TractResult<()> {
         return Ok(());
     }
 
-    // --- discover input order + names, pin facts in that order --------------
+    // --- discover inputs; concretize each to a runnable shape ---------------
     let inputs = model.input_outlets()?.to_vec();
     let names: Vec<String> = inputs.iter().map(|o| model.node(o.node).name.clone()).collect();
+    // Per-input (datum_type, concrete shape) used both to pin facts and to build
+    // dummy run tensors.
+    let mut specs: Vec<(DatumType, Vec<usize>)> = Vec::new();
     eprintln!("[probe] inputs (in model order):");
     for (ix, name) in names.iter().enumerate() {
-        eprintln!("  [{ix}] '{name}'  fact={:?}", model.outlet_fact(inputs[ix])?);
+        let fact = model.outlet_fact(inputs[ix])?.clone();
+        let dt = fact.datum_type().unwrap_or_else(|| f32::datum_type());
+        // Concretize each dim: known -> its value; unknown leading (batch) axis
+        // -> 1; any other unknown (the sequence/frame axis) -> run_len.
+        let shape: Vec<usize> = fact
+            .shape
+            .dims()
+            .enumerate()
+            .map(|(axis, d)| {
+                d.concretize()
+                    .and_then(|td| td.to_i64().ok())
+                    .map(|v| v as usize)
+                    .unwrap_or(if axis == 0 { 1 } else { run_len })
+            })
+            .collect();
+        eprintln!("  [{ix}] '{name}'  onnx_fact={fact:?}  -> {dt:?} {shape:?}");
+        if !symbolic {
+            model.set_input_fact(ix, InferenceFact::dt_shape(dt, shape.as_slice()))?;
+        }
+        specs.push((dt, shape));
     }
-
-    for (ix, name) in names.iter().enumerate() {
-        let fact: InferenceFact = match name.as_str() {
-            // Only pin input_ids when PROBE_LEN was given; otherwise leave the
-            // model's symbolic sequence_length untouched.
-            "input_ids" | "tokens" => match pin_len {
-                Some(n) => i64::fact([1, n]).into(),
-                None => continue,
-            },
-            "style" => f32::fact([1, STYLE_DIM]).into(),
-            "speed" => f32::fact([1]).into(),
-            other => {
-                eprintln!("[probe] WARN: unrecognized input '{other}' — leaving its fact unpinned");
-                continue;
-            }
-        };
-        model.set_input_fact(ix, fact)?;
-    }
-    eprintln!("[probe] OK: pinned input facts");
+    eprintln!("[probe] OK: input facts set");
 
     // --- optional: dump a node + its input producers (pre-analyse) ----------
     // Use PROBE_DUMP_NODE=1802 to inspect the failing Concat's neighbourhood.
@@ -124,17 +130,16 @@ fn main() -> TractResult<()> {
 
     // --- run with dummy inputs (values irrelevant; this exercises every op) --
     let mut tensors: TVec<TValue> = tvec!();
-    for name in &names {
-        let t = match name.as_str() {
-            "input_ids" | "tokens" => Tensor::zero::<i64>(&[1, run_len])?,
-            "style" => Tensor::zero::<f32>(&[1, STYLE_DIM])?,
-            "speed" => {
-                let mut s = Tensor::zero::<f32>(&[1])?;
-                s.as_slice_mut::<f32>()?[0] = 1.0;
-                s
+    for (ix, (dt, shape)) in specs.iter().enumerate() {
+        let mut t = Tensor::zero_dt(*dt, shape)?;
+        // 'speed' divides durations; keep it nonzero to avoid spurious NaNs.
+        if names[ix] == "speed" && *dt == f32::datum_type() {
+            if let Ok(s) = t.as_slice_mut::<f32>() {
+                if let Some(v) = s.get_mut(0) {
+                    *v = 1.0;
+                }
             }
-            _ => Tensor::zero::<f32>(&[1])?,
-        };
+        }
         tensors.push(t.into());
     }
 
@@ -145,7 +150,7 @@ fn main() -> TractResult<()> {
         eprintln!("  output[{i}] = {:?}", o.shape());
     }
 
-    eprintln!("[probe] SUCCESS — tract loaded, optimized, and ran the full Kokoro graph.");
+    eprintln!("[probe] SUCCESS — tract loaded, optimized, and ran the graph.");
     Ok(())
 }
 

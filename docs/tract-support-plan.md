@@ -162,6 +162,45 @@ Instead of bending tract, re-export Kokoro from PyTorch (model on HF) with **fix
 some dynamic-op patterns. ~1 day, uncertain it removes *all* blockers; needs the torch model and
 matching preprocessing.
 
+## Stage 2 validation in tract (2026-07-02)
+
+Extracted the decoder + iSTFTNet vocoder subgraph (`onnx.utils.extract_model`, cut at the two
+encoder frame-level feature tensors `/encoder/MatMul_output_0` [1,640,T] and
+`/encoder/MatMul_1_output_0` [1,512,T]; output `waveform`) and drove it through the probe with a
+**concrete** frame axis (`PROBE_RUN_LEN`, batch axis pinned to 1). Result: with a concrete frame
+axis the whole vocoder shape-resolves. It took two changes to get there, then surfaced one more:
+
+1. **Batch-axis concretization.** The cut tensors carry two symbolic dims (`?,640,?`); the probe now
+   pins the leading (batch) axis to 1 and the frame axis to `run_len`. (Pinning both to `run_len`
+   produced a spurious `64 vs 4096` mismatch at the decoder Concat.)
+
+2. **tract STFT patch (`tract-onnx/src/ops/fft.rs`).** tract's STFT enforced the ONNX opset-17
+   contract (rank-3 signal `[batch, length, 1|2]`), but Kokoro's iSTFTNet generator reshapes to a
+   **rank-2** `[batch, length]` real signal that onnxruntime accepts. Downstream `Transpose perm=
+   [0,2,1,3]` confirms it still expects a rank-4 STFT output. Patched: relax the rank rule to allow
+   rank 2 or 3, and lift a rank-2 signal to `[batch, length, 1]` in `wire()` (`AxisOp::Add`). This
+   is an additive change — rank-3 callers are unaffected. **This is the kind of small tract patch the
+   shakeout predicted, not a missing op.**
+
+3. **Stale symbolic value_info.** `extract_model` copied a `num_samples` `dim_param` onto the
+   `waveform` value_info; the final `Reshape` target is a plain `[1, -1]`, so tract computed
+   `[1, 38400]` (64 frames × 600) but refused to unify the concrete value with the free `num_samples`
+   symbol. Stripping all intermediate value_info (they are only hints) fixed it — a clean
+   re-export/surgery would not carry the symbol.
+
+After (1)–(3), **`analyse` passes through the entire Stage 2 graph (1950/1950 nodes)** — STFT, every
+Conv/ConvTranspose, the AdaIN blocks, the harmonic source, the iSTFT. The remaining wall is now in
+`into_optimized()` at a `Range(0, Shape(signal)[0], 1)` (the iSTFT index range): tract's `Shape`
+yields `TDim`, so `Range`'s input supertype is `TDim` while a downstream consumer pins the output to
+`I64` → `Impossible to unify TDim with I64`. This is a tract type-coherence issue (how `Shape`→`TDim`
+flows into `Range`→`Gather`), more invasive than the STFT patch and best fixed carefully (cast, or a
+declutter rule) rather than force-patched.
+
+**Bottom line:** the two-stage split is validated. With a concrete frame axis the vocoder's *shapes*
+fully resolve; what remains is a short series of small, localized tract op/type patches (STFT done;
+`Range`/`Shape`→`TDim` next), exactly the "bounded op-correctness shakeout" this plan anticipated.
+The "weeks / reimplement-a-chunk" scenario is effectively ruled out for Stage 2.
+
 ## Effort & decision criteria
 
 | Outcome | Effort |
