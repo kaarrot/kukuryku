@@ -267,9 +267,11 @@ mod tract_backend {
     /// concrete dtype+shape, optimize, and run. Inputs are matched to the model's
     /// declared inputs by name, so ordering is robust.
     fn run_stage(path: &Path, inputs: &[(&str, Tensor)]) -> Result<TVec<TValue>> {
+        let t_load = std::time::Instant::now();
         let mut model = tract_onnx::onnx()
             .model_for_path(path)
             .with_context(|| format!("loading {}", path.display()))?;
+        let load_secs = t_load.elapsed().as_secs_f64();
         let outlets = model.input_outlets()?.to_vec();
         let names: Vec<String> =
             outlets.iter().map(|o| model.node(o.node).name.clone()).collect();
@@ -282,10 +284,12 @@ mod tract_backend {
             model.set_input_fact(ix, InferenceFact::dt_shape(t.datum_type(), t.shape()))?;
         }
 
+        let t_opt = std::time::Instant::now();
         let runnable = model
             .into_optimized()
             .with_context(|| format!("optimizing {}", path.display()))?
             .into_runnable()?;
+        let opt_secs = t_opt.elapsed().as_secs_f64();
 
         let run_inputs: TVec<TValue> = names
             .iter()
@@ -294,9 +298,16 @@ mod tract_backend {
                 t.clone().into()
             })
             .collect();
-        runnable
+        let t_run = std::time::Instant::now();
+        let out = runnable
             .run(run_inputs)
-            .with_context(|| format!("running {}", path.display()))
+            .with_context(|| format!("running {}", path.display()))?;
+        let stage = path.file_stem().and_then(|s| s.to_str()).unwrap_or("stage");
+        eprintln!(
+            "[kokoro]   {stage}: parse {load_secs:.2}s | optimize {opt_secs:.2}s | run {run:.2}s",
+            run = t_run.elapsed().as_secs_f64(),
+        );
+        Ok(out)
     }
 
     /// Debug: if KOKORO_TRACT_DUMP=<dir> is set, write an f32 tensor as raw
