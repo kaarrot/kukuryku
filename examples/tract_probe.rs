@@ -80,24 +80,30 @@ fn main() -> TractResult<()> {
     let names: Vec<String> = inputs.iter().map(|o| model.node(o.node).name.clone()).collect();
     // Per-input (datum_type, concrete shape) used both to pin facts and to build
     // dummy run tensors.
+    // PROBE_SHAPES lets a caller override the auto-concretized shape for specific
+    // inputs (the batch-axis heuristic below misfires when axis 0 is a real dim,
+    // e.g. the [N, T] alignment matrix). Format: "2=64x64,3=1x256".
+    let overrides = parse_shape_overrides(&std::env::var("PROBE_SHAPES").unwrap_or_default());
     let mut specs: Vec<(DatumType, Vec<usize>)> = Vec::new();
     eprintln!("[probe] inputs (in model order):");
     for (ix, name) in names.iter().enumerate() {
         let fact = model.outlet_fact(inputs[ix])?.clone();
         let dt = fact.datum_type().unwrap_or_else(|| f32::datum_type());
         // Concretize each dim: known -> its value; unknown leading (batch) axis
-        // -> 1; any other unknown (the sequence/frame axis) -> run_len.
-        let shape: Vec<usize> = fact
-            .shape
-            .dims()
-            .enumerate()
-            .map(|(axis, d)| {
-                d.concretize()
-                    .and_then(|td| td.to_i64().ok())
-                    .map(|v| v as usize)
-                    .unwrap_or(if axis == 0 { 1 } else { run_len })
-            })
-            .collect();
+        // -> 1; any other unknown (the sequence/frame axis) -> run_len. An entry
+        // in PROBE_SHAPES overrides the whole shape for that input index.
+        let shape: Vec<usize> = overrides.get(&ix).cloned().unwrap_or_else(|| {
+            fact.shape
+                .dims()
+                .enumerate()
+                .map(|(axis, d)| {
+                    d.concretize()
+                        .and_then(|td| td.to_i64().ok())
+                        .map(|v| v as usize)
+                        .unwrap_or(if axis == 0 { 1 } else { run_len })
+                })
+                .collect()
+        });
         eprintln!("  [{ix}] '{name}'  onnx_fact={fact:?}  -> {dt:?} {shape:?}");
         if !symbolic {
             model.set_input_fact(ix, InferenceFact::dt_shape(dt, shape.as_slice()))?;
@@ -152,6 +158,21 @@ fn main() -> TractResult<()> {
 
     eprintln!("[probe] SUCCESS — tract loaded, optimized, and ran the graph.");
     Ok(())
+}
+
+/// Parse PROBE_SHAPES ("2=64x64,3=1x256") into a map of input index -> shape.
+fn parse_shape_overrides(spec: &str) -> std::collections::HashMap<usize, Vec<usize>> {
+    let mut map = std::collections::HashMap::new();
+    for entry in spec.split(',').filter(|s| !s.is_empty()) {
+        if let Some((ix, dims)) = entry.split_once('=') {
+            if let Ok(ix) = ix.trim().parse::<usize>() {
+                let shape: Vec<usize> =
+                    dims.split('x').filter_map(|d| d.trim().parse().ok()).collect();
+                map.insert(ix, shape);
+            }
+        }
+    }
+    map
 }
 
 /// Histogram every node's op name and call out UnimplementedOp placeholders —

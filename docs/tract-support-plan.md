@@ -201,6 +201,46 @@ fully resolve; what remains is a short series of small, localized tract op/type 
 `Range`/`Shape`→`TDim` next), exactly the "bounded op-correctness shakeout" this plan anticipated.
 The "weeks / reimplement-a-chunk" scenario is effectively ruled out for Stage 2.
 
+## Stage 1 validated + finalized split (2026-07-02)
+
+Finalized the cut and validated Stage 1. The split is now reproducible via
+`tools/split_kokoro.py` (uses `onnx.utils.extract_model`, then strips stale
+value_info + output shapes — see below):
+
+- **Stage 1 (tract):** `input_ids, style, speed` → prosody features
+  `/encoder/Transpose_output_0` [1,640,N], text features
+  `/encoder/text_encoder/Transpose_2_output_0` [1,512,N], and per-phoneme
+  durations `/encoder/Clip_output_0` [1,N]. Cut is *upstream* of the frame axis.
+- **Rust length regulator:** round durations, `total_frames = sum`, rebuild the
+  boolean alignment matrix (the model's `And(GreaterOrEqual, Less)` over
+  `Range(0, total_frames)` vs `CumSum(durations)`) as the tensor the two MatMuls
+  consume (`/encoder/Cast_4_output_0`, shape `[N, total_frames]`).
+- **Stage 2 (tract):** the two phoneme feature tensors + `style` + the alignment
+  matrix → the two alignment MatMuls → decoder + iSTFTNet → `waveform`.
+
+**Stage 1 fully loads, optimizes, AND runs in tract** (probe: analyse → optimize →
+runnable → run all pass; outputs `[1,640,64]`, `[1,512,64]`, `[1,64]`). **No tract
+patch was needed.**
+
+**#1802 dissolves.** The class-1 symbol-propagation blocker (#1802 `InferenceConcat`)
+is *not* a real blocker for a per-utterance execution model: it was tract failing
+to *propagate* the `sequence_length` symbol through `Where`/`Equal`, but when N is
+pinned to a concrete value (which we always know per utterance) the symbol never
+needs to propagate. The one catch: `extract_model` copies stale symbolic
+value_info (`sequence_length`, `num_samples`) that *conflicts* with the concrete
+pin — stripping all intermediate value_info + clearing output shapes fixes it (and
+also restores the real `input_ids` i64 dtype). `tools/split_kokoro.py` does this.
+
+Re-running the finalized **Stage 2** (with the MatMuls included; alignment fed as
+`[N, total_frames]`) passes analyse end-to-end and hits the *same* remaining wall:
+`Range(0, Shape(signal)[0], 1)` in the iSTFT → `TDim` vs `I64`. So the two MatMuls
+are fully supported; the only outstanding tract-code item for the whole pipeline is
+that single `Range`/`Shape`→`TDim` type-coherence fix.
+
+**Status: both stages structurally validated in tract.** Remaining work is (a) the
+one Stage-2 `Range` fix, (b) the Rust length regulator, (c) wiring two tract
+sessions behind the kokoro backend. No missing ops, no re-export required.
+
 ## Effort & decision criteria
 
 | Outcome | Effort |
