@@ -627,14 +627,29 @@ element_wise!(round_half_to_even, RoundHalfToEven,
 };
 q: [i8, u8, i32] => round_ties_to_even);
 
+/// Apply a scalar op elementwise, fanning large buffers across the tract thread
+/// pool. Transcendental ops (sin/cos) are heavy enough that this pays off; the
+/// threshold keeps the common small-tensor case on the sequential path (no rayon
+/// overhead). Chunked so each element is touched once -> result is independent of
+/// thread count.
+fn par_elementwise<T: Datum + Send>(xs: &mut [T], f: impl Fn(&mut T) + Send + Sync) {
+    const PAR_THRESHOLD: usize = 1 << 14;
+    if xs.len() < PAR_THRESHOLD {
+        xs.iter_mut().for_each(f);
+    } else {
+        let chunk = (xs.len() / 64).max(4096);
+        tract_linalg::multithread::par_chunks_mut(xs, chunk, |_, c| c.iter_mut().for_each(&f));
+    }
+}
+
 element_wise!(cos, Cos, [f16, f32, f64] => |_, xs| {
-    xs.iter_mut().for_each(|x| *x = x.cos());
+    par_elementwise(xs, |x| *x = x.cos());
     Ok(())
 };
 q: [i8, u8, i32] => f32::cos);
 
 element_wise!(sin, Sin, [f16, f32, f64] => |_, xs| {
-    xs.iter_mut().for_each(|x| *x = x.sin());
+    par_elementwise(xs, |x| *x = x.sin());
     Ok(())
 };
 q: [i8, u8, i32] => f32::sin);
