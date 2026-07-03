@@ -43,9 +43,10 @@ fn main() -> Result<()> {
     };
     eprintln!("[kokoro] loading split model (stage1.onnx + stage2.onnx) from {}", dir.display());
 
-    // Sentence-streamed playback. Note: tract re-optimizes both subgraphs per
-    // chunk (RTF > 1), so it won't fully keep ahead of playback yet — the win here
-    // is correctness for long input; masking lands once plan caching does.
+    // Compile both subgraphs once (symbolic length dims) and reuse the plans for
+    // every sentence — so per-sentence cost is just `run`, not re-optimization.
+    let mut pipeline = tract_backend::Pipeline::new(&dir)?;
+
     let sentences = kokoro::split_sentences(&text);
     eprintln!("[kokoro] {} sentence chunk(s)", sentences.len());
 
@@ -57,7 +58,7 @@ fn main() -> Result<()> {
     for (i, sentence) in sentences.iter().enumerate() {
         let prep = kokoro::prepare(sentence, &lang, &assets.voice_path)?;
         let infer_start = std::time::Instant::now();
-        let audio = tract_backend::synthesize(&dir, &prep.ids, &prep.style, speed)?;
+        let audio = pipeline.synthesize(&prep.ids, &prep.style, speed)?;
         let infer_secs = infer_start.elapsed().as_secs_f64();
 
         kokoro::report_chunk(i, sentences.len(), prep.token_len, audio.len(), infer_secs);
@@ -91,7 +92,8 @@ fn main() -> Result<()> {
 ///   Stage 2: the two feature tensors + style + alignment -> waveform
 mod tract_backend {
     use anyhow::{Context, Result, bail};
-    use std::path::Path;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
     use tract_onnx::prelude::*;
 
     // Stage-boundary tensor names (see tools/split_kokoro.py).
@@ -99,54 +101,60 @@ mod tract_backend {
     const S1_FEAT_512: &str = "/encoder/text_encoder/Transpose_2_output_0";
     const S2_ALIGNMENT: &str = "/encoder/Cast_4_output_0";
 
-    /// Load an ONNX subgraph, pin each input's fact to the supplied tensor's
-    /// concrete dtype+shape, optimize, and run. Inputs are matched to the model's
-    /// declared inputs by name, so ordering is robust.
-    fn run_stage(path: &Path, inputs: &[(&str, Tensor)]) -> Result<TVec<TValue>> {
-        let t_load = std::time::Instant::now();
-        let mut model = tract_onnx::onnx()
-            .model_for_path(path)
-            .with_context(|| format!("loading {}", path.display()))?;
-        let load_secs = t_load.elapsed().as_secs_f64();
-        let outlets = model.input_outlets()?.to_vec();
-        let names: Vec<String> =
-            outlets.iter().map(|o| model.node(o.node).name.clone()).collect();
+    /// A subgraph compiled for one concrete input shape. tract can't optimize the
+    /// split subgraphs with a *symbolic* length dim (the style-broadcast
+    /// Expand/Concat hits `Impossible to unify Sym(N) with Val(1)`), so each plan is
+    /// shape-specialized. `Pipeline` caches these keyed by (bucketed) length so the
+    /// ~1–2s `into_optimized()` is paid once per bucket, not once per sentence.
+    struct Stage {
+        runnable: TypedRunnableModel<TypedModel>,
+        input_names: Vec<String>,
+    }
 
-        // Cast each supplied tensor to the model's declared input dtype, so an
-        // f64-cast subgraph (KOKORO_TRACT_F64 experiment) runs transparently with
-        // the same f32 features from stage 1.
-        let mut ordered: Vec<Tensor> = Vec::with_capacity(names.len());
-        for (ix, name) in names.iter().enumerate() {
-            let (_, t) = inputs
-                .iter()
-                .find(|(n, _)| n == name)
-                .with_context(|| format!("{}: no tensor supplied for input '{name}'", path.display()))?;
-            let want = model.outlet_fact(outlets[ix])?.datum_type().unwrap_or_else(|| t.datum_type());
-            let ct = t.cast_to_dt(want)?.into_owned();
-            model.set_input_fact(ix, InferenceFact::dt_shape(want, ct.shape()))?;
-            ordered.push(ct);
+    impl Stage {
+        /// Parse the subgraph, pin each input to its concrete shape (matched by
+        /// name so input order is robust), and optimize.
+        fn build(path: &Path, spec: &[(&str, &[usize])]) -> Result<Stage> {
+            let mut model = tract_onnx::onnx()
+                .model_for_path(path)
+                .with_context(|| format!("loading {}", path.display()))?;
+            let outlets = model.input_outlets()?.to_vec();
+            let input_names: Vec<String> =
+                outlets.iter().map(|o| model.node(o.node).name.clone()).collect();
+
+            for (ix, name) in input_names.iter().enumerate() {
+                let shape = spec
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, d)| *d)
+                    .with_context(|| format!("{}: no shape spec for input '{name}'", path.display()))?;
+                let dt = model.outlet_fact(outlets[ix])?.datum_type().unwrap_or_else(f32::datum_type);
+                model.set_input_fact(ix, InferenceFact::dt_shape(dt, shape))?;
+            }
+
+            let runnable = model
+                .into_optimized()
+                .with_context(|| format!("optimizing {}", path.display()))?
+                .into_runnable()?;
+            Ok(Stage { runnable, input_names })
         }
 
-        let t_opt = std::time::Instant::now();
-        let runnable = model
-            .into_optimized()
-            .with_context(|| format!("optimizing {}", path.display()))?
-            .into_runnable()?;
-        let opt_secs = t_opt.elapsed().as_secs_f64();
-
-        let run_inputs: TVec<TValue> = ordered.into_iter().map(|t| t.into()).collect();
-        let stage = path.file_stem().and_then(|s| s.to_str()).unwrap_or("stage");
-        let t_run = std::time::Instant::now();
-        let out = if std::env::var_os("KOKORO_TRACT_PROFILE").is_some() {
-            profile_run(&runnable, run_inputs, stage)?
-        } else {
-            runnable.run(run_inputs).with_context(|| format!("running {}", path.display()))?
-        };
-        eprintln!(
-            "[kokoro]   {stage}: parse {load_secs:.2}s | optimize {opt_secs:.2}s | run {run:.2}s",
-            run = t_run.elapsed().as_secs_f64(),
-        );
-        Ok(out)
+        /// Run the cached plan; tensors are matched to declared inputs by name.
+        fn run(&self, inputs: &[(&str, Tensor)], stage: &str) -> Result<TVec<TValue>> {
+            let mut ordered: TVec<TValue> = TVec::with_capacity(self.input_names.len());
+            for name in &self.input_names {
+                let (_, t) = inputs
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .with_context(|| format!("{stage}: no tensor supplied for input '{name}'"))?;
+                ordered.push(t.clone().into());
+            }
+            if std::env::var_os("KOKORO_TRACT_PROFILE").is_some() {
+                profile_run(&self.runnable, ordered, stage)
+            } else {
+                self.runnable.run(ordered).with_context(|| format!("running {stage}"))
+            }
+        }
     }
 
     /// Per-op profiler (KOKORO_TRACT_PROFILE): run the plan node-by-node, timing
@@ -206,100 +214,140 @@ mod tract_backend {
         Ok(Tensor::from_shape(&shape, &data)?)
     }
 
-    /// Point tract's matmul/conv kernels at a rayon thread pool. By default tract
-    /// runs single-threaded (~1 core), which is the bulk of the gap vs onnxruntime
-    /// (which saturates all cores). Thread count: KOKORO_TRACT_THREADS, else the
-    /// machine's available parallelism.
-    fn enable_multithreading() {
-        // Build the rayon pool once, even though synthesize() is called per
-        // sentence when streaming — otherwise every sentence would spin up a fresh
-        // N-thread pool.
-        static ONCE: std::sync::Once = std::sync::Once::new();
-        ONCE.call_once(|| {
-            use tract_linalg::multithread::{Executor, set_default_executor};
-            let threads = std::env::var("KOKORO_TRACT_THREADS")
-                .ok()
-                .and_then(|s| s.parse::<usize>().ok())
-                .filter(|&t| t > 0)
-                .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
-                .unwrap_or(1);
-            if threads > 1 {
-                set_default_executor(Executor::multithread(threads));
-                eprintln!("[kokoro] tract executor: {threads} threads");
-            }
-        });
+    /// Build the tract thread pool (KOKORO_TRACT_THREADS, else available cores).
+    /// tract runs single-threaded by default (~1 core); we scope this pool to the
+    /// conv/matmul-heavy stage 2 only, since stage 1's matmuls are tiny and the pool
+    /// overhead would slow them down.
+    fn build_executor() -> tract_linalg::multithread::Executor {
+        use tract_linalg::multithread::Executor;
+        let threads = std::env::var("KOKORO_TRACT_THREADS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .filter(|&t| t > 0)
+            .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
+            .unwrap_or(1);
+        if threads > 1 {
+            eprintln!("[kokoro] tract executor: {threads} threads");
+            Executor::multithread(threads)
+        } else {
+            Executor::SingleThread
+        }
     }
 
-    pub fn synthesize(dir: &Path, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
-        let n = ids.len();
-        let style_t = Tensor::from_shape(&[1, style.len()], style)?;
+    /// The two-stage tract pipeline with a per-shape plan cache.
+    ///
+    /// tract compiles a plan for one concrete shape, and the model's global
+    /// normalization (decoder instance-norm over frames, encoder norm/attention
+    /// over phonemes) means we *cannot* pad to a shared bucket — padding poisons
+    /// the output (empirically corr 0.73 for phoneme padding, 0.02 for frame
+    /// padding). So plans are cached at their exact shape: a repeated phoneme count
+    /// reuses stage 1, a repeated (phoneme, frame) pair reuses stage 2. This helps
+    /// recurring lengths and re-runs; distinct lengths still compile once each.
+    /// (The clean one-plan-fits-all path needs *symbolic* dims, which tract can't
+    /// optimize here — the style-broadcast Expand/Concat hits `unify Sym(N) with
+    /// Val(1)`.)
+    pub struct Pipeline {
+        stage1_path: PathBuf,
+        stage2_path: PathBuf,
+        executor: tract_linalg::multithread::Executor,
+        stage1: HashMap<usize, Stage>,          // key: phoneme count N
+        stage2: HashMap<(usize, usize), Stage>, // key: (phoneme count N, frame count F)
+    }
 
-        // ---- Stage 1: encoder + duration predictor --------------------------
-        let s1 = run_stage(
-            &dir.join("stage1.onnx"),
-            &[
-                ("input_ids", Tensor::from_shape(&[1, n], ids)?),
-                ("style", style_t.clone()),
-                ("speed", Tensor::from_shape(&[1], &[speed])?),
-            ],
-        )?;
-        // Outputs follow the graph's declared order (split_kokoro.py):
-        //   [0] 640-ch features [1,640,N]  [1] 512-ch features [1,512,N]  [2] durations [1,N]
-        dump("s1_feat640", &s1[0])?;
-        dump("s1_feat512", &s1[1])?;
-        dump("s1_dur", &s1[2])?;
-        let feat640 = f32_tensor(&s1[0])?;
-        let feat512 = f32_tensor(&s1[1])?;
-        if feat640.shape().get(1) != Some(&640) || feat512.shape().get(1) != Some(&512) {
-            bail!(
-                "unexpected stage1 feature shapes: {:?}, {:?}",
-                feat640.shape(),
-                feat512.shape()
-            );
+    impl Pipeline {
+        pub fn new(dir: &Path) -> Result<Pipeline> {
+            Ok(Pipeline {
+                stage1_path: dir.join("stage1.onnx"),
+                stage2_path: dir.join("stage2.onnx"),
+                executor: build_executor(),
+                stage1: HashMap::new(),
+                stage2: HashMap::new(),
+            })
         }
-        let dur_t = s1[2].cast_to::<f32>()?;
-        let durations = dur_t.to_array_view::<f32>()?;
 
-        // ---- Rust length regulator: durations -> alignment matrix -----------
-        // Round the (already clipped) per-phoneme durations to frame counts, then
-        // build A[N, total_frames] where A[i,t] = 1 iff frame t belongs to phoneme
-        // i (a block-diagonal expansion). Stage 2's MatMul does features @ A, so N
-        // must be A's first (contracted) axis.
-        let durs: Vec<usize> = durations.iter().map(|&d| d.round().max(0.0) as usize).collect();
-        let total_frames: usize = durs.iter().sum();
-        if total_frames == 0 {
-            bail!("length regulator produced 0 frames (all durations rounded to 0)");
-        }
-        let mut align = vec![0f32; n * total_frames];
-        let mut t = 0usize;
-        for (i, &d) in durs.iter().enumerate() {
-            for _ in 0..d {
-                align[i * total_frames + t] = 1.0;
-                t += 1;
+        pub fn synthesize(&mut self, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
+            let n = ids.len();
+            let style_t = Tensor::from_shape(&[1, style.len()], style)?;
+
+            // ---- Stage 1: encoder + duration predictor (single-threaded) ----
+            if !self.stage1.contains_key(&n) {
+                let st = Stage::build(
+                    &self.stage1_path,
+                    &[("input_ids", &[1, n]), ("style", &[1, 256]), ("speed", &[1])],
+                )?;
+                self.stage1.insert(n, st);
             }
-        }
-        let alignment = Tensor::from_shape(&[n, total_frames], &align)?;
-        eprintln!("[kokoro] length regulator: {n} phonemes -> {total_frames} frames");
+            let s1 = self.stage1[&n].run(
+                &[
+                    ("input_ids", Tensor::from_shape(&[1, n], ids)?),
+                    ("style", style_t.clone()),
+                    ("speed", Tensor::from_shape(&[1], &[speed])?),
+                ],
+                "stage1",
+            )?;
+            // Outputs (split_kokoro.py order): [0] 640-ch [1,640,N] [1] 512-ch
+            // [1,512,N] [2] durations [1,N].
+            dump("s1_feat640", &s1[0])?;
+            dump("s1_feat512", &s1[1])?;
+            dump("s1_dur", &s1[2])?;
+            let feat640 = f32_tensor(&s1[0])?;
+            let feat512 = f32_tensor(&s1[1])?;
+            if feat640.shape().get(1) != Some(&640) || feat512.shape().get(1) != Some(&512) {
+                bail!("unexpected stage1 feature shapes: {:?}, {:?}", feat640.shape(), feat512.shape());
+            }
+            let dur_t = s1[2].cast_to::<f32>()?;
+            let durations = dur_t.to_array_view::<f32>()?;
 
-        // ---- Stage 2: decoder + iSTFTNet vocoder ----------------------------
-        // Threads help only the conv/matmul-heavy stage 2; stage 1's matmuls are
-        // tiny and the rayon pool overhead makes it slower, so enable here only.
-        enable_multithreading();
-        let s2 = run_stage(
-            &dir.join("stage2.onnx"),
-            &[
-                (S1_FEAT_640, feat640),
-                (S1_FEAT_512, feat512),
-                (S2_ALIGNMENT, alignment),
-                ("style", style_t),
-            ],
-        )?;
-        // s2[0] is the waveform; any extra outputs are debug probe points (added
-        // to a stage2_dbg.onnx) — dump them all for offline diffing vs onnxruntime.
-        for (i, o) in s2.iter().enumerate() {
-            dump(&format!("s2_out{i}"), o)?;
+            // ---- Rust length regulator: durations -> alignment matrix -------
+            // Round per-phoneme durations to frame counts and build A[N, total_frames]
+            // with A[i,t] = 1 iff frame t belongs to phoneme i (block expansion).
+            let durs: Vec<usize> = durations.iter().map(|&d| d.round().max(0.0) as usize).collect();
+            let total_frames: usize = durs.iter().sum();
+            if total_frames == 0 {
+                bail!("length regulator produced 0 frames (all durations rounded to 0)");
+            }
+            let mut align = vec![0f32; n * total_frames];
+            let mut t = 0usize;
+            for (i, &d) in durs.iter().enumerate() {
+                for _ in 0..d {
+                    align[i * total_frames + t] = 1.0;
+                    t += 1;
+                }
+            }
+            let alignment = Tensor::from_shape(&[n, total_frames], &align)?;
+
+            // ---- Stage 2: decoder + iSTFTNet vocoder (multithreaded) --------
+            let key = (n, total_frames);
+            if !self.stage2.contains_key(&key) {
+                let st = Stage::build(
+                    &self.stage2_path,
+                    &[
+                        (S1_FEAT_640, &[1, 640, n]),
+                        (S1_FEAT_512, &[1, 512, n]),
+                        (S2_ALIGNMENT, &[n, total_frames]),
+                        ("style", &[1, 256]),
+                    ],
+                )?;
+                self.stage2.insert(key, st);
+            }
+            let stage2 = &self.stage2[&key];
+            // Scope the thread pool to this run; stage 1 above stays single-threaded.
+            let s2 = tract_linalg::multithread::multithread_tract_scope(self.executor.clone(), || {
+                stage2.run(
+                    &[
+                        (S1_FEAT_640, feat640),
+                        (S1_FEAT_512, feat512),
+                        (S2_ALIGNMENT, alignment),
+                        ("style", style_t),
+                    ],
+                    "stage2",
+                )
+            })?;
+            for (i, o) in s2.iter().enumerate() {
+                dump(&format!("s2_out{i}"), o)?;
+            }
+            let wav = s2[0].cast_to::<f32>()?;
+            Ok(wav.to_array_view::<f32>()?.iter().copied().collect())
         }
-        let wav = s2[0].cast_to::<f32>()?;
-        Ok(wav.to_array_view::<f32>()?.iter().copied().collect())
     }
 }

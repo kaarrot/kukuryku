@@ -306,10 +306,21 @@ an atan2 branch-cut in the harmonic source (the earlier hissing/ringing). Runtim
 
 Ideas not yet implemented, roughly in priority order:
 
-- **Plan caching for `kokoro-tract`.** Each utterance currently re-parses and re-optimizes both
-  subgraphs (~1.5 s), which is now a large fraction of total time. Cache the optimized runnable
-  keyed by phoneme count (stage 1) / frame count (stage 2) and reuse it across calls — the biggest
-  remaining win for repeated synthesis.
+- **A length-independent tract plan (the real caching win).** `kokoro-tract` now caches optimized
+  plans keyed by exact shape (phoneme count for stage 1, `(phoneme, frame)` for stage 2), so a
+  *repeated* length reuses its plan — but distinct-length sentences still each pay the ~2.3 s
+  `into_optimized()`. The clean fix is one plan compiled with a **symbolic** length dim (as
+  onnxruntime does), which would drop per-sentence cost to just `run` (RTF ≈ 1.1) and get tract
+  close to gapless streaming. It's blocked by tract: the style-broadcast `Expand`/`Concat` can't be
+  optimized symbolically (`unify Sym(N) with Val(1)`), so it needs graph surgery to feed the Expand
+  a symbolic target shape **plus** a patch to tract's symbolic `Expand` lowering
+  (`broadcast.rs`, `MultiBroadcastTo::wire`). **Bucketing+padding is not an option** — the model's
+  global normalization (decoder instance-norm over frames, encoder norm over phonemes) means any pad
+  token or zero frame poisons the whole output (measured corr 0.73 / 0.02).
+- **Quantized model (`onnx/model_q8f16.onnx`) for `kokoro-tract`.** Independent of the above: split
+  the q8f16 model instead of fp32 so stage-2 matmul (~46% of `run`) uses int8 kernels — the lever to
+  push `run` itself under realtime. Needs the cut-tensor names to survive quantization and a corr
+  check (possible small quality cost).
 - **Faster stage-2 matmul.** After the STFT / im2col / sin parallelization, `OptMatMul` is ~46% of
   the vocoder and already multithreaded; closing the last ~3× to onnxruntime needs faster kernels
   (better packing, blocking, or `target-cpu=native` for the pack/glue paths — tract's core matmul

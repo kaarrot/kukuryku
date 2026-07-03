@@ -285,9 +285,35 @@ onnxruntime runs are bit-identical, so the gap is a real tract op difference, no
 model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
 diffing.
 
-**Perf:** RTF ~4.6 (re-optimizes both stages every utterance; onnxruntime is
-~0.4–1.2). Caching optimized plans per phoneme-count is a later concern, not a
-blocker.
+**Perf:** RTF ~2 after the stage-2 op work (multithread + STFT/im2col/sin);
+onnxruntime is ~0.4. See the caching investigation below.
+
+### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic blocked
+
+Per-utterance `parse + into_optimized` is ~2.6 s (optimize ~2.3 s), pure overhead
+onnxruntime avoids by compiling its session once. Three tiers were evaluated:
+
+- **Symbolic single plan (the clean win): BLOCKED by tract.** Optimizing either
+  subgraph with a symbolic length dim fails during analyse at the style-broadcast
+  `Concat` (`/encoder/predictor/text_encoder/Concat_1`, axis 2):
+  `Impossible to unify Sym(N) with Val(1)`. Root cause: that Concat joins the text
+  features `[1,N,C0]` with an `Expand` output that should be `[1,N,C1]`, but the
+  Expand's target shape is a dynamic `Slice→Where` chain that collapses the sequence
+  dim to 1 under symbolic analysis, so tract infers the Expand output as `[1,1,C1]`.
+  A fix needs (a) graph surgery to feed the Expand a symbolic target derived from
+  `Shape(text_features)`, **and** (b) a tract patch — `MultiBroadcastTo::wire*`
+  (`tract-hir/.../array/broadcast.rs`) calls `shape.concretize()`, which bails on any
+  symbolic dim, so symbolic-length Expand can't be lowered even if analyse passes.
+  Deferred (deep, multi-site).
+- **Bucketing + padding (to reuse across lengths): UNSAFE.** The model normalizes
+  globally (decoder instance-norm over frames, encoder norm over phonemes), so
+  padding poisons the whole output — measured waveform corr vs ORT: phoneme padding
+  0.73, frame padding 0.02 (exact = 0.977). Ruled out.
+- **Exact per-shape cache: DONE.** `Pipeline` compiles a plan per exact shape (key:
+  phoneme count for stage 1, `(phoneme, frame)` for stage 2) and reuses it. Correct
+  (corr 0.977 preserved); helps repeated lengths / re-runs, but distinct-length
+  sentences still each compile once. The length-independent win awaits the symbolic
+  work above; the orthogonal `run`-speedup lever is the quantized `model_q8f16.onnx`.
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 
