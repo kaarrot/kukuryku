@@ -239,6 +239,35 @@ the public `onnx-community/Kokoro-82M-v1.0-ONNX` repo via hf-hub.
 > Prototype caveat: phonemization uses raw `espeak-ng` rather than Kokoro's reference
 > phonemizer (misaki), so pronunciation is close but not identical on tricky words.
 
+### Long input: the phoneme limit and sentence streaming
+
+Kokoro-82M has a **fixed context of ~510 phonemes** (the model's trained input window; token
+`0` pads both ends of a 512-wide sequence, leaving 510 usable — `MAX_PHONEMES` in `src/lib.rs`).
+This is a property of the *model*, not this code: because Kokoro is **non-autoregressive** — it
+predicts the whole utterance's alignment and audio in a single forward pass — it has no way to
+"continue" past its context the way a token-by-token model does. Feed it more phonemes than the
+window and the positions run off the end, so a single call can only ever voice one utterance up to
+that length.
+
+Both binaries handle arbitrarily long text by **splitting the input into sentences** (on `.!?;`
+and newlines; tiny fragments are merged, over-long runs are wrapped on comma/word boundaries) and
+synthesizing each as its own short utterance — always comfortably inside the 510-phoneme window.
+A sentence is the natural unit for a non-autoregressive model anyway: each gets its own clean
+alignment and prosody. (Before this, the whole paragraph was truncated to the first ~510 phonemes
+and the rest was silently dropped.)
+
+Playback is **streamed with look-ahead buffering**: one persistent `ffplay` plays sentences
+back-to-back while the model works on later ones. Because `ffplay` consumes at realtime and
+backpressures via its stdin pipe, a faster-than-realtime backend races ahead and its compute is
+*masked* behind playback — so first-audio latency is just model-load + the first sentence, and the
+rest is seamless.
+
+- **`kokoro` (onnx, RTF ~0.4)** — fully masked, gapless.
+- **`kokoro-tract` (RTF > 1)** — slower than realtime, so it can't get ahead of playback; you'll
+  hear a **gap between sentences** while the next is synthesized. It still plays the whole
+  paragraph in order — closing the gaps needs tract under realtime (faster matmul + plan caching;
+  see [Planned / future work](#planned--future-work)).
+
 ### Backends (onnxruntime vs tract) and Termux
 
 There are two Kokoro binaries with the same pipeline and CLI, differing only in the
