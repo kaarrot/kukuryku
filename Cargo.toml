@@ -42,6 +42,11 @@ ort = { version = "=2.0.0-rc.12", features = ["load-dynamic"], optional = true }
 # can't do this (it optimizes at load with a symbolic sequence_length and hits the
 # #1802 Concat). Also used by the bounded probe (examples/tract_probe.rs).
 tract-onnx = { version = "0.22.3", optional = true }
+# tract's matmul/conv kernels are single-threaded by default; the `multithread-mm`
+# feature adds a rayon-backed executor. We opt in and set a thread pool at runtime
+# (see kokoro_tract.rs) so the conv-heavy stage-2 vocoder fans out across cores —
+# onnxruntime already does this, and it's the bulk of the tract/ORT runtime gap.
+tract-linalg = { version = "0.22.3", optional = true, features = ["multithread-mm"] }
 
 [features]
 # onnxruntime backend (the `kokoro` binary); default so `cargo build` behaves as
@@ -50,7 +55,7 @@ tract-onnx = { version = "0.22.3", optional = true }
 # --features tract` builds only the tract binary (no onnxruntime, for Termux).
 default = ["onnx"]
 onnx = ["dep:ort"]
-tract = ["dep:tract-onnx"]
+tract = ["dep:tract-onnx", "dep:tract-linalg"]
 # Step 0 of docs/tract-support-plan.md: `cargo run --example tract_probe --features tract-probe`
 tract-probe = ["dep:tract-onnx"]
 

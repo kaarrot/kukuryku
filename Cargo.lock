@@ -2584,6 +2584,7 @@ dependencies = [
  "ort",
  "serde_json",
  "tokenizers 0.20.4",
+ "tract-linalg",
  "tract-onnx",
 ]
 
@@ -3111,6 +3112,7 @@ dependencies = [
  "log",
  "num-traits",
  "pastey",
+ "rayon",
  "scan_fmt",
  "smallvec",
  "time",

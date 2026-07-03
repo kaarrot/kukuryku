@@ -55,3 +55,43 @@ pub fn multithread_tract_scope<R, F: FnOnce() -> R>(pool: Executor, f: F) -> R {
     TLS_EXECUTOR_OVERRIDE.set(previous);
     result
 }
+
+/// Map `0..n` to a `Vec<R>` on the current tract executor: parallel across the
+/// pool when one is set (multithread-mm), sequential otherwise. Lets tract-core
+/// ops (STFT, Im2col, ...) fan out compute-heavy loops onto the same pool the
+/// matmul kernels use, without depending on rayon directly.
+pub fn par_map<R, F>(n: usize, f: F) -> Vec<R>
+where
+    R: Send,
+    F: Fn(usize) -> R + Send + Sync,
+{
+    match current_tract_executor() {
+        Executor::SingleThread => (0..n).map(f).collect(),
+        #[cfg(feature = "multithread-mm")]
+        Executor::MultiThread(pool) => pool.install(|| {
+            use rayon::prelude::*;
+            (0..n).into_par_iter().map(f).collect()
+        }),
+    }
+}
+
+/// Apply `f(chunk_index, chunk)` over disjoint mutable `chunk`-sized windows of
+/// `data`, parallel on the current tract executor (sequential otherwise). The
+/// final chunk may be shorter than `chunk`. Used to parallelize elementwise ops.
+pub fn par_chunks_mut<T, F>(data: &mut [T], chunk: usize, f: F)
+where
+    T: Send,
+    F: Fn(usize, &mut [T]) + Send + Sync,
+{
+    debug_assert!(chunk > 0);
+    match current_tract_executor() {
+        Executor::SingleThread => {
+            data.chunks_mut(chunk).enumerate().for_each(|(i, c)| f(i, c))
+        }
+        #[cfg(feature = "multithread-mm")]
+        Executor::MultiThread(pool) => pool.install(|| {
+            use rayon::prelude::*;
+            data.par_chunks_mut(chunk).enumerate().for_each(|(i, c)| f(i, c));
+        }),
+    }
+}

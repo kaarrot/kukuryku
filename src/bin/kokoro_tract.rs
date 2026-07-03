@@ -104,15 +104,50 @@ mod tract_backend {
         let opt_secs = t_opt.elapsed().as_secs_f64();
 
         let run_inputs: TVec<TValue> = ordered.into_iter().map(|t| t.into()).collect();
-        let t_run = std::time::Instant::now();
-        let out = runnable
-            .run(run_inputs)
-            .with_context(|| format!("running {}", path.display()))?;
         let stage = path.file_stem().and_then(|s| s.to_str()).unwrap_or("stage");
+        let t_run = std::time::Instant::now();
+        let out = if std::env::var_os("KOKORO_TRACT_PROFILE").is_some() {
+            profile_run(&runnable, run_inputs, stage)?
+        } else {
+            runnable.run(run_inputs).with_context(|| format!("running {}", path.display()))?
+        };
         eprintln!(
             "[kokoro]   {stage}: parse {load_secs:.2}s | optimize {opt_secs:.2}s | run {run:.2}s",
             run = t_run.elapsed().as_secs_f64(),
         );
+        Ok(out)
+    }
+
+    /// Per-op profiler (KOKORO_TRACT_PROFILE): run the plan node-by-node, timing
+    /// each node's eval and accumulating wall-time by op type, then print the
+    /// biggest cost centres. Shows where stage-2's runtime actually goes.
+    fn profile_run(
+        runnable: &TypedRunnableModel<TypedModel>,
+        inputs: TVec<TValue>,
+        stage: &str,
+    ) -> Result<TVec<TValue>> {
+        use std::collections::HashMap;
+        use tract_onnx::tract_core::plan::{SimpleState, eval};
+        let mut state = SimpleState::new(runnable)?;
+        // (total secs, call count) keyed by op type name.
+        let mut acc: HashMap<String, (f64, usize)> = HashMap::new();
+        let out = state.run_plan_with_eval(inputs, |session, op_state, node, input| {
+            let t = std::time::Instant::now();
+            let r = eval(session, op_state, node, input);
+            let e = acc.entry(node.op().name().into_owned());
+            let slot = e.or_insert((0.0, 0));
+            slot.0 += t.elapsed().as_secs_f64();
+            slot.1 += 1;
+            r
+        })?;
+        let mut rows: Vec<(String, f64, usize)> =
+            acc.into_iter().map(|(k, (s, c))| (k, s, c)).collect();
+        rows.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let total: f64 = rows.iter().map(|r| r.1).sum();
+        eprintln!("[kokoro]   {stage} profile (op: total_s  calls  %):");
+        for (op, secs, calls) in rows.iter().take(12) {
+            eprintln!("[kokoro]     {op:<28} {secs:7.3}s  {calls:5}  {:4.1}%", 100.0 * secs / total);
+        }
         Ok(out)
     }
 
@@ -138,6 +173,24 @@ mod tract_backend {
         let shape: Vec<usize> = view.shape().to_vec();
         let data: Vec<f32> = view.iter().copied().collect();
         Ok(Tensor::from_shape(&shape, &data)?)
+    }
+
+    /// Point tract's matmul/conv kernels at a rayon thread pool. By default tract
+    /// runs single-threaded (~1 core), which is the bulk of the gap vs onnxruntime
+    /// (which saturates all cores). Thread count: KOKORO_TRACT_THREADS, else the
+    /// machine's available parallelism.
+    fn enable_multithreading() {
+        use tract_linalg::multithread::{Executor, set_default_executor};
+        let threads = std::env::var("KOKORO_TRACT_THREADS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .filter(|&t| t > 0)
+            .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
+            .unwrap_or(1);
+        if threads > 1 {
+            set_default_executor(Executor::multithread(threads));
+            eprintln!("[kokoro] tract executor: {threads} threads");
+        }
     }
 
     pub fn synthesize(dir: &Path, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
@@ -192,6 +245,9 @@ mod tract_backend {
         eprintln!("[kokoro] length regulator: {n} phonemes -> {total_frames} frames");
 
         // ---- Stage 2: decoder + iSTFTNet vocoder ----------------------------
+        // Threads help only the conv/matmul-heavy stage 2; stage 1's matmuls are
+        // tiny and the rayon pool overhead makes it slower, so enable here only.
+        enable_multithreading();
         let s2 = run_stage(
             &dir.join("stage2.onnx"),
             &[
