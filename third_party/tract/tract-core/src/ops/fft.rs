@@ -119,7 +119,11 @@ impl Stft {
         let fft = rustfft::FftPlanner::new().plan_fft_forward(self.frame);
         let input = input.to_array_view::<T>()?;
         let mut oview = output.to_array_view_mut::<T>()?;
-        let mut v = Vec::with_capacity(self.frame);
+        // Precompute the (padded) window as complex multipliers once.
+        let window: Option<(usize, Vec<T>)> = match &self.window {
+            Some(win) => Some(((self.frame - win.as_slice::<T>()?.len()) / 2, win.as_slice::<T>()?.to_vec())),
+            None => None,
+        };
         for coords in tract_ndarray::indices(&*iterator_shape) {
             let islice = input.slice_each_axis(|ax| {
                 if ax.axis.index() == self.axis || ax.stride == 1 {
@@ -142,34 +146,37 @@ impl Stft {
                     (c..=c).into()
                 }
             });
-            for f in 0..frames {
-                v.clear();
-                v.extend(
-                    islice
-                        .iter()
-                        .tuples()
-                        .skip(self.stride * f)
-                        .take(self.frame)
-                        .map(|(re, im)| Complex::new(*re, *im)),
-                );
-                if let Some(win) = &self.window {
-                    let win = win.as_slice::<T>()?;
-                    // symmetric padding in case window is smaller than frames (aka n fft)
-                    let pad_left = (self.frame - win.len()) / 2;
+            // Collect this coord's samples once (O(len)); indexing frame windows
+            // out of `samples` avoids the O(frames^2) iterator `.skip()` that this
+            // loop used to do per frame.
+            let samples: Vec<Complex<T>> =
+                islice.iter().tuples().map(|(re, im)| Complex::new(*re, *im)).collect();
+            // Each frame's FFT is independent -> compute them on the tract thread
+            // pool (fft plans are Sync), interleaved [re, im, ...] per frame.
+            let fft = &*fft;
+            let window = window.as_ref();
+            let frame = self.frame;
+            let stride = self.stride;
+            let per_frame: Vec<Vec<T>> = tract_linalg::multithread::par_map(frames, move |f| {
+                let mut v: Vec<Complex<T>> = samples[stride * f..stride * f + frame].to_vec();
+                if let Some((pad_left, win)) = window {
                     v.iter_mut().enumerate().for_each(|(ix, v)| {
-                        *v = if ix < pad_left || ix >= pad_left + win.len() {
+                        *v = if ix < *pad_left || ix >= *pad_left + win.len() {
                             Complex::new(T::zero(), T::zero())
                         } else {
-                            *v * Complex::new(win[ix - pad_left], T::zero())
+                            *v * Complex::new(win[ix - *pad_left], T::zero())
                         }
                     });
                 }
                 fft.process(&mut v);
+                v.iter().flat_map(|c| [c.re, c.im]).collect()
+            });
+            for (f, out) in per_frame.iter().enumerate() {
                 oslice
                     .index_axis_mut(Axis(self.axis), f)
                     .iter_mut()
-                    .zip(v.iter().flat_map(|cmpl| [cmpl.re, cmpl.im].into_iter()))
-                    .for_each(|(s, v)| *s = v);
+                    .zip(out.iter())
+                    .for_each(|(s, v)| *s = *v);
             }
         }
         Ok(output)
