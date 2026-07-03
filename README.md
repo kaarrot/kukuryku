@@ -266,10 +266,25 @@ each with a concrete phoneme count per utterance. Produce the subgraphs with
 `tools/split_kokoro.py` (needs `pip install onnx`); `kokoro-tract` looks for them next to the
 cached `model.onnx` by default, or in `KOKORO_TRACT_DIR`.
 
-Status: `kokoro-tract` runs end-to-end and produces recognizable speech. The encoder/duration
-stage is bit-exact vs onnxruntime; the decoder + iSTFTNet vocoder is ~0.94 correlated (audible
-artifacts, being tracked) and currently ~3–4× slower (it re-optimizes per utterance). See
+Status: `kokoro-tract` runs end-to-end and produces clean speech. The encoder/duration stage is
+bit-exact vs onnxruntime; the decoder + iSTFTNet vocoder is now **~0.977 correlated** after fixing
+an atan2 branch-cut in the harmonic source (the earlier hissing/ringing). Runtime is **RTF ~2.06**
+(down from ~3.6) after multithreading the stage-2 vocoder and fixing an O(frames²) STFT — still
+~3× onnxruntime, dominated now by matmul and per-utterance graph optimization. See
 [`docs/tract-support-plan.md`](docs/tract-support-plan.md) for the full write-up.
+
+### Planned / future work
+
+Ideas not yet implemented, roughly in priority order:
+
+- **Plan caching for `kokoro-tract`.** Each utterance currently re-parses and re-optimizes both
+  subgraphs (~1.5 s), which is now a large fraction of total time. Cache the optimized runnable
+  keyed by phoneme count (stage 1) / frame count (stage 2) and reuse it across calls — the biggest
+  remaining win for repeated synthesis.
+- **Faster stage-2 matmul.** After the STFT / im2col / sin parallelization, `OptMatMul` is ~46% of
+  the vocoder and already multithreaded; closing the last ~3× to onnxruntime needs faster kernels
+  (better packing, blocking, or `target-cpu=native` for the pack/glue paths — tract's core matmul
+  kernels dispatch SIMD at runtime and won't benefit).
 
 **Termux / Android (aarch64):** the glibc pip wheel will *not* load under Android's bionic
 libc. Use the **`onnxruntime-android` AAR**, which contains an arm64-v8a `libonnxruntime.so`
