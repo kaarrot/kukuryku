@@ -75,6 +75,24 @@ where
     }
 }
 
+/// Run `f(i)` for `i` in `0..n` on the current tract executor: parallel across
+/// the pool when set (multithread-mm), sequential otherwise. For loops that write
+/// into disjoint regions via raw pointers (e.g. im2col packing), where each `i`
+/// is independent.
+pub fn par_for<F>(n: usize, f: F)
+where
+    F: Fn(usize) + Send + Sync,
+{
+    match current_tract_executor() {
+        Executor::SingleThread => (0..n).for_each(f),
+        #[cfg(feature = "multithread-mm")]
+        Executor::MultiThread(pool) => pool.install(|| {
+            use rayon::prelude::*;
+            (0..n).into_par_iter().for_each(f);
+        }),
+    }
+}
+
 /// Apply `f(chunk_index, chunk)` over disjoint mutable `chunk`-sized windows of
 /// `data`, parallel on the current tract executor (sequential otherwise). The
 /// final chunk may be shorter than `chunk`. Used to parallelize elementwise ops.

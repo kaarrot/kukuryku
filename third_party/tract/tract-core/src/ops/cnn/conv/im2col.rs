@@ -234,6 +234,18 @@ impl TypedOp for Im2Col {
     }
 }
 
+// Raw-pointer wrappers so disjoint-region packing can run across threads. Safe
+// here because valid_1d partitions the packed output into non-overlapping k-row
+// blocks (one per input channel) — no two tasks touch the same element.
+#[derive(Clone, Copy)]
+struct SendPtr<T>(*mut T);
+unsafe impl<T> Send for SendPtr<T> {}
+unsafe impl<T> Sync for SendPtr<T> {}
+#[derive(Clone, Copy)]
+struct SendConstPtr<T>(*const T);
+unsafe impl<T> Send for SendConstPtr<T> {}
+unsafe impl<T> Sync for SendConstPtr<T> {}
+
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 enum Patcher {
     Generic,
@@ -282,22 +294,42 @@ impl Patcher {
         unsafe {
             let pad_value = *pad_value.to_scalar_unchecked();
             let mut mega_matrix = Tensor::uninitialized::<T>(&[geometry.k, geometry.n])?;
-            let mut mega_matrix_view = mega_matrix.to_array_view_mut_unchecked::<T>();
             let ptr = input.as_ptr_unchecked::<T>();
             let ptr = ptr.add(geometry.input_shape_with_n.c_stride() * (g * geometry.ci_per_group));
-            for (spatial, mut col) in ndarray::indices(&*geometry.pool.patch.output_shape)
-                .into_iter()
-                .zip(mega_matrix_view.axis_iter_mut(Axis(1)))
-            {
-                let mut col = col.iter_mut();
-                for ci in 0..geometry.ci_per_group {
-                    let ptr = ptr.add(geometry.input_shape_with_n.c_stride() * ci);
-                    for v in geometry.pool.patch.at(spatial.slice()) {
-                        *col.next().expect("geometry error in conv") =
-                            v.map(|o| *ptr.offset(o)).unwrap_or(pad_value);
+
+            // The [k, n] im2col matrix is filled column by column and every column
+            // (one output spatial position) is independent, so build them on the
+            // tract thread pool. mega_matrix is row-major [k, n]; column `col` lives
+            // at offsets col, n+col, 2n+col, ... -> each task writes a disjoint,
+            // strided set of elements, keeping the result bit-identical to the
+            // sequential fill regardless of thread count.
+            let mm = SendPtr(mega_matrix.as_slice_mut_unchecked::<T>().as_mut_ptr());
+            let src = SendConstPtr(ptr);
+            let n = geometry.n;
+            let c_stride = geometry.input_shape_with_n.c_stride();
+            let ci_per_group = geometry.ci_per_group;
+            let patch = &geometry.pool.patch;
+            let out_shape = &geometry.pool.patch.output_shape;
+            tract_linalg::multithread::par_for(n, |col| unsafe {
+                // Copy wrappers so the closure captures the Send+Sync wrapper, not
+                // the bare raw-pointer field (edition-2021 precise capture).
+                let (mm, src) = (mm, src);
+                // C-order unravel of the flat column index into spatial coords.
+                let mut coords: TVec<usize> = tvec![0; out_shape.len()];
+                let mut rem = col;
+                for d in (0..out_shape.len()).rev() {
+                    coords[d] = rem % out_shape[d];
+                    rem /= out_shape[d];
+                }
+                let mut row = 0usize;
+                for ci in 0..ci_per_group {
+                    let ptr = src.0.add(c_stride * ci);
+                    for v in patch.at(&coords) {
+                        *mm.0.add(row * n + col) = v.map(|o| *ptr.offset(o)).unwrap_or(pad_value);
+                        row += 1;
                     }
                 }
-            }
+            });
             geometry.b_pack.pack(pack, mega_matrix.view(), 0, 1);
             Ok(())
         }
