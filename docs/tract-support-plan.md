@@ -354,6 +354,62 @@ of fix); or graph-surgery a numerically-stable atan2 into the model.
 `Exp` amplification — above); (b) optional plan caching for perf; (c) ship/generate the
 split subgraphs as part of the tract build flow.
 
+### atan2 branch-cut surgery (2026-07-03) — FIXED, 0.949 → 0.977
+
+The prior "f64 / stable-atan2 won't help" reasoning was **wrong**, and an empirical
+bisection (ORT-only, tapping the source-analysis tensors as extra graph outputs)
+found the real, fixable root cause. Method: run the full model in onnxruntime with
+internal taps (`real`=`generator/Gather_4`, `imag`=`Gather_5`, `Div`, `Atan`,
+`phase`=`Where_1`, `mag`=`Sqrt`), then **substitute** candidate phase/real-imag
+tensors back in via an override input and measure the *waveform* corr. This isolates
+exactly what each fix buys, without needing to rebuild tract for every hypothesis.
+
+**Findings:**
+- The damage is **entirely in the phase channel**. Overriding an ORT run's magnitude
+  channel with tract's (corr-1.0-but-Δ0.003) values → waveform 0.99999; overriding the
+  phase channel with tract's → 0.949. So the vocoder gap is the phase, not the
+  magnitude / `conv_post`-`Exp` path as previously written.
+- **tract's phase is NOT NaN-poisoned.** `Div` overflows to `inf` in the ~4000
+  tiny-magnitude bins, but `atan(inf)=±π/2` absorbs it cleanly — the dumped phase has
+  0 NaN / 0 Inf. So there was no NaN defect to fix.
+- **The real bug: tract's `Div→Atan→Where` atan2 emulation ≠ true atan2 on its own
+  inputs** (corr −0.17, max|Δ| 2π). The model selects the +π vs −π quadrant with a
+  *strict* `imag > 0` (`Greater`). tract structurally produces **exact `imag == +0.0`**
+  in ~30% of the source-STFT bins; at the negative-real branch cut those fail `>0` and
+  the graph returns **−π**, whereas IEEE `atan2` (and onnxruntime, whose imag is a tiny
+  nonzero residue there) returns **+π**. That 2π error in the raw phase — fed straight
+  into `noise_convs.0` — is the ringing. (onnxruntime's own graph *does* equal atan2,
+  corr 0.99994, precisely because it never hits exact `imag==0`.)
+
+**Fix (one node): `Greater` → `GreaterOrEqual`** on
+`/decoder/decoder/generator/Greater` (i.e. `imag > 0` → `imag >= 0`). This makes
+tract's emulation equal true atan2 on its own inputs (verified corr 1.0 / max|Δ| 2e-7
+vs `np.arctan2`). It only changes the `imag==0` boundary, so for onnxruntime's
+nonzero-residue inputs it is a no-op (backend-agnostic correctness fix). Applied as
+graph surgery in `tools/split_kokoro.py` (`fix_atan2_branch`), so it ships with the
+regenerated `stage2.onnx` and needs **no tract patch** (tract already implements
+`GreaterOrEqual`).
+
+**Measured end-to-end (tract vs onnxruntime, af_heart):**
+
+| Utterance | before (`Greater`) | after (`GreaterOrEqual`) |
+|---|---|---|
+| "Hello world." | 0.9491 (rel-RMS 0.366) | **0.9767** (rel-RMS 0.224) |
+| "The quick brown fox…" | 0.9597 | **0.9754** |
+| "She sells seashells…" | 0.9501 | **0.9705** |
+
+**Remaining gap to 1.0 (now ~0.976) is genuinely inherent** and *not* worth chasing:
+substituting a perfect `atan2` still yields 0.977, because tract's `real`/`imag` differ
+from onnxruntime by ~0.003 (inherited f32 accumulation in the harmonic source), which
+flips the *genuine* branch cut (real<0, imag crossing 0) in the remaining bins. That
+part is precision-driven **and precision-independent at the same time**: injecting even
+1e-4 Gaussian noise into the source spectrogram saturates the waveform at ~0.965
+(a discontinuous branch function — any perturbation flips the marginal bins fully), so
+f64 cannot help. This is the correct place to stop the fidelity chase.
+
+If revisited, the highest-value work is **perf (plan caching per phoneme-count)** and
+**packaging the split subgraphs into the build flow**, not further vocoder parity.
+
 ## Effort & decision criteria
 
 | Outcome | Effort |

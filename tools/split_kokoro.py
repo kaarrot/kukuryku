@@ -70,6 +70,42 @@ def strip_symbols(path):
     onnx.save(m, path)
 
 
+# Node that selects the +pi vs -pi quadrant in the harmonic-source atan2 emulation
+# (imag>0 ? Atan+pi : Atan-pi, for the real<0 half-plane).
+ATAN2_QUADRANT_GREATER = "/decoder/decoder/generator/Greater"
+
+
+def fix_atan2_branch(path):
+    """Stabilize the harmonic-source phase (`atan(imag/real)` + quadrant fix) for
+    tract.
+
+    The source module computes phase as an atan2 emulation:
+        real<0 ? (imag>0 ? Atan+pi : Atan-pi) : Atan
+    The quadrant selector uses a *strict* `imag > 0` (a `Greater` node). At the
+    negative-real branch cut with `imag == +0.0`, that test is false, so the graph
+    returns -pi -- whereas IEEE atan2 (and onnxruntime, whose imag is a tiny nonzero
+    residue there) returns +pi. tract structurally produces exact `imag == +0.0` in
+    ~30% of the source-STFT bins, so its raw phase (fed straight into `noise_convs.0`)
+    diverges from onnxruntime by 2*pi in those bins -> the ringing artifact.
+
+    Relaxing the selector to `imag >= 0` (GreaterOrEqual) makes tract's emulation
+    equal true atan2 on its own inputs (verified corr 1.0 vs np.arctan2), which lifts
+    the vocoder waveform corr from ~0.949 to ~0.977 vs onnxruntime. This is an
+    additive, backend-agnostic correctness fix: it only changes the imag==0 boundary,
+    which for onnxruntime's nonzero-residue inputs is a no-op. See
+    docs/tract-support-plan.md ("atan2 branch-cut surgery")."""
+    m = onnx.load(path)
+    hits = [n for n in m.graph.node if n.name == ATAN2_QUADRANT_GREATER]
+    if not hits:
+        raise SystemExit(f"atan2 quadrant node {ATAN2_QUADRANT_GREATER!r} not found")
+    for n in hits:
+        if n.op_type != "Greater":
+            raise SystemExit(f"expected Greater at {n.name}, found {n.op_type}")
+        n.op_type = "GreaterOrEqual"
+    onnx.save(m, path)
+    print(f"  patched {len(hits)} atan2 quadrant selector: Greater -> GreaterOrEqual")
+
+
 def main():
     model = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else DEFAULT_MODEL
     out_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(os.path.abspath(model))
@@ -84,6 +120,7 @@ def main():
 
     onnx.utils.extract_model(model, s2, STAGE2_IN, STAGE2_OUT)
     strip_symbols(s2)
+    fix_atan2_branch(s2)
     print(f"wrote {s2}  ({len(onnx.load(s2).graph.node)} nodes)")
 
 
