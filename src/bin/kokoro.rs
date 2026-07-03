@@ -61,34 +61,65 @@ fn main() -> Result<()> {
 
     eprintln!("[kokoro] resolving assets...");
     let assets = kokoro::resolve_assets(&model_file, &voice)?;
-    let prep = kokoro::prepare(&text, &lang, &assets.voice_path)?;
-    eprintln!("[kokoro] phonemes: {}", prep.phonemes);
 
-    // ---- ONNX inference (single monolithic model, one forward pass) ----
-    let infer_start = std::time::Instant::now();
+    // Split into sentence chunks and stream: synthesize each, queue it, and let
+    // playback of earlier sentences mask synthesis of later ones (see StreamPlayer).
+    let sentences = kokoro::split_sentences(&text);
+    eprintln!("[kokoro] {} sentence chunk(s)", sentences.len());
+
+    // ---- ONNX inference: load the model once, run one forward pass per chunk ----
     eprintln!("[kokoro] loading model ({model_file})...");
     let mut session = Session::builder()?
         .commit_from_file(&assets.model_path)
         .context("loading kokoro onnx model")?;
 
-    let id_tensor =
-        TensorRef::from_array_view((vec![1_i64, prep.ids.len() as i64], prep.ids.as_slice()))?;
-    let style_tensor =
-        TensorRef::from_array_view((vec![1_i64, STYLE_DIM as i64], prep.style.as_slice()))?;
-    let speed_vec = vec![speed];
-    let speed_tensor = TensorRef::from_array_view((vec![1_i64], speed_vec.as_slice()))?;
+    let player = kokoro::StreamPlayer::new()?;
+    let want_wav = std::env::var("KOKORO_WAV").ok();
+    let mut all: Vec<f32> = Vec::new();
+    let (mut total_audio, mut total_infer) = (0usize, 0f64);
 
-    let outputs = session
-        .run(ort::inputs![
-            "input_ids" => id_tensor,
-            "style" => style_tensor,
-            "speed" => speed_tensor,
-        ])
-        .context("running kokoro inference")?;
-    let (_shape, audio) = outputs[0]
-        .try_extract_tensor::<f32>()
-        .context("extracting audio output")?;
-    let infer_secs = infer_start.elapsed().as_secs_f64();
+    for (i, sentence) in sentences.iter().enumerate() {
+        let prep = kokoro::prepare(sentence, &lang, &assets.voice_path)?;
 
-    kokoro::emit(audio, &prep.phonemes, prep.token_len, infer_secs, t0.elapsed().as_secs_f64())
+        let infer_start = std::time::Instant::now();
+        let id_tensor =
+            TensorRef::from_array_view((vec![1_i64, prep.ids.len() as i64], prep.ids.as_slice()))?;
+        let style_tensor =
+            TensorRef::from_array_view((vec![1_i64, STYLE_DIM as i64], prep.style.as_slice()))?;
+        let speed_vec = vec![speed];
+        let speed_tensor = TensorRef::from_array_view((vec![1_i64], speed_vec.as_slice()))?;
+        let outputs = session
+            .run(ort::inputs![
+                "input_ids" => id_tensor,
+                "style" => style_tensor,
+                "speed" => speed_tensor,
+            ])
+            .context("running kokoro inference")?;
+        let (_shape, audio) = outputs[0]
+            .try_extract_tensor::<f32>()
+            .context("extracting audio output")?;
+        let infer_secs = infer_start.elapsed().as_secs_f64();
+
+        kokoro::report_chunk(i, sentences.len(), prep.token_len, audio.len(), infer_secs);
+        total_audio += audio.len();
+        total_infer += infer_secs;
+        let audio = audio.to_vec();
+        if want_wav.is_some() {
+            all.extend_from_slice(&audio);
+        }
+        player.push(audio)?;
+    }
+
+    player.finish()?;
+    if let Some(path) = want_wav {
+        kokoro::write_wav(&path, &all)?;
+        eprintln!("[kokoro] wrote {path}");
+    }
+    let audio_secs = total_audio as f64 / kokoro::SAMPLE_RATE as f64;
+    eprintln!(
+        "[kokoro] done: {audio_secs:.2}s audio | infer {total_infer:.2}s | RTF {:.3} | total {:.2}s",
+        total_infer / audio_secs.max(1e-9),
+        t0.elapsed().as_secs_f64(),
+    );
+    Ok(())
 }

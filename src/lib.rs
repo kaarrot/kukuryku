@@ -113,55 +113,186 @@ pub mod kokoro {
         Ok(Prepared { phonemes, ids, style, token_len })
     }
 
-    /// Report timing/RTF, optionally dump a WAV (KOKORO_WAV), and play via ffplay.
-    pub fn emit(
-        audio: &[f32],
-        phonemes: &str,
-        token_len: usize,
-        infer_secs: f64,
-        total_secs: f64,
-    ) -> Result<()> {
-        let audio_secs = audio.len() as f64 / SAMPLE_RATE as f64;
-        let rtf = infer_secs / audio_secs.max(1e-9);
-        eprintln!(
-            "[kokoro] {ph} phonemes | {tok} tokens | {audio:.2}s audio @ {sr} Hz | infer {inf:.2}s | RTF {rtf:.3} | total {tot:.2}s",
-            ph = phonemes.chars().count(),
-            tok = token_len,
-            audio = audio_secs,
-            sr = SAMPLE_RATE,
-            inf = infer_secs,
-            rtf = rtf,
-            tot = total_secs,
-        );
+    /// Split a paragraph into sentence-sized chunks for streaming synthesis.
+    ///
+    /// This is what lets long input play back smoothly: each chunk is synthesized
+    /// and queued independently, so the model works on the *next* sentence while
+    /// `ffplay` is still reading the current one aloud (see [`StreamPlayer`]). It
+    /// also sidesteps the `MAX_PHONEMES` truncation that would otherwise clip a
+    /// long paragraph to the first ~510 phonemes.
+    ///
+    /// Rules: break after sentence-final punctuation (`. ! ? ;`) when followed by
+    /// whitespace/end, and on newlines; merge fragments shorter than `MIN_CHARS`
+    /// into their predecessor (no micro-utterances); and hard-wrap any run longer
+    /// than `MAX_CHARS` on word (preferably comma) boundaries so no chunk grossly
+    /// overruns the model's phoneme budget. Abbreviations/decimals aren't special-
+    /// cased — a stray split just adds a short pause, which is harmless here.
+    pub fn split_sentences(text: &str) -> Vec<String> {
+        const MAX_CHARS: usize = 300;
+        const MIN_CHARS: usize = 16;
 
-        if let Ok(wav_path) = std::env::var("KOKORO_WAV") {
-            write_wav_i16(&wav_path, audio, SAMPLE_RATE)?;
-            eprintln!("[kokoro] wrote {wav_path}");
+        // 1. Primary split on sentence-final punctuation / newlines.
+        let chars: Vec<char> = text.chars().collect();
+        let mut raw: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        for (i, &c) in chars.iter().enumerate() {
+            if c == '\n' {
+                let t = cur.trim();
+                if !t.is_empty() {
+                    raw.push(t.to_string());
+                }
+                cur.clear();
+                continue;
+            }
+            cur.push(c);
+            let ends_sentence = matches!(c, '.' | '!' | '?' | ';')
+                && chars.get(i + 1).map_or(true, |n| n.is_whitespace());
+            if ends_sentence {
+                let t = cur.trim();
+                if !t.is_empty() {
+                    raw.push(t.to_string());
+                }
+                cur.clear();
+            }
         }
-        play_via_ffplay(audio)?;
-        Ok(())
+        let t = cur.trim();
+        if !t.is_empty() {
+            raw.push(t.to_string());
+        }
+
+        // 2. Hard-wrap over-long chunks on word/comma boundaries.
+        let mut wrapped: Vec<String> = Vec::new();
+        for chunk in raw {
+            if chunk.chars().count() <= MAX_CHARS {
+                wrapped.push(chunk);
+            } else {
+                wrapped.extend(wrap_long(&chunk, MAX_CHARS));
+            }
+        }
+
+        // 3. Merge tiny fragments into the previous chunk.
+        let mut out: Vec<String> = Vec::new();
+        for chunk in wrapped {
+            if chunk.chars().count() < MIN_CHARS {
+                if let Some(last) = out.last_mut() {
+                    last.push(' ');
+                    last.push_str(&chunk);
+                    continue;
+                }
+            }
+            out.push(chunk);
+        }
+        if out.is_empty() {
+            let t = text.trim();
+            if !t.is_empty() {
+                out.push(t.to_string());
+            }
+        }
+        out
     }
 
-    fn play_via_ffplay(samples: &[f32]) -> Result<()> {
-        let mut child = Command::new("ffplay")
-            .args([
-                "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
-                "-f", "f32le", "-ar", &SAMPLE_RATE.to_string(), "-ac", "1", "-i", "pipe:0",
-            ])
-            .stdin(Stdio::piped())
-            .spawn()
-            .context("spawning ffplay (is ffmpeg installed?)")?;
-        {
-            let mut stdin = child.stdin.take().context("ffplay stdin unavailable")?;
-            stdin
-                .write_all(bytemuck::cast_slice::<f32, u8>(samples))
-                .context("writing pcm to ffplay")?;
+    /// Greedily pack words up to `max` chars, breaking early right after a comma
+    /// once past the halfway point (a natural prosodic pause).
+    fn wrap_long(s: &str, max: usize) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        for word in s.split_whitespace() {
+            if !cur.is_empty() && cur.chars().count() + 1 + word.chars().count() > max {
+                out.push(std::mem::take(&mut cur));
+            }
+            if !cur.is_empty() {
+                cur.push(' ');
+            }
+            cur.push_str(word);
+            if cur.ends_with(',') && cur.chars().count() >= max / 2 {
+                out.push(std::mem::take(&mut cur));
+            }
         }
-        let status = child.wait().context("waiting for ffplay")?;
-        if !status.success() {
-            bail!("ffplay exited with {status}");
+        if !cur.is_empty() {
+            out.push(cur);
         }
-        Ok(())
+        out
+    }
+
+    /// Per-chunk metrics line (audio seconds, synth time, realtime factor).
+    pub fn report_chunk(idx: usize, total: usize, token_len: usize, audio_len: usize, infer_secs: f64) {
+        let audio_secs = audio_len as f64 / SAMPLE_RATE as f64;
+        let rtf = infer_secs / audio_secs.max(1e-9);
+        eprintln!(
+            "[kokoro] [{n}/{total}] {tok} tokens | {audio:.2}s audio | infer {inf:.2}s | RTF {rtf:.3}",
+            n = idx + 1,
+            tok = token_len,
+            audio = audio_secs,
+            inf = infer_secs,
+            rtf = rtf,
+        );
+    }
+
+    /// Streaming audio sink: one long-lived `ffplay` fed by a background thread
+    /// over a bounded channel. [`push`](Self::push)ed chunks play back-to-back with
+    /// no gap between sentences; because `ffplay` consumes at realtime and its
+    /// stdin pipe applies backpressure, the writer paces itself while the caller
+    /// races ahead synthesizing later sentences — masking their compute behind
+    /// playback of the earlier ones. Memory is bounded to `STREAM_BUFFER` queued
+    /// chunks; a faster-than-realtime backend fills that and then blocks on
+    /// `push`, a slower one (e.g. tract) simply never gets ahead and may underrun.
+    pub struct StreamPlayer {
+        tx: Option<std::sync::mpsc::SyncSender<Vec<f32>>>,
+        thread: Option<std::thread::JoinHandle<Result<()>>>,
+    }
+
+    /// Max sentences of synthesized audio buffered ahead of playback.
+    const STREAM_BUFFER: usize = 32;
+
+    impl StreamPlayer {
+        pub fn new() -> Result<Self> {
+            let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(STREAM_BUFFER);
+            let thread = std::thread::spawn(move || -> Result<()> {
+                let mut child = Command::new("ffplay")
+                    .args([
+                        "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                        "-f", "f32le", "-ar", &SAMPLE_RATE.to_string(), "-ac", "1", "-i", "pipe:0",
+                    ])
+                    .stdin(Stdio::piped())
+                    .spawn()
+                    .context("spawning ffplay (is ffmpeg installed?)")?;
+                let mut stdin = child.stdin.take().context("ffplay stdin unavailable")?;
+                for chunk in rx.iter() {
+                    stdin
+                        .write_all(bytemuck::cast_slice::<f32, u8>(&chunk))
+                        .context("writing pcm to ffplay")?;
+                }
+                drop(stdin); // EOF -> ffplay drains and exits (autoexit)
+                let status = child.wait().context("waiting for ffplay")?;
+                if !status.success() {
+                    bail!("ffplay exited with {status}");
+                }
+                Ok(())
+            });
+            Ok(StreamPlayer { tx: Some(tx), thread: Some(thread) })
+        }
+
+        /// Queue a finished chunk. Blocks if the buffer is full (backpressure).
+        pub fn push(&self, chunk: Vec<f32>) -> Result<()> {
+            self.tx
+                .as_ref()
+                .context("player already finished")?
+                .send(chunk)
+                .map_err(|_| anyhow::anyhow!("playback thread stopped early"))
+        }
+
+        /// Close the queue and wait for playback to finish draining.
+        pub fn finish(mut self) -> Result<()> {
+            self.tx.take(); // drop sender -> writer loop ends after the last chunk
+            match self.thread.take() {
+                Some(h) => h.join().map_err(|_| anyhow::anyhow!("playback thread panicked"))?,
+                None => Ok(()),
+            }
+        }
+    }
+
+    pub fn write_wav(path: &str, samples: &[f32]) -> Result<()> {
+        write_wav_i16(path, samples, SAMPLE_RATE)
     }
 
     fn write_wav_i16(path: &str, samples: &[f32], sample_rate: u32) -> Result<()> {

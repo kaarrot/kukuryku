@@ -31,8 +31,6 @@ fn main() -> Result<()> {
 
     eprintln!("[kokoro] resolving assets...");
     let assets = kokoro::resolve_assets(&model_file, &voice)?;
-    let prep = kokoro::prepare(&text, &lang, &assets.voice_path)?;
-    eprintln!("[kokoro] phonemes: {}", prep.phonemes);
 
     // ---- two-stage tract inference with a Rust length regulator ----
     let dir = match std::env::var_os("KOKORO_TRACT_DIR") {
@@ -45,11 +43,44 @@ fn main() -> Result<()> {
     };
     eprintln!("[kokoro] loading split model (stage1.onnx + stage2.onnx) from {}", dir.display());
 
-    let infer_start = std::time::Instant::now();
-    let audio = tract_backend::synthesize(&dir, &prep.ids, &prep.style, speed)?;
-    let infer_secs = infer_start.elapsed().as_secs_f64();
+    // Sentence-streamed playback. Note: tract re-optimizes both subgraphs per
+    // chunk (RTF > 1), so it won't fully keep ahead of playback yet — the win here
+    // is correctness for long input; masking lands once plan caching does.
+    let sentences = kokoro::split_sentences(&text);
+    eprintln!("[kokoro] {} sentence chunk(s)", sentences.len());
 
-    kokoro::emit(&audio, &prep.phonemes, prep.token_len, infer_secs, t0.elapsed().as_secs_f64())
+    let player = kokoro::StreamPlayer::new()?;
+    let want_wav = std::env::var("KOKORO_WAV").ok();
+    let mut all: Vec<f32> = Vec::new();
+    let (mut total_audio, mut total_infer) = (0usize, 0f64);
+
+    for (i, sentence) in sentences.iter().enumerate() {
+        let prep = kokoro::prepare(sentence, &lang, &assets.voice_path)?;
+        let infer_start = std::time::Instant::now();
+        let audio = tract_backend::synthesize(&dir, &prep.ids, &prep.style, speed)?;
+        let infer_secs = infer_start.elapsed().as_secs_f64();
+
+        kokoro::report_chunk(i, sentences.len(), prep.token_len, audio.len(), infer_secs);
+        total_audio += audio.len();
+        total_infer += infer_secs;
+        if want_wav.is_some() {
+            all.extend_from_slice(&audio);
+        }
+        player.push(audio)?;
+    }
+
+    player.finish()?;
+    if let Some(path) = want_wav {
+        kokoro::write_wav(&path, &all)?;
+        eprintln!("[kokoro] wrote {path}");
+    }
+    let audio_secs = total_audio as f64 / kokoro::SAMPLE_RATE as f64;
+    eprintln!(
+        "[kokoro] done: {audio_secs:.2}s audio | infer {total_infer:.2}s | RTF {:.3} | total {:.2}s",
+        total_infer / audio_secs.max(1e-9),
+        t0.elapsed().as_secs_f64(),
+    );
+    Ok(())
 }
 
 /// Pure-Rust two-stage Kokoro inference on top of `tract`.
@@ -180,17 +211,23 @@ mod tract_backend {
     /// (which saturates all cores). Thread count: KOKORO_TRACT_THREADS, else the
     /// machine's available parallelism.
     fn enable_multithreading() {
-        use tract_linalg::multithread::{Executor, set_default_executor};
-        let threads = std::env::var("KOKORO_TRACT_THREADS")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .filter(|&t| t > 0)
-            .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
-            .unwrap_or(1);
-        if threads > 1 {
-            set_default_executor(Executor::multithread(threads));
-            eprintln!("[kokoro] tract executor: {threads} threads");
-        }
+        // Build the rayon pool once, even though synthesize() is called per
+        // sentence when streaming — otherwise every sentence would spin up a fresh
+        // N-thread pool.
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            use tract_linalg::multithread::{Executor, set_default_executor};
+            let threads = std::env::var("KOKORO_TRACT_THREADS")
+                .ok()
+                .and_then(|s| s.parse::<usize>().ok())
+                .filter(|&t| t > 0)
+                .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
+                .unwrap_or(1);
+            if threads > 1 {
+                set_default_executor(Executor::multithread(threads));
+                eprintln!("[kokoro] tract executor: {threads} threads");
+            }
+        });
     }
 
     pub fn synthesize(dir: &Path, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
