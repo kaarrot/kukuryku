@@ -2,7 +2,6 @@ use tract_linalg::mmm::{EagerPackedInput, MMMInputValue, MatMatMul, PackedOpaque
 use tract_linalg::pack::{PackedFormat, PackingWriter};
 
 use crate::internal::*;
-use ndarray::prelude::*;
 use num_integer::Integer;
 
 use crate::ops::cnn::pools::{ConcretePoolGeometry, PoolGeometry};
@@ -310,7 +309,7 @@ impl Patcher {
             let ci_per_group = geometry.ci_per_group;
             let patch = &geometry.pool.patch;
             let out_shape = &geometry.pool.patch.output_shape;
-            tract_linalg::multithread::par_for(n, |col| unsafe {
+            tract_linalg::multithread::par_for(n, |col| {
                 // Copy wrappers so the closure captures the Send+Sync wrapper, not
                 // the bare raw-pointer field (edition-2021 precise capture).
                 let (mm, src) = (mm, src);
