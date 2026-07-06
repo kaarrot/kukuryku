@@ -1263,7 +1263,7 @@ impl Conv {
         if shape.n().map(|n| n != &1.to_dim()).unwrap_or(false) {
             return false;
         }
-        if self.group != 1 || self.pool_spec.kernel_shape.iter().product::<usize>() <= 5 {
+        if self.group != 1 || self.pool_spec.kernel_shape.iter().product::<usize>() <= 1 {
             return false;
         }
         self.pool_spec
