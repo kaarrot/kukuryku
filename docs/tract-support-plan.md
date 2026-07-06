@@ -285,9 +285,10 @@ onnxruntime runs are bit-identical, so the gap is a real tract op difference, no
 model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
 diffing.
 
-**Perf:** RTF ~1.04 after the stage-2 op work (multithread + STFT/im2col/sin, the
-`Padded1d` im2col patcher, and lazy im2col under a symbolic length); onnxruntime is ~0.4.
-See the caching investigation and the two conv run-speed sections below.
+**Perf:** RTF ~0.93 after the stage-2 op work (multithread + STFT/im2col/sin, the
+`Padded1d` im2col patcher, lazy im2col under a symbolic length, and SIMD binary fusion
+under a symbolic length); onnxruntime is ~0.4. See the caching investigation and the three
+conv/elementwise run-speed sections below.
 
 ### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic first thought blocked
 
@@ -433,6 +434,34 @@ streamed paragraph (corr 0.9705–0.9842). vs onnxruntime (RTF ~0.4) the gap is 
 down from ~4.3×. Compile-once is preserved (still one symbolic plan per stage), so a streamed
 paragraph of distinct-length sentences gets this conv speed *and* pays optimize only once.
 `KOKORO_TRACT_FORCE_PERSHAPE=1` forces the concrete path for A/B benching.
+
+### Conv/elementwise run-speed: SIMD binary fusion under a symbolic length (2026-07-06) — DONE (Tier 3)
+
+Same bug class as Tier 2, a third time. The symbolic profile ran the AdaIN/Snake
+elementwise ops as **raw, single-threaded scalar** `Mul`/`Add`/`Sub` (~3.8 s), where the
+concrete (`KOKORO_TRACT_FORCE_PERSHAPE`) path fused them into SIMD
+`OptMulByScalar`/`OptAddUnicast`/`OptSubByScalar` (~1.75 s). Root cause: the codegen in
+`tract-core/src/ops/binary.rs` picks the fused kernel only if `gt_tdim(num_elements, 32)`
+is true, and `gt_tdim` computed `min(32, x).to_i64() == 32` — for a symbolic element count
+(the affine broadcasts `[1,C,F]`×`[1,C,1]`, so `num = F`) that can't concretize, so it
+returned `false` and fell back to the scalar op. (`check_input_shapes` already accepts the
+broadcast pattern symbolically, so `gt_tdim` was the only blocker.)
+
+Fix: `gt_tdim` returns `true` when `x` can't be concretized — the fused op is
+correctness-equivalent for any size and the threshold is only a tiny-tensor guard; a
+symbolic frame axis is never tiny. Concrete `x` is unchanged.
+
+**Measured** (fixed 242-token sentence, best-of-4): pure `infer` **15.20 s → 13.55 s**
+(RTF 1.041 → **0.928**) — now **under realtime** on this bench, and streamed paragraph
+sentences run RTF ~0.83–0.85. `Add`/`Sub` became `OptAddUnicast`/`OptAddByScalar`/
+`OptSubByScalar` as expected. Parity bit-identical (corr 0.9705–0.9842 unchanged — same
+math, faster kernel). vs onnxruntime (RTF ~0.4) the gap is now ~2.3×.
+
+**Still on the table:** ~169 `Mul` calls (12.7%) stay raw — a *different* fusion condition
+than `gt_tdim` (neither by-scalar nor unicast-aligned as emitted); the `Sin` oscillator
+(16%, already multithreaded, needs a vectorized `sin`, fidelity-sensitive); the lazy-im2col
+`Pad` nodes (6%, could fold into the gather); and the sequential `Scan`/LSTM (13%). See the
+run-speed plan for the ranked map.
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 

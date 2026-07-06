@@ -432,7 +432,18 @@ fn find_most_efficient_config(
 }
 
 pub fn gt_tdim(x: TDim, min_val: i64) -> bool {
-    TDim::Val(min_val).mini(x).to_i64().is_ok_and(|v| v == min_val)
+    // Whether `x >= min_val`, used only to decide if the fused SIMD by-scalar /
+    // unicast binary kernel is worth it over the generic elementwise op (the
+    // threshold just avoids kernel overhead on tiny tensors). When `x` is a
+    // symbolic length (e.g. the frame axis under the length-independent plan),
+    // `min(min_val, x)` can't be concretized — assume it clears the threshold
+    // rather than falling back to the slow scalar path: the fused op is
+    // correctness-equivalent for any size, and such axes are never tiny at
+    // runtime. Concrete `x` is unchanged.
+    match TDim::Val(min_val).mini(x).to_i64() {
+        Ok(v) => v == min_val,
+        Err(_) => true,
+    }
 }
 
 #[derive(Clone)]
