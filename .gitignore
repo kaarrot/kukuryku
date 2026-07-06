@@ -1,2 +1,5 @@
 /target
 /vendor
+
+# tract conv bench outputs (machine-specific)
+tools/bench_out/

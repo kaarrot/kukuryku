@@ -61,6 +61,8 @@ impl ResolveTo<ConcreteGeometry> for SymbolicGeometry {
             Patcher::Padded2d
         } else if !pool.patch.padded && pool.patch.rank() == 1 {
             Patcher::Valid1d
+        } else if pool.patch.rank() == 1 {
+            Patcher::Padded1d
         } else {
             Patcher::Generic
         };
@@ -249,6 +251,7 @@ unsafe impl<T> Sync for SendConstPtr<T> {}
 enum Patcher {
     Generic,
     Valid1d,
+    Padded1d,
     Valid2d,
     Padded2d,
 }
@@ -264,6 +267,13 @@ impl Patcher {
     ) -> TractResult<()> {
         match self {
             Patcher::Valid1d => Self::valid_1d::<T>(geo, input, pack, g),
+            Patcher::Padded1d => Self::padded_1d::<T>(
+                geo,
+                input,
+                pack,
+                g,
+                pad_value.unwrap_or(&Tensor::zero_scalar::<T>()?),
+            ),
             Patcher::Valid2d => Self::valid_2d::<T>(geo, input, pack, g),
             Patcher::Padded2d => Self::padded_2d::<T>(
                 geo,
@@ -361,6 +371,66 @@ impl Patcher {
             }
             Ok(())
         }
+    }
+
+    // 1-D analogue of `padded_2d`: the vocoder is all rank-1 conv and most of it is
+    // padded (kernel 3/7/11 resblocks + upsampling), which otherwise falls through to
+    // the `Generic` patcher (per-element coord unravel + `patch.at()` validity probe +
+    // a separate serial pack pass). Here we walk each (channel, kernel-tap) row with a
+    // precomputed valid x-range and write straight into the k-outer pack format,
+    // reusing padded_2d's inner loops. Bit-identical to Generic; just far cheaper.
+    #[inline(never)]
+    fn padded_1d<'p, T: Copy + Datum>(
+        geometry: &'p ConcreteGeometry,
+        input: &TensorView,
+        pack: &'p mut TensorView,
+        g: usize,
+        pad_value: &Tensor,
+    ) -> TractResult<()> {
+        unsafe {
+            let pad_value = *pad_value.to_scalar_unchecked();
+            let pack = pack.as_slice_mut_unchecked::<T>();
+            let shape = &geometry.input_shape_with_n;
+            let x_stride = geometry.pool.patch.spec.strides[0] as isize;
+            let x_stride_ptr = x_stride * *shape.h_stride() as isize;
+            let c_stride_ptr = *shape.c_stride() as isize;
+            let input_width = shape.hw_dims()[0] as isize;
+            let output_width = *geometry.pool.patch.output_shape.get_unchecked(0) as isize;
+            let kernel_len = geometry.pool.patch.standard_layout_data_field.len();
+            let mut writer =
+                geometry.b_pack.write_with_k_outer(pack.as_mut_ptr(), geometry.k, geometry.n);
+            let iptr = input.as_ptr_unchecked::<T>();
+            let iptr = iptr.add(g * geometry.ci_per_group * shape.c_stride());
+            for ci in 0..geometry.ci_per_group {
+                let iptr = iptr.offset(ci as isize * c_stride_ptr);
+                for kitem in 0..kernel_len {
+                    // data_field is [kernel_len, 1] row-major for rank 1: element kitem
+                    // is the signed input coord (dilation applied, pad subtracted).
+                    let dx = *geometry.pool.patch.data_field.as_ptr().offset(kitem as isize);
+                    let valid_x_start =
+                        Integer::div_ceil(&-dx, &x_stride).max(0).min(output_width);
+                    let valid_x_end =
+                        Integer::div_ceil(&(input_width - dx), &x_stride).min(output_width);
+                    let iptr = iptr.offset(
+                        *geometry.pool.patch.standard_layout_data_field.get_unchecked(kitem),
+                    );
+                    Self::padded_2d_invalid_x_loop(valid_x_start as usize, pad_value, &mut writer);
+                    Self::padded_2d_valid_x_loop(
+                        valid_x_start,
+                        valid_x_end,
+                        x_stride_ptr,
+                        iptr,
+                        &mut writer,
+                    );
+                    Self::padded_2d_invalid_x_loop(
+                        (output_width - valid_x_end) as usize,
+                        pad_value,
+                        &mut writer,
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     #[inline(never)]

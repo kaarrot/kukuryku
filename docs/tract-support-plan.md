@@ -285,8 +285,9 @@ onnxruntime runs are bit-identical, so the gap is a real tract op difference, no
 model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
 diffing.
 
-**Perf:** RTF ~2 after the stage-2 op work (multithread + STFT/im2col/sin);
-onnxruntime is ~0.4. See the caching investigation below.
+**Perf:** RTF ~1.5 after the stage-2 op work (multithread + STFT/im2col/sin, plus the
+`Padded1d` im2col patcher); onnxruntime is ~0.4. See the caching investigation and the
+conv run-speed section below.
 
 ### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic first thought blocked
 
@@ -373,6 +374,37 @@ under concrete N/F, so the same `stage1.onnx`/`stage2.onnx` serve concrete and s
 total, per-shape compiles once per length). Per-stage optimize is ~1.4 s (stage 1) /
 ~3.9 s (stage 2). `run`-speed (RTF ~1.6) is unchanged and orthogonal (quantized model
 is the lever there).
+
+### Conv run-speed: `Padded1d` im2col patcher (2026-07-06) — DONE (Tier 1)
+
+Profiling the (symbolic) plan (`KOKORO_TRACT_PROFILE`, harness `tools/bench_conv.sh`)
+put **~49% of stage-2 run time in the `Im2col` op**, i.e. building the conv patch
+matrix, not the matmul. Root cause: tract's `Im2Col` picks a "patcher" by shape and
+had fast specialized paths only for `Valid1d`/`Valid2d`/`Padded2d` — **no `Padded1d`**.
+Kokoro's vocoder is all rank-1 conv and **74 of its 91 convs are padded** (kernel 3/7/11
+resblocks + upsampling), so they all fell through to the slow `Generic` patcher
+(per-element coord-unravel + generic `patch.at()` validity probe + a separate serial
+pack pass).
+
+Added a `Padded1d` patcher (`tract-core/.../conv/im2col.rs`) — the rank-1 analogue of
+`padded_2d` (one spatial axis, no y-loop; reuses padded_2d's inner valid/invalid x
+loops), walking each (channel, kernel-tap) row with a precomputed valid x-range and
+writing straight into the k-outer pack format. Bit-identical output to `Generic`.
+
+**Measured** (fixed 242-token sentence, best-of-4, 16 threads): pure `infer`
+**25.32 s → 22.28 s** (RTF 1.734 → 1.526, ~12% faster end-to-end); the instrumented
+`Im2col` share **11.83 s (49.2%) → 8.60 s (41.8%)**, a ~27% cut. Parity unchanged
+(waveform corr vs onnxruntime **0.9754**). The gain is capped because `Padded1d` is
+single-threaded where `Generic` fanned the *fill* across cores (the k-outer pack writer
+is sequential) — cheaper per-element work still wins net.
+
+**Still on the table (not done):** the symbolic single plan disabled tract's two
+concrete-shape-gated conv fast paths — lazy/virtual im2col (`should_use_lazy`) and
+depthwise conv (`wire_as_depth_wise`) are both gated on `input_fact.shape.as_concrete()`
+in `conv.rs::codegen`, which is `None` under symbolic dims. 38 of the kernel>5 convs
+would otherwise skip patch-matrix materialization entirely. Re-enabling lazy im2col
+under a symbolic `n` (defer its `n_byte_offsets` precompute to eval-time) is the Tier-2
+lever — bigger potential win, more invasive.
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 
