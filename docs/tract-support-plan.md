@@ -285,9 +285,10 @@ onnxruntime runs are bit-identical, so the gap is a real tract op difference, no
 model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
 diffing.
 
-**Perf:** RTF ~0.93 after the stage-2 op work (multithread + STFT/im2col/sin, the
-`Padded1d` im2col patcher, lazy im2col under a symbolic length, and SIMD binary fusion
-under a symbolic length); onnxruntime is ~0.4. See the caching investigation and the three
+**Perf:** RTF ~0.745 after the stage-2 op work (multithread + STFT/im2col/sin, the
+`Padded1d` im2col patcher, lazy im2col under a symbolic length, SIMD binary fusion under a
+symbolic length (Tier 3), the AdaIN/Snake scale-mul swap gate + lazy-im2col threshold
+(Tier 4)); onnxruntime is ~0.4. See the caching investigation and the four
 conv/elementwise run-speed sections below.
 
 ### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic first thought blocked
@@ -462,6 +463,56 @@ than `gt_tdim` (neither by-scalar nor unicast-aligned as emitted); the `Sin` osc
 (16%, already multithreaded, needs a vectorized `sin`, fidelity-sensitive); the lazy-im2col
 `Pad` nodes (6%, could fold into the gather); and the sequential `Scan`/LSTM (13%). See the
 run-speed plan for the ranked map.
+
+### Conv/elementwise run-speed: Tier 4 (2026-07-06) — RTF 0.928 → 0.745
+
+Added a **top-N per-node profiler** (`KOKORO_TRACT_PROFILE_NODES=<N>` in
+`src/bin/kokoro_tract.rs`) that tags each node with its concrete input/output shapes.
+That turned the aggregated op buckets into actionable shapes and settled three things:
+
+- **Raw `Mul` (12.7%) — the swap gate, not the fusion gate.** The dominant raw mul is the
+  AdaIN/Snake per-channel scale `[1,C,1] × [1,C,F] → [1,C,F]`. That's a trailing-unary
+  *by-scalar* shape, which Tier 3's `gt_tdim` already unblocked — yet it stayed raw. The
+  real blocker is one gate earlier: `TypedBinOp::codegen` decides whether to swap inputs so
+  the full-size operand is operand_1 (the by-scalar kernel evals in place into operand_1, so
+  it must equal the broadcast result → `can_eval_in_a`) via
+  `(a_vol - b_vol).prove_strict_negative()`. That can't prove `C - C*F < 0` for a symbolic
+  `F`, so it never swaps, the big tensor stays operand_2, and fusion is skipped. Same bug
+  class as Tiers 2/3. **Fix:** decide the swap by comparing each operand's shape against the
+  broadcast result (decidable symbolically) — swap when operand_2 is full-size and operand_1
+  is broadcast; the swap is already paired with `flip()` so non-commutative ops stay correct.
+  → raw `Mul` becomes `OptMulByScalar`. **infer 13.55 → 11.88 s, RTF 0.928 → 0.814**,
+  bit-identical (elementwise fp multiply). Commit `9a2c1d3`.
+
+- **Eager `Im2col` (7.8%) — the lazy threshold.** `should_use_lazy` rejected any conv with
+  kernel product ≤ 5, forcing the vocoder's 6 kernel-3 128-channel convs at audio scale
+  (70081 frames) onto the eager patcher, which materializes a ~108 MB patch matrix each.
+  Lowered the threshold to ≤ 1 (only genuine pointwise convs, which are pure matmuls, stay
+  eager). **infer 11.88 → 10.87 s, RTF 0.814 → 0.745**, bit-identical (lazy and eager im2col
+  feed the matmul the same values). Side effect: `Pad` grew 41 → 77 nodes (each newly-lazy
+  conv adds a Tier-2 explicit Pad), so Pad is now ~10% — a bigger fold target. Commit
+  `f71cb9a`.
+
+- **`Sin` (16%) is not anomalous — hypothesis disproven.** Per-node timing shows each Sin is
+  `[1,128,70081]` = 8.97 M elements at ~0.058 s ≈ **6.5 ns/element** — normal-range scalar
+  `sinf`, *not* the 30–50× glibc slow-reduction path the unbounded-phase theory predicted.
+  So there's no cheap graph-surgery win; the only Sin lever left is genuine SIMD
+  vectorization (~3× ceiling on 16% ≈ 5% total), which carries the ~0.965 branch-cut
+  fidelity risk. **Deferred.**
+
+- **Rejected by measurement:** threading `Square` via `par_elementwise` (like sin/cos)
+  *regressed* (RTF 0.745 → 0.766; the op bucket itself grew) — the `par_chunks_mut`
+  scheduling overhead across its many calls outweighs the parallelism (memory-bandwidth
+  bound on WSL). Reverted.
+
+**Remaining levers, all invasive/risky (need a decision before spending risk budget):**
+`Scan`/LSTM (15%) — hoisting `X @ concat(W)ᵀ` out of the scan body means changing the
+Scan's input contract on a *shared* core op (every ONNX LSTM), parity-critical, and
+tract-core's own tests can't run standalone in this fork; **`Pad`** (10%) — folding the
+zero-pad into the lazy gather means adding per-element bounds logic to the heavily-unrolled
+unsafe gather kernels (`input_8n`/`6n`/`4n`/`2n`), risking the majority valid-read path;
+**`Sin`** (16%) — vectorized `sin`, fidelity-sensitive. `OptMatMul` (23%) is MLAS-class and
+out of scope. **Cumulative Tier 1–4: RTF 1.734 → 0.745; gap to onnxruntime (0.4) now ~1.9×.**
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 
