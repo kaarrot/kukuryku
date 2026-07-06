@@ -229,10 +229,31 @@ impl TypedOp for TypedBinOp {
     ) -> TractResult<Option<TypedModelPatch>> {
         if let Some(linalg_bin_op) = self.0.as_linalg_binop() {
             let input_facts = model.node_input_facts(node.id)?;
-            let must_swap_inputs =
-                input_facts.iter().collect_tuple().is_some_and(|(a_fact, b_fact)| {
-                    (a_fact.shape.volume() - b_fact.shape.volume()).prove_strict_negative()
-                });
+            // Decide whether to swap so the *full-size* operand is operand_1: the
+            // by-scalar / unicast kernels evaluate in place into operand_1, so it
+            // must equal the broadcast result (`can_eval_in_a` below). The old test
+            // — `(a_vol - b_vol).prove_strict_negative()` — silently fails for a
+            // symbolic frame axis (can't prove `128 - 128*F < 0` when F might be 1),
+            // so under the length-independent plan the big tensor stays as operand_2
+            // and the AdaIN/Snake `[1,C,1] x [1,C,F]` mul never fuses. Compare
+            // against the broadcast shape instead (decidable symbolically): swap when
+            // operand_2 is the full-size operand and operand_1 is the broadcast one.
+            // The swap is paired with `flip()` below, so non-commutative ops stay
+            // correct; concrete shapes reach the same decision as before.
+            let must_swap_inputs = input_facts
+                .iter()
+                .collect_tuple()
+                .and_then(|(a_fact, b_fact)| {
+                    let c = crate::broadcast::multi_broadcast(&[
+                        a_fact.shape.clone(),
+                        b_fact.shape.clone(),
+                    ])
+                    .ok()?;
+                    let a_is_full = a_fact.shape.to_vec() == c.to_vec();
+                    let b_is_full = b_fact.shape.to_vec() == c.to_vec();
+                    Some(!a_is_full && b_is_full)
+                })
+                .unwrap_or(false);
             let (operand_1, operand_2) = if must_swap_inputs {
                 (input_facts[1], input_facts[0])
             } else {

@@ -181,6 +181,12 @@ mod tract_backend {
     /// Per-op profiler (KOKORO_TRACT_PROFILE): run the plan node-by-node, timing
     /// each node's eval and accumulating wall-time by op type, then print the
     /// biggest cost centres. Shows where stage-2's runtime actually goes.
+    ///
+    /// With KOKORO_TRACT_PROFILE_NODES=<N> also print the top-N *individual* nodes
+    /// by time, tagged with their concrete input/output shapes — this is what pins
+    /// which shapes an aggregated op bucket (e.g. the raw `Mul` bucket) actually is,
+    /// so a fusion-gate fix can be scoped correctly. Shapes are read from the live
+    /// tensors at eval, so they're concrete even under the symbolic plan.
     fn profile_run(
         runnable: &TypedRunnableModel<TypedModel>,
         inputs: TVec<TValue>,
@@ -188,16 +194,35 @@ mod tract_backend {
     ) -> Result<TVec<TValue>> {
         use std::collections::HashMap;
         use tract_onnx::tract_core::plan::{SimpleState, eval};
+        let top_nodes: Option<usize> = std::env::var("KOKORO_TRACT_PROFILE_NODES")
+            .ok()
+            .and_then(|v| v.parse().ok());
         let mut state = SimpleState::new(runnable)?;
         // (total secs, call count) keyed by op type name.
         let mut acc: HashMap<String, (f64, usize)> = HashMap::new();
+        // Per-node accumulator (only populated when top_nodes is set): node id ->
+        // (op name, total secs, calls, last-seen input shapes, last-seen out shapes).
+        let mut per_node: HashMap<usize, (String, f64, usize, String, String)> = HashMap::new();
         let out = state.run_plan_with_eval(inputs, |session, op_state, node, input| {
+            let in_shapes = top_nodes.map(|_| shape_tag(input.iter().map(|t| t.shape())));
             let t = std::time::Instant::now();
             let r = eval(session, op_state, node, input);
+            let dt = t.elapsed().as_secs_f64();
             let e = acc.entry(node.op().name().into_owned());
             let slot = e.or_insert((0.0, 0));
-            slot.0 += t.elapsed().as_secs_f64();
+            slot.0 += dt;
             slot.1 += 1;
+            if let Some(in_shapes) = in_shapes {
+                let out_shapes = r
+                    .as_ref()
+                    .map(|o| shape_tag(o.iter().map(|t| t.shape())))
+                    .unwrap_or_default();
+                let e = per_node.entry(node.id).or_insert_with(|| {
+                    (node.op().name().into_owned(), 0.0, 0, in_shapes, out_shapes)
+                });
+                e.1 += dt;
+                e.2 += 1;
+            }
             r
         })?;
         let mut rows: Vec<(String, f64, usize)> =
@@ -208,7 +233,28 @@ mod tract_backend {
         for (op, secs, calls) in rows.iter().take(12) {
             eprintln!("[kokoro]     {op:<28} {secs:7.3}s  {calls:5}  {:4.1}%", 100.0 * secs / total);
         }
+        if let Some(n) = top_nodes {
+            let mut nodes: Vec<_> = per_node.into_values().collect();
+            nodes.sort_by(|a, b| b.1.total_cmp(&a.1));
+            eprintln!("[kokoro]   {stage} top-{n} nodes (op  total_s  calls  in -> out):");
+            for (op, secs, calls, ins, outs) in nodes.iter().take(n) {
+                eprintln!(
+                    "[kokoro]     {op:<20} {secs:7.3}s  {calls:4}  {ins} -> {outs}",
+                );
+            }
+        }
         Ok(out)
+    }
+
+    /// Render an iterator of tensor shapes as a compact tag like `[1,512,377]x[1,512,1]`.
+    fn shape_tag<'a>(shapes: impl Iterator<Item = &'a [usize]>) -> String {
+        shapes
+            .map(|s| {
+                let dims: Vec<String> = s.iter().map(|d| d.to_string()).collect();
+                format!("[{}]", dims.join(","))
+            })
+            .collect::<Vec<_>>()
+            .join("x")
     }
 
     /// Debug: if KOKORO_TRACT_DUMP=<dir> is set, write an f32 tensor as raw
