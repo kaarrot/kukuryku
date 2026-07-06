@@ -3,3 +3,6 @@
 
 # tract conv bench outputs (machine-specific)
 tools/bench_out/
+
+# nested tract crate build artifacts
+third_party/tract/**/target/

@@ -276,6 +276,13 @@ mod tract_backend {
     impl StagePlan {
         /// Build a single symbolic plan; on optimize failure, degrade to per-shape.
         fn build(path: &Path, spec: &[(&str, &[Dim])], name: &str) -> StagePlan {
+            // Debug lever: force the concrete per-shape path (which enables tract's
+            // concrete-shape-gated conv fast paths — lazy im2col + depthwise) so we
+            // can bench conv run-speed symbolic-vs-concrete. See docs conv section.
+            if std::env::var_os("KOKORO_TRACT_FORCE_PERSHAPE").is_some() {
+                eprintln!("[kokoro] {name}: FORCE_PERSHAPE — using per-exact-shape plans");
+                return StagePlan::PerShape(HashMap::new());
+            }
             match Stage::build(path, spec) {
                 Ok(st) => {
                     eprintln!("[kokoro] {name}: compiled one symbolic plan (length-independent)");

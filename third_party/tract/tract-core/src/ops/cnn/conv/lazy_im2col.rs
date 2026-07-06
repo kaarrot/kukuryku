@@ -1,4 +1,5 @@
 use crate::internal::*;
+use crate::ops::cnn::pools::{ConcretePoolGeometry, PoolGeometry};
 use crate::ops::matmul::pack::DynPackedOpaqueFact;
 use std::fmt::{Debug, Display};
 use std::ops::Range;
@@ -11,6 +12,61 @@ pub struct LazyIm2colParams {
     pub packer: PackedFormat,
     pub n_byte_offsets: Vec<isize>,
     pub k_byte_offsets: Vec<isize>,
+}
+
+/// Build the lazy im2col gather offsets from a *concrete* pool geometry. The
+/// `n_byte_offsets` (one per output position) and `k_byte_offsets` (one per
+/// input-channel × kernel-tap) both depend on the concrete spatial length, so
+/// this is called either at codegen (concrete input) or per-eval (symbolic
+/// length — see [`LazyDeferred`]).
+pub fn build_lazy_params(
+    geo: &ConcretePoolGeometry,
+    input_channels: usize,
+    datum_type: DatumType,
+    packer: PackedFormat,
+) -> LazyIm2colParams {
+    let size_of_b = datum_type.size_of() as isize;
+    let c_stride = geo.input_shape.c_stride();
+    let n_byte_offsets: Vec<isize> =
+        geo.patch.centers_offsets().into_iter().map(|x| x * size_of_b).collect();
+    let k_byte_offsets: Vec<isize> = (0..input_channels)
+        .flat_map(|ici| {
+            geo.patch
+                .standard_layout_data_field
+                .iter()
+                .map(move |x| (x + (ici * c_stride) as isize) * size_of_b)
+        })
+        .collect();
+    LazyIm2colParams { packer, n_byte_offsets, k_byte_offsets }
+}
+
+/// A lazy im2col whose gather offsets can't be baked at codegen because the
+/// conv runs on a symbolic length axis (one compiled plan serving every phoneme
+/// / frame count — see `src/bin/kokoro_tract.rs`). Everything here is
+/// length-independent; the offsets are rebuilt per-eval from the concrete input.
+#[derive(Clone, Debug, Hash, PartialEq)]
+pub struct LazyDeferred {
+    pub pool_geo: PoolGeometry,
+    pub packer: PackedFormat,
+    pub input_channels: usize,
+    pub k: usize,
+    pub mn: TDim,
+    pub datum_type: DatumType,
+}
+
+impl LazyDeferred {
+    fn build(&self, input_full_shape: &[usize]) -> TractResult<LazyIm2colParams> {
+        let geo = self.pool_geo.to_concrete(input_full_shape)?;
+        Ok(build_lazy_params(&geo, self.input_channels, self.datum_type, self.packer.clone()))
+    }
+}
+
+/// Source of a [`LazyIm2Col`]'s offsets: baked at codegen (concrete input) or
+/// deferred to eval (symbolic length).
+#[derive(Clone, Debug, Hash, PartialEq)]
+pub enum LazyParams {
+    Ready(Arc<LazyIm2colParams>),
+    Deferred(Arc<LazyDeferred>),
 }
 
 impl MMMInputFormat for LazyIm2colParams {
@@ -87,7 +143,7 @@ impl OpaqueFact for LazyIm2colParams {
 
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub struct LazyIm2Col {
-    pub params: Arc<LazyIm2colParams>,
+    pub params: LazyParams,
 }
 
 impl Op for LazyIm2Col {
@@ -106,8 +162,12 @@ impl EvalOp for LazyIm2Col {
 
     fn eval(&self, inputs: TVec<TValue>) -> TractResult<TVec<TValue>> {
         let tensor = args_1!(inputs);
-        let input: Box<dyn MMMInputValue> =
-            Box::new(LazyIm2colInput { tensor, im2col: self.params.clone() });
+        // Symbolic length: rebuild the gather offsets now that the shape is known.
+        let params = match &self.params {
+            LazyParams::Ready(p) => p.clone(),
+            LazyParams::Deferred(d) => Arc::new(d.build(tensor.shape())?),
+        };
+        let input: Box<dyn MMMInputValue> = Box::new(LazyIm2colInput { tensor, im2col: params });
         let input = Opaque(Arc::new(input));
         Ok(tvec!(tensor2(&[[input]]).into_tvalue()))
     }
@@ -115,11 +175,16 @@ impl EvalOp for LazyIm2Col {
 
 impl TypedOp for LazyIm2Col {
     fn output_facts(&self, _inputs: &[&TypedFact]) -> TractResult<TVec<TypedFact>> {
-        let opaque_fact = DynPackedOpaqueFact {
-            k: self.params.k_byte_offsets.len().to_dim(),
-            mn: self.params.n_byte_offsets.len().to_dim(),
-            packers: vec![self.params.packer.clone()],
+        // k is length-independent; mn (output positions) is symbolic when deferred.
+        let (k, mn, packer) = match &self.params {
+            LazyParams::Ready(p) => (
+                p.k_byte_offsets.len().to_dim(),
+                p.n_byte_offsets.len().to_dim(),
+                p.packer.clone(),
+            ),
+            LazyParams::Deferred(d) => (d.k.to_dim(), d.mn.clone(), d.packer.clone()),
         };
+        let opaque_fact = DynPackedOpaqueFact { k, mn, packers: vec![packer] };
         Ok(tvec!(Opaque::fact([1, 1]).with_opaque_fact(opaque_fact)))
     }
 

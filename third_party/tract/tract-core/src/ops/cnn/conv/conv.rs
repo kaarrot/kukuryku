@@ -12,7 +12,7 @@ use crate::ops::binary::TypedBinOp;
 use crate::ops::cast::cast;
 use crate::ops::cnn::conv::block_quant::{BlockQuantIntoShape, SplitGroupBlockQuant};
 use crate::ops::cnn::conv::lazy_im2col::LazyIm2Col;
-use crate::ops::cnn::conv::lazy_im2col::LazyIm2colParams;
+use crate::ops::cnn::conv::lazy_im2col::{build_lazy_params, LazyDeferred, LazyParams};
 use crate::ops::cnn::wire_reshape_bias_for_bin;
 use crate::ops::cnn::PaddingSpec::*;
 use crate::ops::einsum::EinSum;
@@ -30,7 +30,7 @@ use super::im2col::Im2Col;
 use crate::ops::cnn::conv::{block_quant_aware_weight_shape, KernelFormat};
 use crate::ops::cnn::pools::{ConcretePoolGeometry, PoolGeometry, PoolSpec};
 use crate::ops::matmul::optimized::{OptMatMul, ProtoFusedSpec};
-use crate::ops::nn::{BaseDataShape, DataFormat, DataShape};
+use crate::ops::nn::{BaseDataShape, DataFormat};
 
 use tract_linalg::mmm::{MMMInputFormat, MatMatMul};
 use tract_linalg::pack::PackedFormat;
@@ -432,17 +432,23 @@ impl Conv {
         let &[mut x, kernel, bias] = wire else { bail!("Wrong number of inputs") };
         let mut x_fact = model.outlet_fact(x)?.clone();
         let w_fact = model.outlet_fact(kernel)?.clone();
-        let (geo, m, k, n) = self.compute_geo(&x_fact)?;
+        let (mut geo, m, k, n) = self.compute_geo(&x_fact)?;
         let (mmm, packing) = self.choose_impl(&x_fact, &w_fact, m, k, &n)?;
         debug!("{name} as lazy_im2col: m={m} k={k} n={n} {mmm:?}");
-        let input_shape = x_fact.shape.as_concrete().unwrap().to_vec();
-        let mut geo = geo.to_concrete(&input_shape)?.into_owned();
-        let mut input_shape: DataShape = self.pool_spec.data_format.shape(input_shape.into())?;
-        let padding = self.pool_spec.computed_padding(input_shape.hw_dims());
-        if padding.iter().any(|axis| axis.pad_before != 0 || axis.pad_after != 0) {
+
+        // Express any padding as an explicit Pad node feeding a Valid conv, so the
+        // gather offsets below are a plain in-bounds windowed read. This flows
+        // symbolic (TDim) shapes throughout: exported convs use explicit pads,
+        // which stay concrete even when the length axis is a free symbol (the gate
+        // `should_use_lazy` rejects convs whose pads aren't concrete).
+        let mut active_pool_spec = self.pool_spec.clone();
+        let in_shape = active_pool_spec.data_format.shape(x_fact.shape.to_tvec())?;
+        let padding = active_pool_spec.computed_padding(in_shape.hw_dims());
+        if padding.iter().any(|axis| !axis.pad_before.is_zero() || !axis.pad_after.is_zero()) {
             let mut pads = vec![(0, 0); x_fact.rank()];
             for (ix, ax) in padding.iter().enumerate() {
-                pads[input_shape.h_axis() + ix] = (ax.pad_before, ax.pad_after);
+                pads[in_shape.h_axis() + ix] =
+                    (ax.pad_before.to_usize()?, ax.pad_after.to_usize()?);
             }
             let op = crate::ops::array::Pad {
                 mode: crate::ops::array::PadMode::Constant(
@@ -451,29 +457,12 @@ impl Conv {
                 pads,
             };
             x = model.wire_node(format!("{name}.pad"), op, &[x])?[0];
-            let valid_pool_spec = PoolSpec { padding: Valid, ..self.pool_spec.clone() };
+            active_pool_spec = PoolSpec { padding: Valid, ..self.pool_spec.clone() };
             x_fact = model.outlet_fact(x)?.clone();
-            let concrete_shape = x_fact.shape.as_concrete().unwrap();
-            input_shape = valid_pool_spec.data_format.shape(concrete_shape.into())?;
-            geo = valid_pool_spec
-                .compute_geo(&x_fact.shape)?
-                .to_concrete(concrete_shape)?
-                .into_owned();
+            geo = active_pool_spec.compute_geo(&x_fact.shape)?;
         }
+
         let c_dt = crate::ops::matmul::output_type(x_fact.datum_type);
-        let c_stride = input_shape.c_stride();
-        let size_of_b = x_fact.datum_type.size_of() as isize;
-        let n_byte_offsets: Vec<isize> =
-            geo.patch.centers_offsets().into_iter().map(|x| x * size_of_b).collect();
-        let k_byte_offsets: Vec<isize> = (0..self.input_channels())
-            .flat_map(|ici| {
-                geo.patch
-                    .standard_layout_data_field
-                    .iter()
-                    .map(move |x| (x + (ici * c_stride) as isize) * size_of_b)
-            })
-            .collect();
-        let (mmm_output_shape, c_axis, h_axis) = self.mmm_output_shape(&geo.output_shape)?;
         let packer = mmm.packings()[packing]
             .1
             .downcast_ref::<PackedFormat>()
@@ -484,13 +473,30 @@ impl Conv {
                 )
             })?
             .clone();
-        let params = LazyIm2colParams { packer, n_byte_offsets, k_byte_offsets };
-        let x = model.wire_node(
-            format!("{name}.lazyIm2col"),
-            LazyIm2Col { params: Arc::new(params) },
-            &[x],
-        )?[0];
 
+        // Bake the gather offsets if the (post-pad) length is known now; otherwise
+        // defer to eval so one compiled plan serves every length.
+        let lazy = if let Some(concrete) = x_fact.shape.as_concrete() {
+            let geo = geo.to_concrete(concrete)?;
+            let params =
+                build_lazy_params(&geo, self.input_channels(), x_fact.datum_type, packer);
+            LazyIm2Col { params: LazyParams::Ready(Arc::new(params)) }
+        } else {
+            LazyIm2Col {
+                params: LazyParams::Deferred(Arc::new(LazyDeferred {
+                    pool_geo: geo.clone(),
+                    packer,
+                    input_channels: self.input_channels(),
+                    k,
+                    mn: n.clone(),
+                    datum_type: x_fact.datum_type,
+                })),
+            }
+        };
+        let x = model.wire_node(format!("{name}.lazyIm2col"), lazy, &[x])?[0];
+
+        let output_shape = active_pool_spec.output_shape(&x_fact.shape)?;
+        let (mmm_output_shape, c_axis, h_axis) = self.mmm_output_shape(&output_shape)?;
         let kernel = self.wire_kernel_as_g_o_ihw(model, name, kernel)?[0];
         let wire = self.wire_mm_weights_bias(
             model,
@@ -509,7 +515,7 @@ impl Conv {
 
         let wire = self.wire_remove_group(model, name, &wire, &mmm_output_shape, c_axis)?;
         let wire = self.wire_rm_n_if_needed(model, name, &wire)?;
-        Self::wire_geo_reshape(model, name, &wire, &geo.output_shape)
+        Self::wire_geo_reshape(model, name, &wire, &output_shape)
     }
 
     #[allow(clippy::type_complexity)]
@@ -1205,18 +1211,7 @@ impl TypedOp for Conv {
                 patch.shunt_outside(model, node.id.into(), wire[0])?;
                 patch.obliterate(node.id)?;
                 Ok(Some(patch.with_context("quantized-codegen")))
-            } else if input_fact
-                .shape
-                .as_concrete()
-                .map(|s| {
-                    should_use_lazy(
-                        &self.pool_spec.data_format.shape(s.into()).unwrap(),
-                        &self.pool_spec,
-                        self.group,
-                    )
-                })
-                .unwrap_or(false)
-            {
+            } else if self.should_use_lazy(input_fact) {
                 let mut patch = TypedModelPatch::new("wire_as_lazy_im2col");
                 let inputs = patch.taps(model, &node.inputs)?;
                 let wire = self
@@ -1254,10 +1249,28 @@ impl TypedOp for Conv {
     as_op!();
 }
 
-fn should_use_lazy(input_shape: &DataShape, pool_spec: &PoolSpec, group: usize) -> bool {
-    input_shape.n().unwrap_or(&1) == &1
-        && group == 1
-        && pool_spec.kernel_shape.iter().product::<usize>() > 5
+impl Conv {
+    /// Whether to lower this conv as a lazy (virtual) im2col — no materialized
+    /// patch matrix; the matmul gathers packed panels on demand. Worth it for a
+    /// single-batch, single-group conv with a kernel big enough to amortize the
+    /// gather. Unlike the eager path this also fires for a *symbolic* length axis
+    /// (batch must still be concretely 1), provided the padding resolves to
+    /// concrete pads (see [`Conv::wire_as_lazy_im2col`]).
+    fn should_use_lazy(&self, input_fact: &TypedFact) -> bool {
+        let Ok(shape) = self.pool_spec.data_format.shape(input_fact.shape.to_tvec()) else {
+            return false;
+        };
+        if shape.n().map(|n| n != &1.to_dim()).unwrap_or(false) {
+            return false;
+        }
+        if self.group != 1 || self.pool_spec.kernel_shape.iter().product::<usize>() <= 5 {
+            return false;
+        }
+        self.pool_spec
+            .computed_padding(shape.hw_dims())
+            .iter()
+            .all(|ax| ax.pad_before.to_usize().is_ok() && ax.pad_after.to_usize().is_ok())
+    }
 }
 
 #[allow(non_snake_case)]

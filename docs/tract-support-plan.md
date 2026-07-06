@@ -285,9 +285,9 @@ onnxruntime runs are bit-identical, so the gap is a real tract op difference, no
 model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
 diffing.
 
-**Perf:** RTF ~1.5 after the stage-2 op work (multithread + STFT/im2col/sin, plus the
-`Padded1d` im2col patcher); onnxruntime is ~0.4. See the caching investigation and the
-conv run-speed section below.
+**Perf:** RTF ~1.04 after the stage-2 op work (multithread + STFT/im2col/sin, the
+`Padded1d` im2col patcher, and lazy im2col under a symbolic length); onnxruntime is ~0.4.
+See the caching investigation and the two conv run-speed sections below.
 
 ### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic first thought blocked
 
@@ -398,13 +398,41 @@ writing straight into the k-outer pack format. Bit-identical output to `Generic`
 single-threaded where `Generic` fanned the *fill* across cores (the k-outer pack writer
 is sequential) — cheaper per-element work still wins net.
 
-**Still on the table (not done):** the symbolic single plan disabled tract's two
-concrete-shape-gated conv fast paths — lazy/virtual im2col (`should_use_lazy`) and
-depthwise conv (`wire_as_depth_wise`) are both gated on `input_fact.shape.as_concrete()`
-in `conv.rs::codegen`, which is `None` under symbolic dims. 38 of the kernel>5 convs
-would otherwise skip patch-matrix materialization entirely. Re-enabling lazy im2col
-under a symbolic `n` (defer its `n_byte_offsets` precompute to eval-time) is the Tier-2
-lever — bigger potential win, more invasive.
+### Conv run-speed: lazy im2col under a symbolic length (2026-07-06) — DONE (Tier 2)
+
+The symbolic single plan had silently disabled tract's fastest conv lowering: lazy
+(virtual) im2col — which never materializes the patch matrix, feeding the matmul
+microkernel packed panels gathered on demand — was gated on
+`input_fact.shape.as_concrete()` in `conv.rs::codegen` (also `wire_as_depth_wise`), which
+is `None` under symbolic dims, so every conv fell to eager `wire_as_im2col_pair`. A quick
+`KOKORO_TRACT_FORCE_PERSHAPE` A/B (concrete per-shape path, lazy on) confirmed the upside:
+concrete **16.78 s** vs symbolic+`Padded1d` **22.28 s** — the biggest single lever left.
+
+The only thing forcing the concrete gate was that lazy im2col bakes two gather-offset
+vectors at codegen from the concrete geometry (`n_byte_offsets`, one per output position;
+`k_byte_offsets`, per input-channel×kernel-tap). Both depend on the concrete length. But
+`LazyIm2colParams`'s `MMMInputFormat`/`OpaqueFact` impls are used only at *runtime* (inside
+`LazyIm2colInput`); the *fact* level uses `DynPackedOpaqueFact`. So the fix keeps the
+heavily-unrolled eval gather **untouched** and only **defers building the offsets to eval**:
+
+- `lazy_im2col.rs`: `LazyIm2Col.params` becomes `LazyParams::{Ready, Deferred}`. `Deferred`
+  stores the (symbolic) `PoolGeometry` + packer + channels + symbolic `mn`; at eval it
+  resolves the geometry to the now-concrete input shape and builds the offsets (shared
+  `build_lazy_params`, so the concrete `Ready` path is numerically identical). `output_facts`
+  reports a symbolic `mn` when deferred.
+- `conv.rs`: `wire_as_lazy_im2col` flows `TDim` shapes throughout (padding → explicit `Pad`
+  node → Valid conv, all symbolic-safe since exported pads are concrete) and picks `Ready`
+  vs `Deferred` by whether the post-pad length is concrete. `should_use_lazy` became a method
+  that also fires for a symbolic length (batch must be concretely 1; pads must be concrete).
+
+**Measured** (fixed 242-token sentence, best-of-4, 16 threads): pure `infer`
+**22.28 s → 15.20 s** (RTF 1.526 → **1.041**), and **25.32 s → 15.20 s = ~40%** off the
+pre-conv-work baseline; stage-2 `Im2col` drops to 36 calls / ~7% (the 38 kernel>5 convs are
+now lazy, folded into the matmul gather). Parity unchanged across five utterances + a
+streamed paragraph (corr 0.9705–0.9842). vs onnxruntime (RTF ~0.4) the gap is now ~2.6×,
+down from ~4.3×. Compile-once is preserved (still one symbolic plan per stage), so a streamed
+paragraph of distinct-length sentences gets this conv speed *and* pays optimize only once.
+`KOKORO_TRACT_FORCE_PERSHAPE=1` forces the concrete path for A/B benching.
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 
