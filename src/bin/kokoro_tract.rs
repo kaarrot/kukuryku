@@ -95,6 +95,18 @@ mod tract_backend {
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use tract_onnx::prelude::*;
+    use tract_onnx::tract_hir::infer::ShapeFactoid;
+
+    /// One input dimension in a plan spec: a fixed size, or a named symbol shared
+    /// across inputs. Shared symbols let a *single* optimized plan serve every
+    /// phoneme count N / frame count F, so `into_optimized()` is paid once total
+    /// instead of once per distinct sentence length. See docs/tract-support-plan.md.
+    #[derive(Clone, Copy)]
+    enum Dim {
+        Fixed(usize),
+        Sym(&'static str),
+    }
+    use Dim::{Fixed, Sym};
 
     // Stage-boundary tensor names (see tools/split_kokoro.py).
     const S1_FEAT_640: &str = "/encoder/Transpose_output_0";
@@ -112,9 +124,11 @@ mod tract_backend {
     }
 
     impl Stage {
-        /// Parse the subgraph, pin each input to its concrete shape (matched by
-        /// name so input order is robust), and optimize.
-        fn build(path: &Path, spec: &[(&str, &[usize])]) -> Result<Stage> {
+        /// Parse the subgraph, pin each input to its (possibly symbolic) shape
+        /// (matched by name so input order is robust), and optimize. Symbolic dims
+        /// with a shared name are the same `Symbol`, so tract keeps the length axis
+        /// free and one plan serves all lengths; fixed dims specialize as before.
+        fn build(path: &Path, spec: &[(&str, &[Dim])]) -> Result<Stage> {
             let mut model = tract_onnx::onnx()
                 .model_for_path(path)
                 .with_context(|| format!("loading {}", path.display()))?;
@@ -123,13 +137,20 @@ mod tract_backend {
                 outlets.iter().map(|o| model.node(o.node).name.clone()).collect();
 
             for (ix, name) in input_names.iter().enumerate() {
-                let shape = spec
+                let dims = spec
                     .iter()
                     .find(|(n, _)| n == name)
                     .map(|(_, d)| *d)
                     .with_context(|| format!("{}: no shape spec for input '{name}'", path.display()))?;
+                let shape: Vec<TDim> = dims
+                    .iter()
+                    .map(|d| match d {
+                        Fixed(v) => (*v as i64).to_dim(),
+                        Sym(s) => model.sym(s).to_dim(),
+                    })
+                    .collect();
                 let dt = model.outlet_fact(outlets[ix])?.datum_type().unwrap_or_else(f32::datum_type);
-                model.set_input_fact(ix, InferenceFact::dt_shape(dt, shape))?;
+                model.set_input_fact(ix, InferenceFact::dt_shape(dt, ShapeFactoid::from(shape)))?;
             }
 
             let runnable = model
@@ -234,35 +255,103 @@ mod tract_backend {
         }
     }
 
-    /// The two-stage tract pipeline with a per-shape plan cache.
+    /// A compiled stage: either a single *symbolic* plan that serves every length,
+    /// or — if the subgraph won't optimize symbolically — a lazily populated
+    /// per-exact-shape cache (the previous behaviour, kept as a fallback).
     ///
-    /// tract compiles a plan for one concrete shape, and the model's global
-    /// normalization (decoder instance-norm over frames, encoder norm/attention
-    /// over phonemes) means we *cannot* pad to a shared bucket — padding poisons
-    /// the output (empirically corr 0.73 for phoneme padding, 0.02 for frame
-    /// padding). So plans are cached at their exact shape: a repeated phoneme count
-    /// reuses stage 1, a repeated (phoneme, frame) pair reuses stage 2. This helps
-    /// recurring lengths and re-runs; distinct lengths still compile once each.
-    /// (The clean one-plan-fits-all path needs *symbolic* dims, which tract can't
-    /// optimize here — the style-broadcast Expand/Concat hits `unify Sym(N) with
-    /// Val(1)`.)
+    /// The symbolic plan is the win: tract's `into_optimized()` (~1–4 s) is paid
+    /// once total, not once per distinct sentence length, so streaming a paragraph
+    /// of differently-sized sentences no longer recompiles each one. It requires
+    /// the split subgraphs produced by `tools/split_kokoro.py` (which rewires two
+    /// `Expand` targets so the phoneme/frame axes stay symbolic) plus two small
+    /// tract patches (symbolic `Resize` scale, symbolic `Slice` end-clamp). We
+    /// still cannot *pad* to a shared bucket — the model's global normalization
+    /// poisons padded output (corr 0.73 phoneme / 0.02 frame) — but a symbolic plan
+    /// never pads; it resolves N/F from each run's real input shapes.
+    enum StagePlan {
+        Symbolic(Stage),
+        PerShape(HashMap<Vec<usize>, Stage>),
+    }
+
+    impl StagePlan {
+        /// Build a single symbolic plan; on optimize failure, degrade to per-shape.
+        fn build(path: &Path, spec: &[(&str, &[Dim])], name: &str) -> StagePlan {
+            match Stage::build(path, spec) {
+                Ok(st) => {
+                    eprintln!("[kokoro] {name}: compiled one symbolic plan (length-independent)");
+                    StagePlan::Symbolic(st)
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[kokoro] {name}: symbolic optimize failed ({e:#}); \
+                         falling back to per-exact-shape plans"
+                    );
+                    StagePlan::PerShape(HashMap::new())
+                }
+            }
+        }
+
+        /// The plan to run for a given concrete shape: the symbolic plan as-is, or
+        /// the cached exact-shape plan (compiled on first sight of that shape).
+        fn get(&mut self, path: &Path, concrete: &[(&str, &[usize])]) -> Result<&Stage> {
+            match self {
+                StagePlan::Symbolic(st) => Ok(st),
+                StagePlan::PerShape(cache) => {
+                    let key: Vec<usize> =
+                        concrete.iter().flat_map(|(_, d)| d.iter().copied()).collect();
+                    if !cache.contains_key(&key) {
+                        let owned: Vec<(&str, Vec<Dim>)> = concrete
+                            .iter()
+                            .map(|(nm, d)| (*nm, d.iter().map(|&v| Fixed(v)).collect()))
+                            .collect();
+                        let spec: Vec<(&str, &[Dim])> =
+                            owned.iter().map(|(nm, d)| (*nm, d.as_slice())).collect();
+                        cache.insert(key.clone(), Stage::build(path, &spec)?);
+                    }
+                    Ok(&cache[&key])
+                }
+            }
+        }
+    }
+
+    /// The two-stage tract pipeline: one symbolic plan per stage (see [`StagePlan`]),
+    /// with a Rust length regulator between them.
     pub struct Pipeline {
         stage1_path: PathBuf,
         stage2_path: PathBuf,
         executor: tract_linalg::multithread::Executor,
-        stage1: HashMap<usize, Stage>,          // key: phoneme count N
-        stage2: HashMap<(usize, usize), Stage>, // key: (phoneme count N, frame count F)
+        stage1: StagePlan,
+        stage2: StagePlan,
     }
 
     impl Pipeline {
         pub fn new(dir: &Path) -> Result<Pipeline> {
-            Ok(Pipeline {
-                stage1_path: dir.join("stage1.onnx"),
-                stage2_path: dir.join("stage2.onnx"),
-                executor: build_executor(),
-                stage1: HashMap::new(),
-                stage2: HashMap::new(),
-            })
+            let stage1_path = dir.join("stage1.onnx");
+            let stage2_path = dir.join("stage2.onnx");
+            let executor = build_executor();
+            // Compile each stage once with shared symbolic length dims: N (phoneme
+            // count) across stage 1 + the two stage-2 feature tensors, and F (frame
+            // count) on the alignment's frame axis.
+            let stage1 = StagePlan::build(
+                &stage1_path,
+                &[
+                    ("input_ids", &[Fixed(1), Sym("N")]),
+                    ("style", &[Fixed(1), Fixed(256)]),
+                    ("speed", &[Fixed(1)]),
+                ],
+                "stage1",
+            );
+            let stage2 = StagePlan::build(
+                &stage2_path,
+                &[
+                    (S1_FEAT_640, &[Fixed(1), Fixed(640), Sym("N")]),
+                    (S1_FEAT_512, &[Fixed(1), Fixed(512), Sym("N")]),
+                    (S2_ALIGNMENT, &[Sym("N"), Sym("F")]),
+                    ("style", &[Fixed(1), Fixed(256)]),
+                ],
+                "stage2",
+            );
+            Ok(Pipeline { stage1_path, stage2_path, executor, stage1, stage2 })
         }
 
         pub fn synthesize(&mut self, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
@@ -270,21 +359,17 @@ mod tract_backend {
             let style_t = Tensor::from_shape(&[1, style.len()], style)?;
 
             // ---- Stage 1: encoder + duration predictor (single-threaded) ----
-            if !self.stage1.contains_key(&n) {
-                let st = Stage::build(
-                    &self.stage1_path,
-                    &[("input_ids", &[1, n]), ("style", &[1, 256]), ("speed", &[1])],
+            let s1 = self
+                .stage1
+                .get(&self.stage1_path, &[("input_ids", &[1, n]), ("style", &[1, 256]), ("speed", &[1])])?
+                .run(
+                    &[
+                        ("input_ids", Tensor::from_shape(&[1, n], ids)?),
+                        ("style", style_t.clone()),
+                        ("speed", Tensor::from_shape(&[1], &[speed])?),
+                    ],
+                    "stage1",
                 )?;
-                self.stage1.insert(n, st);
-            }
-            let s1 = self.stage1[&n].run(
-                &[
-                    ("input_ids", Tensor::from_shape(&[1, n], ids)?),
-                    ("style", style_t.clone()),
-                    ("speed", Tensor::from_shape(&[1], &[speed])?),
-                ],
-                "stage1",
-            )?;
             // Outputs (split_kokoro.py order): [0] 640-ch [1,640,N] [1] 512-ch
             // [1,512,N] [2] durations [1,N].
             dump("s1_feat640", &s1[0])?;
@@ -317,22 +402,18 @@ mod tract_backend {
             let alignment = Tensor::from_shape(&[n, total_frames], &align)?;
 
             // ---- Stage 2: decoder + iSTFTNet vocoder (multithreaded) --------
-            let key = (n, total_frames);
-            if !self.stage2.contains_key(&key) {
-                let st = Stage::build(
-                    &self.stage2_path,
-                    &[
-                        (S1_FEAT_640, &[1, 640, n]),
-                        (S1_FEAT_512, &[1, 512, n]),
-                        (S2_ALIGNMENT, &[n, total_frames]),
-                        ("style", &[1, 256]),
-                    ],
-                )?;
-                self.stage2.insert(key, st);
-            }
-            let stage2 = &self.stage2[&key];
+            let executor = self.executor.clone();
+            let stage2 = self.stage2.get(
+                &self.stage2_path,
+                &[
+                    (S1_FEAT_640, &[1, 640, n]),
+                    (S1_FEAT_512, &[1, 512, n]),
+                    (S2_ALIGNMENT, &[n, total_frames]),
+                    ("style", &[1, 256]),
+                ],
+            )?;
             // Scope the thread pool to this run; stage 1 above stays single-threaded.
-            let s2 = tract_linalg::multithread::multithread_tract_scope(self.executor.clone(), || {
+            let s2 = tract_linalg::multithread::multithread_tract_scope(executor, || {
                 stage2.run(
                     &[
                         (S1_FEAT_640, feat640),

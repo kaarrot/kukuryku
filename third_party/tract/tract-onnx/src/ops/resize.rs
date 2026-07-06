@@ -193,6 +193,13 @@ impl Resize {
                         shape.push(i.clone() * (*s as usize));
                     } else if let Ok(i) = i.to_usize() {
                         shape.push(((i as f32 * s) as usize).into());
+                    } else if *s < 1.0 && (1.0 / s).round() == 1.0 / s {
+                        // Symbolic input dim downsampled by a unit fraction 1/k:
+                        // the output is i/k, which TDim division simplifies exactly
+                        // (Kokoro's harmonic source resamples 600*F -> (600*F)/300
+                        // = 2*F). Keeps the length axis symbolic so one optimized
+                        // plan serves all frame counts. See docs/tract-support-plan.md.
+                        shape.push(i.clone() / (1.0 / s).round() as usize);
                     } else {
                         bail!("Can not compute output shape. inputs are {input_shape:?} and scale {scale:?}")
                     }

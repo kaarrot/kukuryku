@@ -150,6 +150,14 @@ impl StridedSlice {
                     return Ok(Dim { begin: 0.to_dim(), end: 0.to_dim(), stride, shrink: false });
                 }
             }
+        } else if stride > 0 && dim.to_isize().is_ok() && end.to_isize().is_err() {
+            // ONNX clamps `end` to the axis size. The concrete branch above can't
+            // fire when `end` is symbolic, so we can't prove end <= dim statically;
+            // express the clamp as min(end, dim), which resolves to the true length
+            // at run time. Kokoro's iSTFT slices a constant-length window by the
+            // symbolic signal length, so this pins it back to the window length and
+            // keeps the plan symbolic (docs/tract-support-plan.md).
+            end = end.mini(dim.clone());
         }
         Ok(Dim { begin, end, stride, shrink: false })
     }

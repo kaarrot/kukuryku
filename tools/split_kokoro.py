@@ -31,7 +31,9 @@ Default MODEL is the HF cache path for onnx-community/Kokoro-82M-v1.0-ONNX.
 """
 import os
 import sys
+import numpy as np
 import onnx
+from onnx import helper, numpy_helper
 
 DEFAULT_MODEL = os.path.expanduser(
     "~/.cache/huggingface/hub/models--onnx-community--Kokoro-82M-v1.0-ONNX"
@@ -106,6 +108,97 @@ def fix_atan2_branch(path):
     print(f"  patched {len(hits)} atan2 quadrant selector: Greater -> GreaterOrEqual")
 
 
+# --- symbolic-length surgery for the style-broadcast Expand (stage 1) ---------
+# The duration predictor's text_encoder broadcasts the 128-d style slice across
+# the phoneme axis and concatenates it with the 512-d text features. It does this
+# with the PyTorch `expand(-1,-1,-1)` ONNX lowering, whose target shape is built
+# by a Shape -> Gather -> Concat -> Equal -> Where(-1 -> 1) sentinel chain. The
+# sequence dim N in that target is genuinely Shape(text_features)[1], but tract
+# cannot carry the symbol through the Equal/Where value logic under symbolic
+# analysis, so it collapses the Expand output's seq axis to 1 and the downstream
+# Concat_1 fails to unify Sym(N) with Val(1) (docs/tract-support-plan.md #1802).
+EXPAND_NODE = "/encoder/predictor/text_encoder/Expand"
+# `Unsqueeze_1_output_0` is already [N] (= Unsqueeze(Gather(Shape(text_features),1)));
+# we reuse it and skip the Equal/Where the model wraps around it.
+EXPAND_SEQ_DIM_1D = "/encoder/predictor/text_encoder/Unsqueeze_1_output_0"
+
+
+def fix_expand_symbolic(path):
+    """Feed the style-broadcast Expand a direct `[1, N, 1]` target derived from
+    the sibling text features' Shape, bypassing the Equal/Where sentinel chain
+    tract can't fold symbolically.
+
+    The Expand data input is the style slice `[1, 128]`; broadcasting it to the
+    target `[1, N, 1]` yields `[1, N, 128]` (the axis-2 128 comes from the data,
+    the seq axis N from Shape(text_features)[1]) — identical to the model's own
+    `[d0, d1, 1]` result, but expressed with ops tract propagates symbolically.
+    This lets stage 1 optimize *once* with a symbolic phoneme count instead of
+    recompiling per length. See docs/tract-support-plan.md ("symbolic tract patch")."""
+    m = onnx.load(path)
+    g = m.graph
+    hits = [n for n in g.node if n.name == EXPAND_NODE]
+    if not hits:
+        raise SystemExit(f"expand node {EXPAND_NODE!r} not found")
+    if not any(EXPAND_SEQ_DIM_1D in n.output for n in g.node):
+        raise SystemExit(f"seq-dim tensor {EXPAND_SEQ_DIM_1D!r} not found")
+    exp = hits[0]
+
+    one = numpy_helper.from_array(
+        np.array([1], dtype=np.int64), name="/encoder/predictor/text_encoder/_sym_one"
+    )
+    g.initializer.append(one)
+    target = "/encoder/predictor/text_encoder/_sym_expand_shape"
+    concat = helper.make_node(
+        "Concat",
+        inputs=[one.name, EXPAND_SEQ_DIM_1D, one.name],
+        outputs=[target],
+        axis=0,
+        name="/encoder/predictor/text_encoder/_sym_expand_shape_concat",
+    )
+    # Insert just before the Expand so the graph stays topologically ordered
+    # (Unsqueeze_1 and the initializer both precede this point).
+    g.node.insert(list(g.node).index(exp), concat)
+    exp.input[1] = target  # target-shape input
+    onnx.save(m, path)
+    print(f"  rewired {EXPAND_NODE} target shape -> [1, N, 1] (symbolic-friendly)")
+
+
+# --- symbolic-length surgery for the iSTFT framing Expands (stage 2) ----------
+# The iSTFTNet generator's inverse-STFT builds a per-sample frame-index grid whose
+# length is the (frame-count-derived) signal length. Two Expands broadcast the
+# range grid and the window-tap offsets to that grid shape, taking their target
+# from a `Where(Equal(Shape_1,-1), 1, Shape_1)` sentinel wrapper. `Shape_1` is a
+# genuine Shape() (no -1 dims), so the Where is an identity here — but tract can't
+# prove `Shape_1 != -1` for the symbolic signal length and collapses the axis,
+# breaking the downstream Concat. Pointing the Expands straight at `Shape_1`
+# reproduces the identical shape with an op tract propagates symbolically.
+ISTFT = "/decoder/decoder/generator/istft/stft"
+ISTFT_SHAPE1 = f"{ISTFT}/Shape_1_output_0"
+ISTFT_WHERE = f"{ISTFT}/Where_output_0"
+ISTFT_EXPANDS = [f"{ISTFT}/Expand", f"{ISTFT}/Expand_1"]
+
+
+def fix_istft_expand_symbolic(path):
+    """Bypass the identity Where wrapping the iSTFT framing Expands' target shape,
+    pointing them straight at the genuine Shape() they wrap. Lets stage 2 optimize
+    once with symbolic phoneme/frame counts. See docs/tract-support-plan.md."""
+    m = onnx.load(path)
+    g = m.graph
+    if not any(ISTFT_SHAPE1 in n.output for n in g.node):
+        raise SystemExit(f"iSTFT shape tensor {ISTFT_SHAPE1!r} not found")
+    n_fixed = 0
+    for node in g.node:
+        if node.name in ISTFT_EXPANDS:
+            for i, inp in enumerate(node.input):
+                if inp == ISTFT_WHERE:
+                    node.input[i] = ISTFT_SHAPE1
+                    n_fixed += 1
+    if n_fixed == 0:
+        raise SystemExit(f"no iSTFT Expand referenced {ISTFT_WHERE!r}")
+    onnx.save(m, path)
+    print(f"  rewired {n_fixed} iSTFT Expand target(s): Where -> Shape_1 (symbolic-friendly)")
+
+
 def main():
     model = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else DEFAULT_MODEL
     out_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(os.path.abspath(model))
@@ -116,11 +209,13 @@ def main():
 
     onnx.utils.extract_model(model, s1, MODEL_INPUTS, STAGE1_OUT)
     strip_symbols(s1)
+    fix_expand_symbolic(s1)
     print(f"wrote {s1}  ({len(onnx.load(s1).graph.node)} nodes)")
 
     onnx.utils.extract_model(model, s2, STAGE2_IN, STAGE2_OUT)
     strip_symbols(s2)
     fix_atan2_branch(s2)
+    fix_istft_expand_symbolic(s2)
     print(f"wrote {s2}  ({len(onnx.load(s2).graph.node)} nodes)")
 
 

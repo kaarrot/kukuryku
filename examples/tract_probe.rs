@@ -29,7 +29,7 @@
 //!   speed     : [1] f32      (speed multiplier)
 
 use tract_onnx::prelude::*;
-use tract_onnx::tract_hir::infer::Factoid;
+use tract_onnx::tract_hir::infer::{Factoid, ShapeFactoid};
 
 const DEFAULT_MODEL: &str = concat!(
     env!("HOME"),
@@ -84,11 +84,48 @@ fn main() -> TractResult<()> {
     // inputs (the batch-axis heuristic below misfires when axis 0 is a real dim,
     // e.g. the [N, T] alignment matrix). Format: "2=64x64,3=1x256".
     let overrides = parse_shape_overrides(&std::env::var("PROBE_SHAPES").unwrap_or_default());
+    // PROBE_SYM sets *coherent* symbolic facts: per-input shapes separated by ';',
+    // dims by ',', where an integer dim is concrete and an identifier is a shared
+    // symbol (same name => same symbol across inputs). This mirrors what the real
+    // Pipeline pins — batch=1 concrete, one shared phoneme symbol N, one shared
+    // frame symbol F — so a single plan optimizes for all lengths. Distinct symbols
+    // are concretized to run_len only for the dummy run tensors. Example (stage 2):
+    //   PROBE_SYM="1,640,N;1,512,N;N,F;1,256"
+    let sym_specs = std::env::var("PROBE_SYM").ok().map(|s| parse_sym_shapes(&s));
+    if let Some(specs) = &sym_specs {
+        if specs.len() != names.len() {
+            anyhow::bail!(
+                "PROBE_SYM has {} shapes but model has {} inputs",
+                specs.len(),
+                names.len()
+            );
+        }
+    }
     let mut specs: Vec<(DatumType, Vec<usize>)> = Vec::new();
     eprintln!("[probe] inputs (in model order):");
     for (ix, name) in names.iter().enumerate() {
         let fact = model.outlet_fact(inputs[ix])?.clone();
         let dt = fact.datum_type().unwrap_or_else(|| f32::datum_type());
+        // PROBE_SYM: build a symbolic fact from the spec, and a concrete run shape
+        // (each distinct symbol -> run_len) for the dummy tensors.
+        if let Some(sym_specs) = &sym_specs {
+            let dims: Vec<TDim> = sym_specs[ix]
+                .iter()
+                .map(|d| match d {
+                    DimSpec::Int(v) => (*v as i64).to_dim(),
+                    DimSpec::Sym(s) => model.sym(s).to_dim(),
+                })
+                .collect();
+            let shape: Vec<usize> =
+                sym_specs[ix].iter().map(|d| match d {
+                    DimSpec::Int(v) => *v,
+                    DimSpec::Sym(_) => run_len,
+                }).collect();
+            eprintln!("  [{ix}] '{name}'  onnx_fact={fact:?}  -> {dt:?} sym {dims:?} (run {shape:?})");
+            model.set_input_fact(ix, InferenceFact::dt_shape(dt, ShapeFactoid::from(dims)))?;
+            specs.push((dt, shape));
+            continue;
+        }
         // Concretize each dim: known -> its value; unknown leading (batch) axis
         // -> 1; any other unknown (the sequence/frame axis) -> run_len. An entry
         // in PROBE_SHAPES overrides the whole shape for that input index.
@@ -158,6 +195,33 @@ fn main() -> TractResult<()> {
 
     eprintln!("[probe] SUCCESS — tract loaded, optimized, and ran the graph.");
     Ok(())
+}
+
+/// One dimension in a PROBE_SYM spec: a concrete size or a named shared symbol.
+enum DimSpec {
+    Int(usize),
+    Sym(String),
+}
+
+/// Parse PROBE_SYM ("1,640,N;1,512,N;N,F;1,256") into per-input dim specs. Inputs
+/// are separated by ';' (in model order), dims by ','. A dim that parses as an
+/// integer is concrete; anything else is a symbol name shared across inputs.
+fn parse_sym_shapes(spec: &str) -> Vec<Vec<DimSpec>> {
+    spec.split(';')
+        .filter(|s| !s.trim().is_empty())
+        .map(|shape| {
+            shape
+                .split(',')
+                .map(|d| {
+                    let d = d.trim();
+                    match d.parse::<usize>() {
+                        Ok(v) => DimSpec::Int(v),
+                        Err(_) => DimSpec::Sym(d.to_string()),
+                    }
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// Parse PROBE_SHAPES ("2=64x64,3=1x256") into a map of input index -> shape.

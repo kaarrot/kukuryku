@@ -288,12 +288,17 @@ diffing.
 **Perf:** RTF ~2 after the stage-2 op work (multithread + STFT/im2col/sin);
 onnxruntime is ~0.4. See the caching investigation below.
 
-### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic blocked
+### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic first thought blocked
+
+> **Superseded:** the "symbolic BLOCKED" verdict below turned out to be wrong — the
+> symbolic single plan **landed** the same day. Kept for the reasoning trail; see
+> "Symbolic single plan (2026-07-03) — DONE" immediately after this section.
 
 Per-utterance `parse + into_optimized` is ~2.6 s (optimize ~2.3 s), pure overhead
 onnxruntime avoids by compiling its session once. Three tiers were evaluated:
 
-- **Symbolic single plan (the clean win): BLOCKED by tract.** Optimizing either
+- **Symbolic single plan (the clean win): ~~BLOCKED by tract~~ → DONE (see below).**
+  Optimizing either
   subgraph with a symbolic length dim fails during analyse at the style-broadcast
   `Concat` (`/encoder/predictor/text_encoder/Concat_1`, axis 2):
   `Impossible to unify Sym(N) with Val(1)`. Root cause: that Concat joins the text
@@ -304,7 +309,8 @@ onnxruntime avoids by compiling its session once. Three tiers were evaluated:
   `Shape(text_features)`, **and** (b) a tract patch — `MultiBroadcastTo::wire*`
   (`tract-hir/.../array/broadcast.rs`) calls `shape.concretize()`, which bails on any
   symbolic dim, so symbolic-length Expand can't be lowered even if analyse passes.
-  Deferred (deep, multi-site).
+  ~~Deferred (deep, multi-site).~~ **This assessment was wrong — see the DONE section
+  below; part (b) was unfounded and only graph surgery was needed.**
 - **Bucketing + padding (to reuse across lengths): UNSAFE.** The model normalizes
   globally (decoder instance-norm over frames, encoder norm over phonemes), so
   padding poisons the whole output — measured waveform corr vs ORT: phoneme padding
@@ -312,8 +318,61 @@ onnxruntime avoids by compiling its session once. Three tiers were evaluated:
 - **Exact per-shape cache: DONE.** `Pipeline` compiles a plan per exact shape (key:
   phoneme count for stage 1, `(phoneme, frame)` for stage 2) and reuses it. Correct
   (corr 0.977 preserved); helps repeated lengths / re-runs, but distinct-length
-  sentences still each compile once. The length-independent win awaits the symbolic
-  work above; the orthogonal `run`-speedup lever is the quantized `model_q8f16.onnx`.
+  sentences still each compile once. The length-independent win — the symbolic single
+  plan — landed (next section) and now supersedes this as the default; the exact-shape
+  cache remains as the graceful fallback. The orthogonal `run`-speedup lever is the
+  quantized `model_q8f16.onnx`.
+
+### Symbolic single plan (2026-07-03) — DONE, the "BLOCKED" verdict above was wrong
+
+The symbolic single plan **landed**: each stage now optimizes **once** with symbolic
+length dims and runs for any phoneme/frame count, so streaming a paragraph of
+distinct-length sentences no longer recompiles each one. Parity is unchanged (full
+paragraph corr **0.9756**, "Hello world." **0.9767** — identical to the concrete
+path). The prior "BLOCKED / deep, multi-site" assessment was too pessimistic on two
+counts; a probe-driven spike (`PROBE_SYM` shared-symbol mode in `examples/tract_probe.rs`)
+mapped the real walls, all small:
+
+1. **The tract-patch fear (b above) was unfounded.** `ShapeFactoid::concretize()`
+   (`tract-hir/src/infer/factoid.rs:243`) returns `TVec<TDim>` and only bails when the
+   shape is *open* (unknown rank/dim) — known-symbolic `TDim`s pass through. So once
+   analyse infers a clean `[1,N,C1]`, the existing `MultiBroadcastTo` wiring lowers it
+   with **no tract patch**. Only graph surgery was needed for the Concat.
+
+2. **`#1802`/`Concat_1` fix = one graph surgery, not symbol propagation through
+   `Where`.** The Expand's target `[1,N,1]` is already `Shape(text_features)[1]`; tract
+   just can't carry it through the `Equal`/`Where(-1→1)` sentinel chain. `split_kokoro.py`
+   `fix_expand_symbolic` feeds the Expand a direct `[1, N, 1]` built from the existing
+   `Unsqueeze_1` (`[N]`), skipping the sentinel ops. Stage 1 then optimizes+runs
+   symbolically as-is.
+
+**Stage 2 needed coherent symbols + two more small fixes** (found by pushing the spike
+wall-by-wall, each revealing the next):
+- **Coherent shared symbols** (not a patch): `extract_model` gives each input dim its
+  own `unk__` symbol, so a stray batch symbol leaked into a conv's frame axis. Pinning
+  batch=1, one shared `N`, one shared `F` (what `Pipeline` does) fixes it.
+- **`Resize` symbolic unit-fraction scale** (`tract-onnx/src/ops/resize.rs`): the
+  harmonic source resamples `600*F` by `1/300`; tract couldn't compute `600F × 0.00333`.
+  Patched: when the input dim is symbolic and the scale is a unit fraction `1/k`, output
+  `= dim / k` (TDim division: `600F/300 = 2F`).
+- **`Slice` symbolic-end clamp** (`tract-core/src/ops/array/strided_slice.rs`): the iSTFT
+  slices the constant-length (20) window by the symbolic signal length; tract only
+  clamped `end` to the axis size when *both* were concrete. Patched to `end = min(end,
+  dim)` (ONNX clamp semantics) when `end` is symbolic and `dim` concrete. Plus a second
+  `Expand`/`Where` identity-bypass surgery (`fix_istft_expand_symbolic`) — here `Where`
+  wraps a genuine `Shape()` (no `-1`), so the Expand target points straight at it.
+
+**Footprint (entire feature):** 2 graph surgeries + 1 backend-agnostic atan2 fix in
+`tools/split_kokoro.py`; 2 small tract patches (`resize.rs`, `strided_slice.rs`); the
+`Pipeline` now holds one `StagePlan::Symbolic` per stage with a `PerShape` fallback
+(degrades gracefully on un-surgeried subgraphs — verified). Both surgeries are no-ops
+under concrete N/F, so the same `stage1.onnx`/`stage2.onnx` serve concrete and symbolic.
+
+**Measured (4 distinct-length sentences):** symbolic infer **17.65 s** vs per-shape
+**21.77 s**; the gap *grows* with the number of distinct lengths (symbolic compiles once
+total, per-shape compiles once per length). Per-stage optimize is ~1.4 s (stage 1) /
+~3.9 s (stage 2). `run`-speed (RTF ~1.6) is unchanged and orthogonal (quantized model
+is the lever there).
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 
