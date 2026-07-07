@@ -34,6 +34,35 @@ Both are comfortably faster than realtime. tract is currently **~1.47× slower t
 remaining gap is MLAS-class matmul-kernel work; onnxruntime's kernels are hard to beat. You trade
 that ~1.5× for a **fully self-contained, dependency-free binary**.
 
+## Quick start
+
+Fresh checkout → spoken audio, the pure-Rust path (no onnxruntime). On Termux, swap
+`sudo apt install -y` for `pkg install`.
+
+```bash
+# 1. System dependencies
+sudo apt install -y espeak-ng ffmpeg          # phonemizer + ffplay playback
+pip install numpy onnx                         # only for the one-time model split (step 3)
+
+# 2. Build the pure-Rust binary.
+#    First build compiles the whole dependency tree (the candle git fork + the vendored
+#    tract crates) — several minutes on a clean cache; later builds are seconds.
+cargo build --release --no-default-features --features tract --bin kokoro-tract
+
+# 3. One-time: fetch Kokoro-82M, then split it into the two tract stages (-> kokoro-onyx/).
+./target/release/kokoro-tract "warm up"        # first run downloads the model into the HF cache,
+                                               # then reports the split stages are missing — that
+                                               # download is all this step needs
+python3 tools/split_kokoro.py                  # writes kokoro-onyx/stage1.onnx + stage2.onnx
+
+# 4. Speak (point kokoro-tract at the local split dir)
+KOKORO_TRACT_DIR=kokoro-onyx ./target/release/kokoro-tract \
+    "Hello, this is a pure-Rust text to speech test."
+```
+
+Each run prints a metrics line (`… tokens | … audio | infer …s | RTF …`); RTF below 1.0 is faster
+than realtime. The sections below expand on each step.
+
 ## Prerequisites
 
 - **Rust** 1.90+ (edition 2024) and a C toolchain (the tract build compiles a small C allocator).
@@ -54,8 +83,10 @@ that ~1.5× for a **fully self-contained, dependency-free binary**.
 cargo build --release --no-default-features --features tract --bin kokoro-tract
 ```
 
-The first build compiles the vendored tract crates (~1–2 min); later builds are seconds. The
-binary lands at `target/release/kokoro-tract`.
+The first build (clean cache) compiles the full dependency tree — the vendored tract crates plus
+the candle git fork, which `speak_tts` currently depends on unconditionally even though
+`kokoro-tract` doesn't use it — so budget several minutes; later builds are seconds. The binary
+lands at `target/release/kokoro-tract`.
 
 To build it **alongside** the onnxruntime `kokoro` binary for side-by-side comparison (this also
 pulls in `ort`, so it needs an onnxruntime `.so` at runtime — see the reference binary below):
@@ -82,42 +113,38 @@ Produce the two subgraphs once with the bundled script:
 
 ```bash
 pip install numpy onnx                            # the script's only deps (no onnxruntime needed)
-python3 tools/split_kokoro.py                     # writes stage1.onnx + stage2.onnx
+python3 tools/split_kokoro.py                     # writes kokoro-onyx/stage1.onnx + stage2.onnx
+./target/release/kokoro-tract "Hello world."      # then run pointing at the local dir:
+KOKORO_TRACT_DIR=kokoro-onyx ./target/release/kokoro-tract "Hello world."
 ```
 
 - With no arguments it reads the HF-cached `onnx/model.onnx` for
-  `onnx-community/Kokoro-82M-v1.0-ONNX` and writes `stage1.onnx` + `stage2.onnx` **next to it** —
-  exactly where `kokoro-tract` looks by default. (Run `kokoro-tract` once first to trigger the
-  model download, or pass an explicit path: `python3 tools/split_kokoro.py path/to/model.onnx
-  [OUT_DIR]`.)
-- Point `kokoro-tract` at a custom location with `KOKORO_TRACT_DIR=/path/to/dir`.
+  `onnx-community/Kokoro-82M-v1.0-ONNX` and writes `stage1.onnx` + `stage2.onnx` into the
+  project-local **`kokoro-onyx/`** directory (a stable path that lives with the checkout, instead of
+  the HF cache's snapshot-hashed dir). Run `kokoro-tract` once first to trigger the model download,
+  or pass an explicit source/dest: `python3 tools/split_kokoro.py path/to/model.onnx [OUT_DIR]`.
+- **Point `kokoro-tract` at that dir with `KOKORO_TRACT_DIR=kokoro-onyx`** (it otherwise looks next
+  to the cached `model.onnx`). `kokoro-onyx/` is git-ignored — see below.
 
-### Why the split files are **not** committed to this branch
+**Fully offline / self-contained.** If `kokoro-onyx/` also contains `model.onnx` and
+`voices/<voice>.bin`, `kokoro-tract` uses those directly and **skips hf-hub entirely** — no network,
+which is what makes an offline or Termux run work. In that case `KOKORO_TRACT_DIR` is optional when
+you run from the project root: the local `model.onnx` makes `kokoro-onyx/` the default stage dir
+too. The lookup dir is `KOKORO_TRACT_DIR` if set, else `./kokoro-onyx`; it falls back to the HF
+cache when the local files aren't present. (The `voices/` dir is tiny — ~0.5 MB per voice.)
 
-The obvious convenience — checking `stage1.onnx` + `stage2.onnx` into the repo so nobody has to run
-the Python step — does not work:
+> **Skipping the split:** the subgraphs only depend on the model weights, not on your machine, so
+> you can produce them once (or copy an existing `stage1.onnx` + `stage2.onnx`) into `kokoro-onyx/`
+> and reuse them across checkouts — no need to re-run the Python step or hunt through the HF cache.
 
-- The subgraphs are fp32 and large: **stage1.onnx ≈ 75 MB, stage2.onnx ≈ 236 MB**.
-- `stage2.onnx` **exceeds GitHub's hard 100 MB-per-file limit**, so a plain `git add` + push is
-  rejected.
-- ONNX fp32 weights are near-incompressible: **gzip -9 shrinks stage2 by only ~7 %** (→ 219 MB),
-  still far over the limit — zipping does not help.
-- git-LFS would work but adds a hard dependency (`git lfs` on every clone, including Termux) plus
-  GitHub LFS storage/bandwidth quota — more friction than it removes.
+### The split files are not committed
 
-**So produce the split once on a capable machine and copy the two files to the target.** This is
-especially relevant on **Termux**, where `pip install numpy onnx` is often painful (native builds
-against bionic). The split itself is architecture-independent — the subgraphs are just the original
-weights re-partitioned — so:
-
-```bash
-# On a desktop/laptop (has numpy + onnx):
-python3 tools/split_kokoro.py /path/to/onnx/model.onnx  /tmp/kokoro-split
-#   → /tmp/kokoro-split/stage1.onnx, /tmp/kokoro-split/stage2.onnx  (~311 MB total)
-
-# Copy both to the phone (scp/adb/USB), then on Termux:
-KOKORO_TRACT_DIR=~/kokoro-split ./kokoro-tract "Hello from a pure-Rust binary."
-```
+`stage1.onnx` + `stage2.onnx` are fp32 and large (≈ 311 MB together) and don't meaningfully compress
+(fp32 weights are near-incompressible), so they're kept out of the repo — the split step writes them
+into the git-ignored **`kokoro-onyx/`** directory instead. Produce them once with
+`tools/split_kokoro.py` (or drop in an existing pair) and keep `KOKORO_TRACT_DIR=kokoro-onyx` set.
+The subgraphs are just the original weights re-partitioned, so a pair produced on any machine works
+anywhere.
 
 ## Run
 
@@ -177,10 +204,9 @@ pkg install rust espeak-ng ffmpeg
 cargo build --release --no-default-features --features tract --bin kokoro-tract
 ```
 
-Provide the split subgraphs by copying them from a desktop (see
-[above](#why-the-split-files-are-not-committed-to-this-branch) — avoids `pip install numpy onnx` on
-the phone), point `KOKORO_TRACT_DIR` at them, and start PulseAudio (e.g. `module-sles-sink`) for
-playback or just use `KOKORO_WAV`.
+Provide the two split subgraphs (see [above](#the-split-files-are-not-committed)) in a directory,
+point `KOKORO_TRACT_DIR` at it, and start PulseAudio (e.g. `module-sles-sink`) for playback or just
+use `KOKORO_WAV`.
 
 ## How it works, fidelity, and performance
 

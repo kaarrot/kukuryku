@@ -7,7 +7,7 @@
 pub mod kokoro {
     use std::collections::HashMap;
     use std::io::Write;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
 
     use anyhow::{Context, Result, bail};
@@ -60,7 +60,27 @@ pub mod kokoro {
         pub voice_path: PathBuf,
     }
 
+    /// Directory checked for a project-local asset bundle before hitting the network.
+    /// Reuses `KOKORO_TRACT_DIR` (where the split stages live) so one env var can point
+    /// at a fully self-contained dir; defaults to `kokoro-onyx/` relative to the CWD.
+    fn local_assets_dir() -> PathBuf {
+        std::env::var_os("KOKORO_TRACT_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("kokoro-onyx"))
+    }
+
     pub fn resolve_assets(model_file: &str, voice: &str) -> Result<Assets> {
+        // Project-local bundle first: if the assets dir already holds `<model>.onnx` and
+        // `voices/<voice>.bin`, use them and skip hf-hub entirely — no network, which is
+        // what makes an offline / Termux run possible. Falls back to the HF cache otherwise.
+        let dir = local_assets_dir();
+        let model_name = Path::new(model_file).file_name().unwrap_or(model_file.as_ref());
+        let local_model = dir.join(model_name);
+        let local_voice = dir.join("voices").join(format!("{voice}.bin"));
+        if local_model.is_file() && local_voice.is_file() {
+            return Ok(Assets { model_path: local_model, voice_path: local_voice });
+        }
+
         let api = Api::new().context("creating hf-hub api")?;
         let model_path = api
             .model(REPO.to_string())

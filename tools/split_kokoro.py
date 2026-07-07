@@ -28,6 +28,9 @@ optimize issue tracked in the plan doc.
 
 Usage:  python3 tools/split_kokoro.py [MODEL.onnx] [OUT_DIR]
 Default MODEL is the HF cache path for onnx-community/Kokoro-82M-v1.0-ONNX.
+Default OUT_DIR is the project-local `kokoro-onyx/` directory, which is where
+`kokoro-tract` expects the stages when run with `KOKORO_TRACT_DIR=kokoro-onyx`.
+(That directory is git-ignored — the fp32 subgraphs are ~311 MB; see the README.)
 """
 import os
 import sys
@@ -39,6 +42,11 @@ DEFAULT_MODEL = os.path.expanduser(
     "~/.cache/huggingface/hub/models--onnx-community--Kokoro-82M-v1.0-ONNX"
     "/snapshots/1939ad2a8e416c0acfeecc08a694d14ef25f2231/onnx/model.onnx"
 )
+
+# Write the split stages into the project-local kokoro-onyx/ dir by default so they
+# live with the checkout (stable path) instead of the HF cache's snapshot-hashed dir.
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_OUT_DIR = os.path.join(REPO_ROOT, "kokoro-onyx")
 
 # --- cut tensors (see module docstring / docs/tract-support-plan.md) ----------
 MODEL_INPUTS = ["input_ids", "style", "speed"]
@@ -201,7 +209,7 @@ def fix_istft_expand_symbolic(path):
 
 def main():
     model = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else DEFAULT_MODEL
-    out_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(os.path.abspath(model))
+    out_dir = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_OUT_DIR
     os.makedirs(out_dir, exist_ok=True)
 
     s1 = os.path.join(out_dir, "stage1.onnx")
