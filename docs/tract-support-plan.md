@@ -505,14 +505,95 @@ That turned the aggregated op buckets into actionable shapes and settled three t
   scheduling overhead across its many calls outweighs the parallelism (memory-bandwidth
   bound on WSL). Reverted.
 
-**Remaining levers, all invasive/risky (need a decision before spending risk budget):**
-`Scan`/LSTM (15%) — hoisting `X @ concat(W)ᵀ` out of the scan body means changing the
-Scan's input contract on a *shared* core op (every ONNX LSTM), parity-critical, and
-tract-core's own tests can't run standalone in this fork; **`Pad`** (10%) — folding the
-zero-pad into the lazy gather means adding per-element bounds logic to the heavily-unrolled
-unsafe gather kernels (`input_8n`/`6n`/`4n`/`2n`), risking the majority valid-read path;
-**`Sin`** (16%) — vectorized `sin`, fidelity-sensitive. `OptMatMul` (23%) is MLAS-class and
-out of scope. **Cumulative Tier 1–4: RTF 1.734 → 0.745; gap to onnxruntime (0.4) now ~1.9×.**
+**Remaining levers.** `Scan`/LSTM (15%) was **tested and closed — see the next section**
+(hoisting the input projection gives no win; the scan is latency-bound on the recurrent
+path). Still open, both invasive/risky (need a decision before spending risk budget):
+**`Pad`** (10%) — folding the zero-pad into the lazy gather means adding per-element bounds
+logic to the heavily-unrolled unsafe gather kernels (`input_8n`/`6n`/`4n`/`2n`), risking the
+majority valid-read path; **`Sin`** (16%) — vectorized `sin`, fidelity-sensitive.
+`OptMatMul` (23%) is MLAS-class and out of scope. **Cumulative Tier 1–4: RTF 1.734 → 0.745;
+gap to onnxruntime (0.4) now ~1.9×.**
+
+### Scan/LSTM input-projection hoisting (2026-07-06) — EXPERIMENT, negative, reverted
+
+Tested the plan's ranked Scan/LSTM lever. tract lowers each ONNX `LSTM` into a `Scan` whose
+body wires **8 per-step `EinSum` matmuls**: 4 recurrent `Ht₋₁·Rᵀ` and 4 input `Xt·Wᵀ`. The
+4 input projections are **loop-invariant** (they depend only on the per-step input `Xt`, not
+on the recurrent state), so in principle they can be lifted out: precompute `X @ Wᵀ` over the
+*whole* sequence as one large multithreaded GEMM before the loop and slice it per step.
+
+**The lowering made this clean.** `W` is already the `[4·h, input]` gate concatenation in
+i,o,f,c order (`lstm.rs` slices it into `Wi/Wo/Wf/Wc`), so `X @ Wᵀ = [batch, seq, 4·h]` is
+**directly sliceable per gate — no reconcatenation**. Implementation (all in
+`third_party/tract/tract-onnx/src/ops/rec/`): added a `WireBody::hoist_input_projection()`
+hook (default `false`, `LSTM` returns `true`); in `common.rs::wire_one_side` precomputed
+`EinSum("bsi,gi->bsg")` at the outer level and fed it as an extra `Scan(axis:1, chunk)`
+input (`"XWt"`); branched `lstm.rs::wire_body` to slice `XWt` per gate instead of doing the 4
+per-step matmuls. It compiled and ran correctly.
+
+**Result — no speedup, slight regression:**
+
+| | baseline | hoisted |
+|---|---|---|
+| RTF (best of 4) | **0.745** | 0.757 |
+| `Scan` bucket | 1.463 s | 1.568 s |
+| `OptMatMul` bucket | 2.159 s | 2.228 s (the added outer GEMM) |
+
+**Why it doesn't pay off:** the Scan is **latency-bound on the serial recurrent path** — each
+step waits on `Ht₋₁·Rᵀ` plus the sigmoid/tanh chain, and *that* cannot be hoisted because it
+depends on the evolving state. The input matmuls are tiny `m=1` gemvs that were already cheap;
+replacing them with 4 slices of a 4×-wider scanned input added about as much memory-traffic and
+slicing overhead as it removed. Hoisting only helps a loop that is throughput-bound on its
+input projections, and this one isn't.
+
+**Parity was fine** (the change is numerically safe): durations and output lengths were
+identical everywhere — "Hello world." stayed 39000 samples, the paragraph stayed
+"242 tokens | 14.60 s", and fox/sea were bit-identical. An early "hello parity broke" scare
+was a **stale-reference-file artifact** (compared against a wrong-length `o_hello.wav`); fresh
+onnxruntime references via `--features onnx` confirmed baseline "Hello world." is 1.62 s /
+39000 samples at corr 0.9767, matching tract. Method note for next time: regenerate the ORT
+reference for the *exact* sentence before trusting a corr number — a length mismatch tanks corr
+and masquerades as a regression.
+
+**Reverted** both files; tree back to the RTF-0.745 baseline. **Takeaway: don't hoist LSTM
+input projections — the recurrent serial dependency dominates the scan, so the win isn't
+there.** The only structural Scan win left would be attacking the per-iteration alloc/copy in
+`scan/optimized.rs` (more invasive, and not shown to dominate).
+
+### Tier 5: single-pass `SumOfSquares` for the symbolic InstanceNorm variance (2026-07-06)
+
+A per-node graph inspection (temporary `KOKORO_TRACT_INSPECT` dump of `Square`/`Reduce`
+producers) found that the 6% stage-2 `Square` bucket is two unrelated things: 48 Snake
+`sin²` (`Sin → Square → Mul`, elementwise, not a reduce) and **65 InstanceNorm variances**
+(`Sub → Square → Reduce<Sum> → Mul(1/N)`). tract *already* has a fused `Reduce<MeanOfSquares>`
+and it fires for the stage-1 LayerNorm reductions — where the reduced axis is **concrete**
+(128/768) — but **not** for the stage-2 InstanceNorm ones, where the reduced axis is the
+symbolic frame count `F`. Same bug class as Tiers 2–4: the fusion (`declutter_mean_of_square`
+in `tract-core/src/ops/nn/reduce.rs`) is gated on `norm.as_i64()` **and** on the `1/N`
+divisor being a compile-time uniform const — but under the symbolic plan `1/F` is a *runtime*
+`Recip`, so both conditions fail.
+
+The clean fix is *not* to un-gate `MeanOfSquares` (its eval isn't even single-pass — it clones
++ squares a full temp, then sums; and matching the runtime `Recip(F)` divisor is fragile).
+Instead, a new `Reducer::SumOfSquares` variant with a **genuinely single-pass** eval
+(square-and-accumulate per contiguous slice, never materializing the ~36 MB squared temp that
+is the whole cost), fused via `Reduce<Sum>(Square(x)) → Reduce<SumOfSquares>(x)`, leaving the
+cheap `× Recip(F)` on the small reduced tensor untouched. The declutter is **scoped to the
+symbolic reduced axis** (`norm.as_i64().is_none()`), so the concrete stage-1 `MeanOfSquares`
+path is byte-for-byte unchanged (verified: 31 `MeanOfSquares` retained, exactly the 65
+symbolic variances become `SumOfSquares`).
+
+Kernel detail that mattered: the reduction squares each element in **f32** (matching the
+fused-away `Square` op's rounding) but accumulates in **f64** across 8 vectorizable lanes.
+The f64 headroom makes the reassociation error negligible — so this non-bit-identical change
+actually lands *closer* to onnxruntime than tract's original f32 SIMD sum: parity **improved**
+above the previous baseline (fox 0.9754 → **0.9760**, hello 0.9767 → **0.9774**, sea 0.9705
+unchanged), rather than regressing. (An initial f32-accumulate kernel had regressed fox to
+0.9726; f64 accumulation costs nothing measurable because the reduction is bound by the f32
+read.) **Speed:** a same-session back-to-back A/B (WSL absolute RTF drifts with load, so only
+the paired delta is trustworthy) gave **RTF 0.767 → 0.747, ~2.6%**, monotonic (every fused run
+beat every baseline run). Both stages still "compiled one symbolic plan"; pure-Rust build
+links. Modest but real, parity-positive, and low-risk.
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 

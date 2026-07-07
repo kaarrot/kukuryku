@@ -57,6 +57,37 @@ pub enum Reducer {
     Prod,
     Sum,
     MeanOfSquares,
+    /// Sum of squares along the reduced axes, computed single-pass (never
+    /// materializes a squared temp). Fused from `Reduce<Sum>(Square(x))` — the
+    /// mean-of-squares pattern whose `1/N` divisor is a *runtime* reciprocal
+    /// (symbolic length), which the `MeanOfSquares` declutter can't match.
+    SumOfSquares,
+}
+
+/// Lane-blocked sum of squares over a contiguous slice. Each element is squared
+/// in f32 (matching the rounding of the fused-away `Square` op) but accumulated in
+/// f64: the 8 independent lanes let LLVM vectorize, and the f64 headroom makes the
+/// reassociation error negligible, so the result tracks the exact variance closely
+/// (and thus onnxruntime) despite not being bit-identical to the old f32 sum. The
+/// f64 accumulators cost nothing measurable — the reduction is bound by the f32 read.
+#[inline]
+fn sum_sq_f32(slice: &[f32]) -> f32 {
+    const L: usize = 8;
+    let mut acc = [0f64; L];
+    let mut chunks = slice.chunks_exact(L);
+    for c in &mut chunks {
+        for l in 0..L {
+            acc[l] += (c[l] * c[l]) as f64;
+        }
+    }
+    let mut s = 0f64;
+    for &x in chunks.remainder() {
+        s += (x * x) as f64;
+    }
+    for l in 0..L {
+        s += acc[l];
+    }
+    s as f32
 }
 
 impl Reducer {
@@ -98,6 +129,7 @@ impl Reducer {
                     }
                 }
                 MeanOfSquares => self.mean_of_squares(axes, input)?,
+                SumOfSquares => self.sum_of_squares(axes, input)?,
             };
             if input.datum_type().is_quantized()
                 && input.datum_type().unquantized() == t.datum_type().unquantized()
@@ -240,6 +272,44 @@ impl Reducer {
             }
             output.unwrap().into_tensor()
         }
+    }
+
+    /// Sum of squares, single-pass. The common case (one reduction axis at the
+    /// end, contiguous slices) squares-and-accumulates each slice in place with a
+    /// lane-blocked kernel — no full squared temp is materialized (that temp, a
+    /// ~36 MB tensor at audio scale, is the whole cost this fusion removes).
+    /// Falls back to square-then-sum for exotic axis configurations.
+    fn sum_of_squares(&self, axes: &[usize], input: &Tensor) -> TractResult<Tensor> {
+        let dt = input.datum_type();
+        let input = input.cast_to::<f32>()?;
+        if axes.len() == 1 && axes[0] == input.rank() - 1 {
+            let axis = axes[0];
+            let view = unsafe { input.to_array_view_unchecked::<f32>() };
+            let output_shape: Vec<usize> = view
+                .shape()
+                .iter()
+                .enumerate()
+                .map(|(idx, d)| if idx == axis { 1 } else { *d })
+                .collect();
+            let out = ArrayD::from_shape_fn(output_shape.clone(), |coords| {
+                let mut v = view.view();
+                for ix in 0..output_shape.len() {
+                    if ix != axis {
+                        v.collapse_axis(Axis(ix), coords[ix]);
+                    }
+                }
+                match v.as_slice() {
+                    Some(slice) => sum_sq_f32(slice),
+                    None => v.iter().map(|&x| (x * x) as f64).sum::<f64>() as f32,
+                }
+            });
+            return Ok(out.into_tensor().cast_to_dt(dt)?.into_owned());
+        }
+        // Fallback for multi-axis / non-trailing reductions: square a temp, sum.
+        let mut sq = input.into_owned();
+        sq.as_slice_mut::<f32>()?.iter_mut().for_each(|x| *x = *x * *x);
+        let out = unsafe { self.sum::<f32>(axes, &sq) };
+        Ok(out.cast_to_dt(dt)?.into_owned())
     }
 
     fn mean_of_squares(&self, axis: &[usize], input: &Tensor) -> TractResult<Tensor> {
@@ -552,6 +622,30 @@ impl Reduce {
             if !prec_ew.0.is::<Square>() {
                 return Ok(None);
             }
+            let norm: TDim =
+                self.axes.iter().map(|&ax| &prec.outputs[0].fact.shape[ax]).product();
+
+            // Symbolic reduced axis: the mean's 1/N divisor is a runtime reciprocal,
+            // so the MeanOfSquares match below can never fire (it needs a constant
+            // 1/N). Fuse just Square+Sum into a single-pass SumOfSquares, which drops
+            // the ~36 MB squared temp; the downstream normalization is left as is.
+            // Safe for any successor because `linear_prec` guarantees the Square
+            // feeds only this Sum. Scoped to the symbolic case so the concrete
+            // (stage-1) MeanOfSquares path below is untouched.
+            if norm.as_i64().is_none() {
+                let mut patch = TypedModelPatch::default();
+                let wire = patch.tap_model(model, prec.inputs[0])?;
+                let wire = patch.wire_node(
+                    &node.name,
+                    Reduce::new(self.axes.clone(), Reducer::SumOfSquares),
+                    &[wire],
+                )?[0];
+                patch.shunt_outside(model, node.id.into(), wire)?;
+                return Ok(Some(patch));
+            }
+
+            // Concrete reduced axis: original mean-of-squares match, unchanged —
+            // Sum(Square(x)) * (1/N) with a constant 1/N collapses into MeanOfSquares.
             if node.outputs.len() != 1 || node.outputs[0].successors.len() != 1 {
                 return Ok(None);
             }
@@ -567,10 +661,7 @@ impl Reduce {
             let Some(other_konst) = model.outlet_fact(other)?.uniform.as_ref() else {
                 return Ok(None);
             };
-            let norm: TDim = self.axes.iter().map(|&ax| &prec.outputs[0].fact.shape[ax]).product();
-            let Some(norm) = norm.as_i64() else {
-                return Ok(None);
-            };
+            let norm = norm.as_i64().unwrap();
             if norm == 0 {
                 return Ok(None);
             }
