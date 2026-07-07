@@ -20,11 +20,28 @@ Non-goal: replacing onnxruntime on glibc desktop, where it already works well (R
 
 ## Current state
 
-- `kokoro` (`src/bin/kokoro.rs`) runs on **onnxruntime** via `ort` `load-dynamic` — works, smooth,
-  soft-realtime (RTF ~0.4 on x86; verified audible).
-- A `tract` cargo feature exists (`cargo build --features tract --bin kokoro`): `ort-tract`
-  0.3.0+0.22 (tract-onnx 0.22), selected at runtime with `ort::set_api(ort_tract::api())`.
-  It **builds and links**, but **fails at model load**:
+- `kokoro-tract` (`src/bin/kokoro_tract.rs`) is the **pure-Rust** backend (tract, no native `.so`)
+  and now runs **end-to-end, faster than realtime**. The monolithic-graph load failure below was
+  solved by splitting the model at the length regulator into two subgraphs (`tools/split_kokoro.py`)
+  with a Rust length regulator between them, then optimizing each as **one symbolic plan**; the
+  remaining perf work is the Tier 1–7 arc documented in this file.
+- `kokoro` (`src/bin/kokoro.rs`) still runs on **onnxruntime** via `ort` `load-dynamic` and remains
+  the fast reference (RTF ~0.35 on x86).
+- **Latest measured comparison** (same host, WSL2 16-thread; two-sentence streamed run, `af_heart`):
+
+  | Utterance | tract (`kokoro-tract`) | onnxruntime (`kokoro`) |
+  |---|---|---|
+  | 242 tokens / 14.60 s audio | infer 7.39 s · **RTF 0.506** | infer 5.04 s · **RTF 0.345** |
+  | 221 tokens / 12.97 s audio | infer 6.60 s · **RTF 0.509** | infer 4.51 s · **RTF 0.347** |
+
+  Both are faster than realtime; tract is now **~1.47× onnxruntime** (down from ~3.6× at the start of
+  the perf arc). Fidelity vs onnxruntime is corr ~0.976. See the Tier 1–7 sections below.
+
+### Original blocker (2026-06-30, now solved — kept for history)
+
+The first `tract` attempt drove tract-onnx through the `ort-tract` shim
+(`ort::set_api(ort_tract::api())`) on the *whole* graph. It **built and linked** but **failed at
+model load**:
   ```
   Failed to parse model: Failed analyse for node #1802
   "/encoder/predictor/text_encoder/Concat_1" InferenceConcat
@@ -622,6 +639,76 @@ full-tensor allocations+copies per synth also relieves the allocator/cache press
 slowing the surrounding memory-bound ops on WSL. The `Pad` bucket disappears from the stage-2
 profile; `OptMatMul` (29%), `Sin` (23%), `Scan` (19%) now dominate. Highest-ROI, zero-fidelity
 tier of the arc. **Cumulative Tier 1–6: RTF 1.734 → ~0.62; gap to onnxruntime (0.4) now ~1.55×.**
+
+### Tier 7: allocator + SinSq fusion + vectorized sin (2026-07-07) — RTF ~0.62 → ~0.50
+
+Four independent levers, each A/B'd with `tools/bench_conv.sh` same-session paired best-of-4
+(WSL RTF drifts session-to-session; only paired deltas are trustworthy). This-session baseline
+measured **infer 9.58 s / RTF 0.656** (drifted up from the 0.62 Tier-6 endpoint); all deltas
+below are paired against it.
+
+- **Lever 1 — allocator pressure (KEPT, mimalloc).** Every intermediate tensor is a fresh
+  `uninitialized_aligned_dt` → glibc mmaps/munmaps each big block, so every op ate first-touch
+  page faults on its output (this is also why threading `Square` regressed in Tier 4, and why
+  Tier 6's win exceeded its op bucket). Two fixes A/B'd: (a) env-only
+  `MALLOC_MMAP_THRESHOLD_=1073741824 MALLOC_TRIM_THRESHOLD_=-1` → **9.58 → 8.81 s (−8.0%)**;
+  (b) `#[global_allocator]` **mimalloc** → **9.58 → 8.97 s (−6.4%)**. Both bit-identical (audio
+  byte-for-byte unchanged); both shift the same buckets (`OptMulByScalar` 11.2 → 9.5%). Kept
+  **mimalloc** despite the env vars' marginally larger win: self-contained (no runtime env),
+  portable (helps the Termux/musl target where glibc `mallopt` doesn't apply). Env vars
+  documented here as the glibc-only alternative. `Cargo.toml` (`mimalloc` behind `tract`,
+  `default-features = false`) + `src/bin/kokoro_tract.rs` (`static GLOBAL`).
+
+- **Lever 2 — stage-1 threading + thread count (NEGATIVE, reverted).** `synthesize` scopes the
+  thread pool to stage 2 only. Wrapping stage-1 `run` in the same `multithread_tract_scope`
+  **regressed +31% (8.97 → 11.75 s)** — the serial LSTM duration predictor and small per-op
+  GEMMs pay more in thread-dispatch overhead than the BERT encoder saves; stage-2 profile
+  unchanged, so the whole +2.8 s is stage 1. Thread-count sweep: `KOKORO_TRACT_THREADS=8`
+  (physical cores) → **10.15 s**, worse than the default 16 (SMT). The existing
+  stage-2-only / all-cores config is already optimal. No change.
+
+- **Lever 3a — fuse `Square(Sin(x)) → SinSq` (KEPT, bit-identical).** Kokoro's 48 Snake
+  activations each ran `Sin` then `Square` as two full memory passes over `[1,C,F]`. Added a
+  `sin_sq`/`SinSq` element-wise op (`tract-core/src/ops/math/mod.rs`) plus a `declutter` on
+  `Square` whose `linear_prec` is a `Sin` (mirrors `declutter_recip`; `linear_prec` guarantees
+  the Sin feeds only this Square so rewiring is safe). One pass instead of two; **bit-identical**
+  (`x.sin().powi(2)` per element — verified byte-for-byte fused-vs-unfused WAV, same MD5).
+  Profile: `Sin` + `Square` (23% + 1.8%) collapse into one `SinSq` (23%). **8.97 → 8.72 s
+  (−2.8%)** — smaller than the plan's ~4–6% guess because `Square` was only 1.8% here, not the
+  estimated 7%.
+
+- **Lever 3b — vectorized `sin` (KEPT; the big win).** After 3a, `SinSq` was still 23% and the
+  per-node profile (Tier 6) confirmed normal-range phases (scalar `sinf` fast path), so a
+  branchless minimax `sinf` (Julien Pommier / cephes, π/4-octant 3-part Cody–Waite, ~1e-7 abs
+  ≈ 1 ulp — **not** fast-math) auto-vectorizes inside `par_elementwise` instead of calling scalar
+  libm per element. `ssin_f32` used by both `sin` and `sin_sq` (f32 arm; f16/f64 keep exact
+  `.sin()`). **`SinSq` 1.672 s → 0.232 s (7.2×)**, total **8.72 → 7.36 s (−15.6%)** — the single
+  biggest lever, far above the plan's ~8–12% estimate (scalar `sinf` was the cost).
+  **Fidelity:** `ssin_f32` verified ~7.8e-8 max abs error over `[-2000,2000]` dense (vs
+  `np.sin`), so the sin itself is essentially exact; the end-to-end shift is the vocoder's known
+  branch-cut sensitivity (any perturbation flips marginal bins; saturates ~0.965). Full gate vs
+  fresh onnxruntime references (exact-tract reproduced the documented 0.9760/0.9774/0.9705
+  exactly):
+
+  | sentence | exact-tract vs ORT | vecsin vs ORT | Δ |
+  |---|---|---|---|
+  | fox | 0.9760 | 0.9737 | −0.0022 |
+  | hello | 0.9774 | 0.9782 | +0.0008 |
+  | sea | 0.9705 | 0.9703 | −0.0002 |
+
+  Shift ≤0.0022 (2/3 flat-or-better), within branch-cut jitter. Kept by explicit user decision
+  (speed win vs the plan's strict "revert if it moves").
+
+- **Lever 4 — Scan overhead (STOP, no change).** Scan was 24% after 3b (its ~1.41 s absolute is
+  unchanged; share grew as the total shrank). Temporary `eval` instrumentation (reverted) split
+  body-run vs state-copy/alloc: the dominant stage-2 scan is **body=749 ms, overhead=1%**
+  (prep+assign 4.8 ms). 99% is recurrent body math — exactly the hoisting post-mortem's verdict.
+  Buffer-reuse would save ≤1% of scan ≈ 0.5% of infer, far under the 3% stop threshold. Not done.
+
+**Cumulative Tier 1–7: RTF 1.734 → ~0.50** (paired infer 9.58 → 7.36 s, −23%); gap to
+onnxruntime (0.4) now ~1.25×. Remaining stage-2 profile: `OptMatMul` 36% (MLAS-class, out of
+scope), `Scan` 24% (recurrent body-bound), `OptMulByScalar` 12%; `SinSq` down to 4%. The
+low-hanging levers are now exhausted — further parity to 0.4 needs matmul-kernel work.
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 

@@ -1,343 +1,209 @@
-# speak — CPU text-to-speech on Candle (Orpheus-3B + SNAC)
+# kokoro-tract — pure-Rust CPU text-to-speech (Kokoro-82M via tract)
 
-A small command-line tool that reads text aloud using a fully local, CPU-only pipeline:
+`kokoro-tract` synthesizes speech on the CPU with **no native libraries** — no onnxruntime,
+no `.so` to ship — by running Kokoro-82M through the pure-Rust [tract](https://github.com/sonos/tract)
+inference engine. It is **faster than realtime** on a desktop CPU and trivial to cross-compile,
+which makes it the backend of choice for **Termux/aarch64** and other targets where an
+onnxruntime build is a pain.
 
 ```
-text → Orpheus-3B (quantized_llama GGUF) → SNAC audio tokens
-     → SNAC 24 kHz codec → f32 PCM → played aloud via ffplay
+text → espeak-ng IPA phonemes → phoneme-id tokens
+     → tract (Kokoro-82M, two-stage split + Rust length regulator, + per-voice style vector)
+     → 24 kHz waveform → ffplay (or a .wav)
 ```
 
-Orpheus is a Llama-3.2-3B fine-tune that emits SNAC audio tokens; the SNAC codec turns them into a
-24 kHz waveform. Because it *is* a Llama-3.2-3B model, it runs through Candle's `quantized_llama`
-GGUF decode path — and through the [kaarrot CPU-decode fork](https://github.com/kaarrot/candle/tree/feature/cpu-decode-optim-squashed)
-this project is wired to, which gives a ~3.4× decode speedup on this workload.
+> This branch (`tract-prototype`) is focused on `kokoro-tract`. The repo also contains two other
+> binaries — `kokoro` (the same model on **onnxruntime**, used as the speed/quality reference) and
+> `speak` (Orpheus-3B, more natural but ~10× slower than realtime). They are summarized at the
+> [bottom](#other-binaries-in-this-repo); the full write-up for the tract work is in
+> [`docs/tract-support-plan.md`](docs/tract-support-plan.md).
 
-This repo has **two binaries**: `speak` (Orpheus-3B, most natural, ~10× slower than realtime on CPU)
-and `kokoro` (Kokoro-82M, soft-realtime on CPU — see [the kokoro section](#kokoro--soft-realtime-cpu-tts-prototype)).
+## How it compares to onnxruntime
 
-## Build & test (quickstart)
+Both backends run the identical pipeline and produce the same audio (waveform correlation
+**~0.976**); they differ only in the inference engine. Measured on a 16-thread WSL2 box,
+`af_heart`, two-sentence streamed run:
 
-**1. Install system dependencies**
+| Utterance | `kokoro-tract` (pure Rust) | `kokoro` (onnxruntime) |
+|---|---|---|
+| 242 tokens / 14.60 s audio | infer 7.39 s · **RTF 0.506** | infer 5.04 s · **RTF 0.345** |
+| 221 tokens / 12.97 s audio | infer 6.60 s · **RTF 0.509** | infer 4.51 s · **RTF 0.347** |
 
-```bash
-sudo apt install -y ffmpeg espeak-ng         # ffplay playback + (kokoro) phonemizer
-pip install --user onnxruntime               # (kokoro) onnxruntime shared library
-```
-(`espeak-ng` and `onnxruntime` are only needed for the `kokoro` binary.)
-
-**2. Build**
-
-```bash
-# speak (Orpheus): target-cpu=native enables the fork's AVX2 kernels.
-# First build compiles the whole Candle stack (a few minutes); later builds are seconds.
-RUSTFLAGS='-C target-cpu=native' cargo build --release --bin speak
-
-# kokoro (Kokoro-82M / ONNX): seconds to build.
-cargo build --release --bin kokoro
-```
-
-**3. Test** (each downloads its model on first run, then is cached)
-
-```bash
-# Orpheus — needs the executor env var; ~48s for a short clip on CPU, then plays.
-CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "Hello, this is a local text to speech test."
-
-# Kokoro — soft-realtime, plays smoothly within a few seconds.
-./target/release/kokoro "Hello, this is a local text to speech test."
-```
-
-**4. Verify without speakers** (headless / CI) — dump a WAV and check it:
-
-```bash
-SPEAK_WAV=/tmp/s.wav  CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "testing one two three"
-KOKORO_WAV=/tmp/k.wav ./target/release/kokoro "testing one two three"
-
-# Inspect duration / level (sox, or any wav tool):
-soxi /tmp/k.wav 2>/dev/null || python3 -c "import wave;w=wave.open('/tmp/k.wav');print(w.getnframes()/w.getframerate(),'s @',w.getframerate(),'Hz')"
-```
-
-Both binaries print a metrics line (audio seconds, throughput/RTF, timings); `speak` should report
-`decode fast path: engaged` and `kokoro` an `RTF` well below 1.0.
+Both are comfortably faster than realtime. tract is currently **~1.47× slower than onnxruntime**
+(down from ~3.6× at the start of the optimization arc — see Tiers 1–7 in the plan doc). The
+remaining gap is MLAS-class matmul-kernel work; onnxruntime's kernels are hard to beat. You trade
+that ~1.5× for a **fully self-contained, dependency-free binary**.
 
 ## Prerequisites
 
-- **Rust** (1.90+; edition 2024).
-- **ffmpeg** — playback shells out to `ffplay`. Install with `apt install ffmpeg` (or `pkg install
-  ffmpeg` on Termux).
-- **A PulseAudio-compatible audio server.** On WSL2 this is provided automatically by **WSLg**
-  (`PULSE_SERVER=unix:/mnt/wslg/PulseServer`). On bare desktop Linux it's PulseAudio or PipeWire.
-- **An x86_64 CPU with AVX2 + FMA** to get the fast decode path (any modern CPU). Without it the
-  tool still works, just on the slower fallback path.
-- **~3 GB free disk** for the model weights, and **~3.5 GB RAM** to run.
+- **Rust** 1.90+ (edition 2024) and a C toolchain (the tract build compiles a small C allocator).
+- **espeak-ng** — phonemizer. `apt install espeak-ng` (or `pkg install espeak-ng` on Termux).
+- **ffmpeg** — playback shells out to `ffplay`. `apt install ffmpeg` (`pkg install ffmpeg` on
+  Termux). Not needed if you only ever write WAVs (`KOKORO_WAV`).
+- **A PulseAudio-compatible audio server** for playback (WSL2 provides this via WSLg; desktop
+  Linux via PulseAudio/PipeWire).
+- **~650 MB disk** (the fp32 `model.onnx` ≈ 311 MB plus the two split subgraphs ≈ 311 MB),
+  **~80 MB RAM** to run.
 
-## Build
+`kokoro-tract` needs **no onnxruntime at all** — that is the whole point of the tract backend.
+
+## Build (tract only)
 
 ```bash
-RUSTFLAGS='-C target-cpu=native' cargo build --release
+# Pure-Rust, no onnxruntime linked — the Termux/portable build:
+cargo build --release --no-default-features --features tract --bin kokoro-tract
 ```
 
-`target-cpu=native` is what enables the fork's AVX2 SIMD kernels. The first build compiles the full
-Candle stack from the fork (a few minutes); subsequent builds are seconds.
+The first build compiles the vendored tract crates (~1–2 min); later builds are seconds. The
+binary lands at `target/release/kokoro-tract`.
+
+To build it **alongside** the onnxruntime `kokoro` binary for side-by-side comparison (this also
+pulls in `ort`, so it needs an onnxruntime `.so` at runtime — see the reference binary below):
+
+```bash
+cargo build --release --features tract          # builds BOTH kokoro-tract and kokoro
+```
+
+## Split the model into two stages (one-time)
+
+tract cannot optimize Kokoro's **monolithic** graph: its length regulator expands phoneme-level
+features to frame level via an alignment matrix whose frame-axis length is
+`sum(round(durations))` — a *value*, not a static shape — which tract's shape inference can't
+represent. `kokoro-tract` sidesteps this by **splitting the model at the length regulator** into
+two subgraphs and rebuilding the alignment in Rust between them:
+
+```
+stage1.onnx : input_ids, style, speed → phoneme features [1,640,N] + [1,512,N] + durations [1,N]
+   (Rust length regulator: round durations, build the [N, total_frames] alignment matrix)
+stage2.onnx : the two feature tensors + alignment → decoder + iSTFTNet → waveform
+```
+
+Produce the two subgraphs once with the bundled script:
+
+```bash
+pip install numpy onnx                            # the script's only deps (no onnxruntime needed)
+python3 tools/split_kokoro.py                     # writes stage1.onnx + stage2.onnx
+```
+
+- With no arguments it reads the HF-cached `onnx/model.onnx` for
+  `onnx-community/Kokoro-82M-v1.0-ONNX` and writes `stage1.onnx` + `stage2.onnx` **next to it** —
+  exactly where `kokoro-tract` looks by default. (Run `kokoro-tract` once first to trigger the
+  model download, or pass an explicit path: `python3 tools/split_kokoro.py path/to/model.onnx
+  [OUT_DIR]`.)
+- Point `kokoro-tract` at a custom location with `KOKORO_TRACT_DIR=/path/to/dir`.
+
+### Why the split files are **not** committed to this branch
+
+The obvious convenience — checking `stage1.onnx` + `stage2.onnx` into the repo so nobody has to run
+the Python step — does not work:
+
+- The subgraphs are fp32 and large: **stage1.onnx ≈ 75 MB, stage2.onnx ≈ 236 MB**.
+- `stage2.onnx` **exceeds GitHub's hard 100 MB-per-file limit**, so a plain `git add` + push is
+  rejected.
+- ONNX fp32 weights are near-incompressible: **gzip -9 shrinks stage2 by only ~7 %** (→ 219 MB),
+  still far over the limit — zipping does not help.
+- git-LFS would work but adds a hard dependency (`git lfs` on every clone, including Termux) plus
+  GitHub LFS storage/bandwidth quota — more friction than it removes.
+
+**So produce the split once on a capable machine and copy the two files to the target.** This is
+especially relevant on **Termux**, where `pip install numpy onnx` is often painful (native builds
+against bionic). The split itself is architecture-independent — the subgraphs are just the original
+weights re-partitioned — so:
+
+```bash
+# On a desktop/laptop (has numpy + onnx):
+python3 tools/split_kokoro.py /path/to/onnx/model.onnx  /tmp/kokoro-split
+#   → /tmp/kokoro-split/stage1.onnx, /tmp/kokoro-split/stage2.onnx  (~311 MB total)
+
+# Copy both to the phone (scp/adb/USB), then on Termux:
+KOKORO_TRACT_DIR=~/kokoro-split ./kokoro-tract "Hello from a pure-Rust binary."
+```
 
 ## Run
 
 ```bash
-CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "Hello there, this is a local text to speech test."
+./target/release/kokoro-tract "what is for lunch today?"
+KOKORO_VOICE=am_michael ./target/release/kokoro-tract "I could go for some pizza."
+
+# Headless / verify without speakers — write a WAV instead of playing:
+KOKORO_WAV=/tmp/k.wav ./target/release/kokoro-tract "testing one two three"
 ```
 
-- Text comes from the command-line arguments, or from **stdin** if none are given
-  (`echo "hi" | speak`).
-- `CANDLE_CPU_DECODE_EXECUTOR=1` turns on the fast decode path. Omit it and you silently get the
-  slow tensor path — the tool prints `decode fast path: engaged` vs `NOT engaged` so you can tell.
-- Generation is slower than realtime on CPU (~×0.10), so a ~3 s clip takes ~30–45 s to synthesize
-  before it plays. This is expected; the printed realtime factor makes it measurable.
+Text comes from the CLI arguments, or from **stdin** if none are given
+(`echo "hi" | kokoro-tract`). Each run prints a metrics line (`… tokens | … audio | infer …s |
+RTF …`); RTF below 1.0 means faster than realtime.
 
-You do **not** need to run `ffplay` yourself — `speak` spawns it internally and pipes the audio to
-it.
+> Phonemization uses raw `espeak-ng` rather than Kokoro's reference phonemizer (misaki), so
+> pronunciation is close but not identical on tricky words.
 
-## Model assets — downloaded automatically
-
-**There is no manual download step.** On first run the tool fetches everything via `hf-hub` and
-caches it under `~/.cache/huggingface/hub` (override with `HF_HOME`). Subsequent runs are offline
-from cache.
-
-| Asset | HF repo | File | Size |
-|-------|---------|------|------|
-| Orpheus GGUF (default) | `dahara1/orpheus-3b-0.1-ft_gguf` | `orpheus-3b-Q4_K_L.gguf` | ~2.3 GB |
-| Tokenizer | `unsloth/orpheus-3b-0.1-ft` | `tokenizer.json` | small |
-| SNAC weights | `lmz/candle-snac` | `snac_24khz.safetensors` | small |
-| SNAC config | `hubertsiuzdak/snac_24khz` | `config.json` | tiny |
-
-> The tokenizer comes from the public **unsloth** mirror because the canonical
-> `canopylabs/orpheus-3b-0.1-ft` repo is **gated** (HTTP 401 without an HF license token). If you
-> have accepted that model's terms, point at it with `SPEAK_TOKENIZER_REPO=canopylabs/orpheus-3b-0.1-ft`.
-
-### Pre-fetching or swapping the GGUF (optional)
-
-To download the weights ahead of time (so the first `speak` run is instant), or to try a different
-quantization, use the Hugging Face CLI:
-
-```bash
-pip install -U "huggingface_hub[cli]"
-huggingface-cli download dahara1/orpheus-3b-0.1-ft_gguf orpheus-3b-Q4_K_L.gguf
-```
-
-It lands in the same `~/.cache/huggingface` cache the tool reads from. Available quants in that repo
-(pick one and pass it via `SPEAK_MODEL`):
-
-```
-orpheus-3b-Q3_K_L.gguf   orpheus-3b-Q4_K-f16.gguf  orpheus-3b-Q4_K_L.gguf  (default)
-orpheus-3b-Q5_K_L.gguf   orpheus-3b-Q6_K-f16.gguf  orpheus-3b-Q6_K_L.gguf  orpheus-3b-Q8_0.gguf
-```
-
-Note there is **no `Q4_K_M`** in this repo, which is why the default is `Q4_K_L`. Lower-bit quants
-(Q3) move fewer bytes per token and can be marginally faster on this memory-bound workload, at some
-quality cost; higher-bit quants (Q6/Q8) sound a touch better and are slower.
-
-```bash
-SPEAK_MODEL=orpheus-3b-Q6_K_L.gguf CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "higher quality take"
-```
-
-## Configuration (environment variables)
+### Configuration (environment variables)
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `SPEAK_VOICE` | `tara` | Voice: `tara leah jess leo dan mia zac zoe` |
-| `SPEAK_MODEL` | `orpheus-3b-Q4_K_L.gguf` | GGUF filename in the model repo |
-| `SPEAK_MAX_TOKENS` | `1200` | Hard cap on generated tokens (~8 s of audio) |
-| `SPEAK_TEMP` | `0.6` | Sampling temperature |
-| `SPEAK_SEED` | `299792458` | RNG seed |
-| `SPEAK_WAV` | _(unset)_ | If set, also write a 16-bit PCM WAV to this path |
-| `SPEAK_STREAM` | _(unset)_ | If set, stream audio as it's generated (low latency, but choppy — see below) |
-| `SPEAK_TOKENIZER_REPO` | `unsloth/orpheus-3b-0.1-ft` | Override the tokenizer source repo |
+| `KOKORO_VOICE` | `af_heart` | Voice (e.g. `am_michael`, `bf_emma`, …) |
+| `KOKORO_MODEL` | `onnx/model.onnx` | Model file in the HF repo (fp32; used to locate the split dir) |
+| `KOKORO_LANG` | `en-us` | espeak-ng language |
+| `KOKORO_SPEED` | `1.0` | Speaking rate |
+| `KOKORO_WAV` | _(unset)_ | If set, write a 16-bit PCM WAV here instead of / in addition to playing |
+| `KOKORO_TRACT_DIR` | _(next to `model.onnx`)_ | Directory holding `stage1.onnx` + `stage2.onnx` |
+| `KOKORO_TRACT_THREADS` | _(all cores)_ | Thread-pool size for the stage-2 vocoder |
 
-### Latency vs. smoothness (SPEAK_STREAM)
+Diagnostics (rarely needed): `KOKORO_TRACT_PROFILE=1` prints a per-op stage-2 profile,
+`KOKORO_TRACT_PROFILE_NODES=N` the top-N individual nodes, `KOKORO_TRACT_DUMP=dir` dumps
+stage-boundary tensors. `tools/bench_conv.sh <label>` runs a fixed-sentence best-of-N timing +
+profile for A/B work.
 
-By default `speak` generates the whole utterance, then plays it as one smooth
-buffer — so you wait the full generation time (~17 s load + ~N s decode) before
-any sound, but playback is clean.
+### Long input, and streaming across sentences
 
-`SPEAK_STREAM=1` instead pipes audio to `ffplay` as each chunk is decoded, so you
-hear the first words a few seconds into generation. **The catch:** CPU generation
-is ~10× slower than realtime, so `ffplay` drains each chunk and then waits for the
-next — the voice **breaks up** (audible gaps). This is buffer underrun, not a bug;
-it's fundamental to sub-realtime generation. Use streaming only when you want the
-fastest possible feedback and can tolerate choppy audio. For smooth *and* fast you
-need faster generation (a smaller model or a GPU), not a setting.
+Kokoro-82M has a **fixed ~510-phoneme context** (`MAX_PHONEMES` in `src/lib.rs`). Because the model
+is **non-autoregressive** (it predicts the whole utterance in one pass), it cannot "continue" past
+that window. `kokoro-tract` handles arbitrarily long text by **splitting the input into sentences**
+(on `.!?;` and newlines; fragments merged, over-long runs wrapped on comma/word boundaries) and
+synthesizing each as its own short utterance — always inside the window, and each with its own
+clean prosody.
 
-Fork runtime gates (advanced): `CANDLE_CPU_DECODE_EXECUTOR=1` (required for the fast path),
-`CANDLE_MATVEC_THREADS=N` (matvec pool size; defaults to 4 and plateaus there — the workload is
-memory-bandwidth bound), `CANDLE_CPU_F16_KV_CACHE=1` (halves KV cache memory).
+Playback streams with look-ahead buffering: one persistent `ffplay` plays sentences back-to-back
+while the model works ahead. Since `kokoro-tract` is under realtime, its compute is masked behind
+playback — first-audio latency is just model-load + the first sentence, and the rest is seamless.
+(If you push it *over* realtime, e.g. on a slow phone CPU, you'll instead hear a short gap between
+sentences while the next is synthesized.)
 
-## Examples
+## Termux / Android (aarch64)
 
-```bash
-# Different voice
-SPEAK_VOICE=leo CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "I can sound different too."
-
-# Save a WAV (useful on a headless box to verify synthesis independent of playback)
-SPEAK_WAV=out.wav CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak "writing a wav file"
-
-# From stdin
-echo "piping text in" | CANDLE_CPU_DECODE_EXECUTOR=1 ./target/release/speak
-```
-
-## Performance
-
-Decode throughput on a 16-core WSL2 box (Orpheus-3B Q4_K_L, seed 42, 200 tokens):
-
-| Build / config | Decode | Realtime factor |
-|----------------|--------|-----------------|
-| Stock candle, no `target-cpu=native` | ~1.8 t/s | ×0.02 |
-| Stock candle + `target-cpu=native` | 2.5 t/s | ×0.03 |
-| **Fork + native + executor** | **8.6 t/s** | **×0.10** |
-
-The fork is ~3.4× faster than the native-stock baseline. Realtime TTS would need ~82 t/s (SNAC
-emits ~82 audio tokens per second of speech), so even optimized this is ~8–10× from live — it makes
-CPU TTS *usable*, not realtime.
-
-## Troubleshooting
-
-- **No sound / instant finish** — if the metrics line shows a tiny token count (e.g. `15 tokens |
-  0.17s`), the model stopped early and there was nothing to play. Make sure you're on a current
-  build (the prompt must include the BOS token). If audio is generated (multi-second) but you still
-  hear nothing, check your OS/WSLg output device and volume — the synthesis is fine. Pass
-  `SPEAK_WAV=out.wav` and inspect the file to confirm.
-- **`decode fast path: NOT engaged`** — you're on the slow path. Build with
-  `RUSTFLAGS='-C target-cpu=native'` and run with `CANDLE_CPU_DECODE_EXECUTOR=1` on an AVX2 host.
-- **Too quiet** — voice loudness varies per take; re-run or nudge `SPEAK_TEMP`.
-- **401 fetching the tokenizer** — the canonical repo is gated; the default unsloth mirror avoids
-  this. Set `SPEAK_TOKENIZER_REPO` only if you intend to use a gated repo with an HF token.
-
-## `kokoro` — soft-realtime CPU TTS (prototype)
-
-A second binary, `kokoro`, is a prototype of the *other* TTS family: **Kokoro-82M**,
-a small non-autoregressive model run via ONNX Runtime. Unlike Orpheus it predicts the
-whole utterance in one forward pass, so it runs **faster than realtime on CPU**
-(measured **RTF ~0.4**, ~2.5× realtime) — playback is smooth with no streaming tricks.
-
-Pipeline: text → `espeak-ng` IPA phonemes → phoneme-id tokens → Kokoro ONNX (+ per-voice
-style vector) → 24 kHz waveform → ffplay.
-
-Prereqs (beyond ffmpeg): **espeak-ng** (`apt install espeak-ng`) and an **onnxruntime
-shared library**. The build uses `ort` with `load-dynamic`, and `kokoro` auto-detects the
-pip-installed runtime — so `pip install onnxruntime` is the easiest way to provide it
-(its manylinux build sidesteps glibc-version issues with `ort`'s bundled binary). Override
-the path with `ORT_DYLIB_PATH` if needed.
+`kokoro-tract` is the intended Android backend precisely because it needs no native inference lib:
 
 ```bash
-cargo build --release --bin kokoro
-./target/release/kokoro "what is for lunch today?"
-KOKORO_VOICE=am_michael ./target/release/kokoro "I could go for some pizza."
-```
-
-Config: `KOKORO_VOICE` (default `af_heart`; e.g. `am_michael`, `bf_emma`, …),
-`KOKORO_MODEL` (default `onnx/model.onnx`; try `onnx/model_q8f16.onnx` for a smaller/faster
-variant), `KOKORO_LANG` (default `en-us`), `KOKORO_SPEED`, `KOKORO_WAV`. Assets come from
-the public `onnx-community/Kokoro-82M-v1.0-ONNX` repo via hf-hub.
-
-> Prototype caveat: phonemization uses raw `espeak-ng` rather than Kokoro's reference
-> phonemizer (misaki), so pronunciation is close but not identical on tricky words.
-
-### Long input: the phoneme limit and sentence streaming
-
-Kokoro-82M has a **fixed context of ~510 phonemes** (the model's trained input window; token
-`0` pads both ends of a 512-wide sequence, leaving 510 usable — `MAX_PHONEMES` in `src/lib.rs`).
-This is a property of the *model*, not this code: because Kokoro is **non-autoregressive** — it
-predicts the whole utterance's alignment and audio in a single forward pass — it has no way to
-"continue" past its context the way a token-by-token model does. Feed it more phonemes than the
-window and the positions run off the end, so a single call can only ever voice one utterance up to
-that length.
-
-Both binaries handle arbitrarily long text by **splitting the input into sentences** (on `.!?;`
-and newlines; tiny fragments are merged, over-long runs are wrapped on comma/word boundaries) and
-synthesizing each as its own short utterance — always comfortably inside the 510-phoneme window.
-A sentence is the natural unit for a non-autoregressive model anyway: each gets its own clean
-alignment and prosody. (Before this, the whole paragraph was truncated to the first ~510 phonemes
-and the rest was silently dropped.)
-
-Playback is **streamed with look-ahead buffering**: one persistent `ffplay` plays sentences
-back-to-back while the model works on later ones. Because `ffplay` consumes at realtime and
-backpressures via its stdin pipe, a faster-than-realtime backend races ahead and its compute is
-*masked* behind playback — so first-audio latency is just model-load + the first sentence, and the
-rest is seamless.
-
-- **`kokoro` (onnx, RTF ~0.4)** — fully masked, gapless.
-- **`kokoro-tract` (RTF > 1)** — slower than realtime, so it can't get ahead of playback; you'll
-  hear a **gap between sentences** while the next is synthesized. It still plays the whole
-  paragraph in order — closing the gaps needs tract under realtime (faster matmul + plan caching;
-  see [Planned / future work](#planned--future-work)).
-
-### Backends (onnxruntime vs tract) and Termux
-
-There are two Kokoro binaries with the same pipeline and CLI, differing only in the
-inference engine, so you can run them side by side:
-
-- **`kokoro`** — ONNX Runtime via `ort`'s `load-dynamic` (the binary dlopens an onnxruntime
-  `.so` at runtime; on glibc Linux `pip install onnxruntime` provides it and `kokoro`
-  auto-detects it). Fast, reference-quality audio.
-- **`kokoro-tract`** — **pure-Rust** [tract](https://github.com/sonos/tract) backend, no
-  native `.so`, trivial to cross-compile (Termux/aarch64).
-
-```bash
-cargo build --release --features tract          # builds BOTH binaries
-python3 tools/split_kokoro.py                    # one-time: writes stage1.onnx + stage2.onnx
-./target/release/kokoro       "Hello world."     # onnxruntime
-./target/release/kokoro-tract "Hello world."     # pure Rust
-# Termux / no onnxruntime at all:
+pkg install rust espeak-ng ffmpeg
 cargo build --release --no-default-features --features tract --bin kokoro-tract
 ```
 
-tract can't optimize the monolithic Kokoro graph (its static shape inference can't represent
-the length regulator's data-dependent frame axis), so `kokoro-tract` **splits the model at the
-length regulator** into two subgraphs with a Rust length regulator between them, optimizing
-each with a concrete phoneme count per utterance. Produce the subgraphs with
-`tools/split_kokoro.py` (needs `pip install onnx`); `kokoro-tract` looks for them next to the
-cached `model.onnx` by default, or in `KOKORO_TRACT_DIR`.
+Provide the split subgraphs by copying them from a desktop (see
+[above](#why-the-split-files-are-not-committed-to-this-branch) — avoids `pip install numpy onnx` on
+the phone), point `KOKORO_TRACT_DIR` at them, and start PulseAudio (e.g. `module-sles-sink`) for
+playback or just use `KOKORO_WAV`.
 
-Status: `kokoro-tract` runs end-to-end and produces clean speech. The encoder/duration stage is
-bit-exact vs onnxruntime; the decoder + iSTFTNet vocoder is now **~0.977 correlated** after fixing
-an atan2 branch-cut in the harmonic source (the earlier hissing/ringing). Runtime is **RTF ~2.06**
-(down from ~3.6) after multithreading the stage-2 vocoder and fixing an O(frames²) STFT — still
-~3× onnxruntime, dominated now by matmul and per-utterance graph optimization. See
-[`docs/tract-support-plan.md`](docs/tract-support-plan.md) for the full write-up.
+## How it works, fidelity, and performance
 
-### Planned / future work
+The full engineering log — the two-stage split, the Rust length regulator, the symbolic
+compile-once plan, the vocoder atan2 branch-cut fix that took fidelity to ~0.976, and the Tier 1–7
+run-speed arc (RTF 1.73 → ~0.50: lazy im2col, SIMD binary fusion, single-pass variance, Pad fold,
+a mimalloc global allocator, `Square(Sin)`→`SinSq` fusion, and a vectorized `sin`) — is in
+[`docs/tract-support-plan.md`](docs/tract-support-plan.md).
 
-Ideas not yet implemented, roughly in priority order:
+## Other binaries in this repo
 
-- **A length-independent tract plan (the real caching win).** `kokoro-tract` now caches optimized
-  plans keyed by exact shape (phoneme count for stage 1, `(phoneme, frame)` for stage 2), so a
-  *repeated* length reuses its plan — but distinct-length sentences still each pay the ~2.3 s
-  `into_optimized()`. The clean fix is one plan compiled with a **symbolic** length dim (as
-  onnxruntime does), which would drop per-sentence cost to just `run` (RTF ≈ 1.1) and get tract
-  close to gapless streaming. It's blocked by tract: the style-broadcast `Expand`/`Concat` can't be
-  optimized symbolically (`unify Sym(N) with Val(1)`), so it needs graph surgery to feed the Expand
-  a symbolic target shape **plus** a patch to tract's symbolic `Expand` lowering
-  (`broadcast.rs`, `MultiBroadcastTo::wire`). **Bucketing+padding is not an option** — the model's
-  global normalization (decoder instance-norm over frames, encoder norm over phonemes) means any pad
-  token or zero frame poisons the whole output (measured corr 0.73 / 0.02).
-- **Quantized model (`onnx/model_q8f16.onnx`) for `kokoro-tract`.** Independent of the above: split
-  the q8f16 model instead of fp32 so stage-2 matmul (~46% of `run`) uses int8 kernels — the lever to
-  push `run` itself under realtime. Needs the cut-tensor names to survive quantization and a corr
-  check (possible small quality cost).
-- **Faster stage-2 matmul.** After the STFT / im2col / sin parallelization, `OptMatMul` is ~46% of
-  the vocoder and already multithreaded; closing the last ~3× to onnxruntime needs faster kernels
-  (better packing, blocking, or `target-cpu=native` for the pack/glue paths — tract's core matmul
-  kernels dispatch SIMD at runtime and won't benefit).
+Both share the sentence-splitting/streaming front-end but target different models/engines:
 
-**Termux / Android (aarch64):** the glibc pip wheel will *not* load under Android's bionic
-libc. Use the **`onnxruntime-android` AAR**, which contains an arm64-v8a `libonnxruntime.so`
-built for Android — extract it and point `ORT_DYLIB_PATH` at it. Also `pkg install espeak-ng
-ffmpeg`, and start PulseAudio with `module-sles-sink` for playback. Prefer the quantized
-`onnx/model_q8f16.onnx` on phone CPUs.
+- **`kokoro`** — the *same* Kokoro-82M pipeline on **onnxruntime** (`ort` `load-dynamic`; the binary
+  dlopens an onnxruntime `.so`, e.g. from `pip install onnxruntime`). This is the speed/quality
+  reference the table above compares against.
+  ```bash
+  pip install onnxruntime                        # provides libonnxruntime.so (ORT_DYLIB_PATH to override)
+  cargo build --release --bin kokoro
+  ./target/release/kokoro "Hello world."
+  ```
+- **`speak`** — **Orpheus-3B** (a Llama-3.2-3B fine-tune) + SNAC codec via Candle. Most natural
+  voice, but ~10× slower than realtime on CPU. Needs `RUSTFLAGS='-C target-cpu=native'` for its
+  AVX2 decode kernels and `CANDLE_CPU_DECODE_EXECUTOR=1` at runtime. See
+  [`plan.md`](plan.md) for its design.
 
-vs Orpheus: you trade Orpheus's expressiveness/emotion tags for tiny size, smooth realtime
-playback, and ~80 MB RAM. For a "type text → hear it now" tool, Kokoro is the usable path.
-
-## How it works
-
-See [`plan.md`](plan.md) for the full design rationale and the model-options comparison. The
-pipeline mirrors Candle's `candle-examples/examples/orpheus` (prompt format, token→SNAC parsing,
-SNAC decode), adapted to load **GGUF** via `quantized_llama` and to play aloud via `ffplay` instead
-of writing a WAV.

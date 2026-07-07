@@ -541,8 +541,32 @@ element_wise!(square, Square, [f16, f32, f64] => |_, xs| {
     Ok(())
 };
 q: [i8, u8, i32, i32] => |f : f32| f.powi(2);
+declutter: declutter_square;
 validation: Validation::Rounding
 );
+
+// Fuse `Square(Sin(x))` into a single SinSq pass. `linear_prec` guarantees the Sin
+// feeds only this Square, so rewiring is safe. Both must be plain (no datum-type cast)
+// so the fused op sees the same in/out type. Mirrors declutter_recip's shape.
+fn declutter_square(model: &TypedModel, node: &TypedNode) -> TractResult<Option<TypedModelPatch>> {
+    use super::element_wise::*;
+    let Some(sq) = node.op_as::<ElementWiseOp>() else { return Ok(None) };
+    if sq.1.is_some() {
+        return Ok(None); // Square carries an output cast; don't fold across it.
+    }
+    if let Some(prec) = model.linear_prec(node.id)? {
+        if let Some(ew) = prec.op_as::<ElementWiseOp>() {
+            if ew.0.is::<Sin>() && ew.1.is_none() {
+                let mut patch = TypedModelPatch::default();
+                let mut wire = patch.tap_model(model, prec.inputs[0])?;
+                wire = patch.wire_node(&node.name, sin_sq(), &[wire])?[0];
+                patch.shunt_outside(model, node.id.into(), wire)?;
+                return Ok(Some(patch));
+            }
+        }
+    }
+    Ok(None)
+}
 
 element_wise!(sqrt, Sqrt, [f16, f32, f64] => |_, xs| {
     xs.iter_mut().for_each(|x| *x = x.sqrt());
@@ -648,11 +672,66 @@ element_wise!(cos, Cos, [f16, f32, f64] => |_, xs| {
 };
 q: [i8, u8, i32] => f32::cos);
 
-element_wise!(sin, Sin, [f16, f32, f64] => |_, xs| {
-    par_elementwise(xs, |x| *x = x.sin());
-    Ok(())
-};
+// Faithful branchless f32 sine (Julien Pommier / cephes minimax, ~1e-7 abs error,
+// ~1 ulp — NOT fast-math). Fully branchless so `par_elementwise`'s `iter_mut` body
+// auto-vectorizes to SIMD instead of calling scalar libm `sinf` per element. Reduces
+// by pi/4 octants with a 3-part Cody-Waite pi/4, accurate over Kokoro's normal
+// oscillator phase range (per-node profile confirms the sinf fast path, no huge-arg
+// reduction). Drives the 48 Snake/oscillator Sin passes (Tier 7 Lever 3b).
+#[inline(always)]
+fn ssin_f32(xin: f32) -> f32 {
+    const FOPI: f32 = 1.27323954473516; // 4/pi
+    const DP1: f32 = -0.78515625; // pi/4 in 3 parts
+    const DP2: f32 = -2.4187564849853515625e-4;
+    const DP3: f32 = -3.77489497744594108e-8;
+    const SINCOF_P0: f32 = -1.9515295891e-4;
+    const SINCOF_P1: f32 = 8.3321608736e-3;
+    const SINCOF_P2: f32 = -1.6666654611e-1;
+    const COSCOF_P0: f32 = 2.443315711809948e-5;
+    const COSCOF_P1: f32 = -1.388731625493765e-3;
+    const COSCOF_P2: f32 = 4.166664568298827e-2;
+
+    let sign_bit = xin.to_bits() & 0x8000_0000; // sin is odd; carry input sign
+    let x = xin.abs();
+    let mut j = (x * FOPI) as i32; // octant (floor via truncation, x >= 0)
+    j = (j + 1) & !1; // round up to even
+    let y = j as f32;
+    let swap = ((j & 4) as u32) << 29; // sign flip for octants 4..7 (0 or 0x8000_0000)
+    let use_cos = (j & 2) != 0; // octants 2,3,6,7 evaluate the cos polynomial
+    let sign = sign_bit ^ swap;
+    let r = x + y * DP1 + y * DP2 + y * DP3; // extended-precision reduced angle
+    let z = r * r;
+    let cos = {
+        let p = COSCOF_P0;
+        let p = p * z + COSCOF_P1;
+        let p = p * z + COSCOF_P2;
+        p * z * z - 0.5 * z + 1.0
+    };
+    let sin = {
+        let p = SINCOF_P0;
+        let p = p * z + SINCOF_P1;
+        let p = p * z + SINCOF_P2;
+        p * z * r + r
+    };
+    // Branchless select (LLVM lowers to vblendvps) + sign via XOR.
+    let mag = if use_cos { cos } else { sin };
+    f32::from_bits(mag.to_bits() ^ sign)
+}
+
+element_wise!(sin, Sin,
+    [f32] => |_, xs| { par_elementwise(xs, |x| *x = ssin_f32(*x)); Ok(()) },
+    [f16, f64] => |_, xs| { par_elementwise(xs, |x| *x = x.sin()); Ok(()) }
+;
 q: [i8, u8, i32] => f32::sin);
+
+// Fused sin-then-square: `Square(Sin(x))`, decluttered from that pair (see
+// declutter_square). One memory pass over the large [1,C,F] tensors instead of two.
+// The f32 path uses the vectorized ssin_f32 (Lever 3b); f16/f64 keep exact `.sin()`.
+// Kokoro's 48 Snake activations (`x + (1/a)*sin(a*x)^2`) drive this.
+element_wise!(sin_sq, SinSq,
+    [f32] => |_, xs| { par_elementwise(xs, |x| { let s = ssin_f32(*x); *x = s * s; }); Ok(()) },
+    [f16, f64] => |_, xs| { par_elementwise(xs, |x| *x = x.sin().powi(2)); Ok(()) }
+);
 
 element_wise!(tan, Tan, [f16, f32, f64] => |_, xs| {
     xs.iter_mut().for_each(|x| *x = x.tan());

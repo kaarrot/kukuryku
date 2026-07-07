@@ -19,6 +19,12 @@ use anyhow::{Context, Result};
 
 use speak_tts::kokoro;
 
+// Retain and reuse the large intermediate-tensor segments instead of returning them
+// to the OS after every op (glibc mmaps/munmaps big blocks, costing first-touch page
+// faults on each fresh output). ~8% infer win, bit-identical. See Cargo.toml note.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> Result<()> {
     let t0 = std::time::Instant::now();
     eprintln!("[kokoro] backend: tract (pure Rust, two-stage split)");
@@ -412,6 +418,10 @@ mod tract_backend {
             let style_t = Tensor::from_shape(&[1, style.len()], style)?;
 
             // ---- Stage 1: encoder + duration predictor (single-threaded) ----
+            // Tier 7 Lever 2 A/B'd wrapping this in the stage-2 thread pool: it
+            // regressed +31% (8.97s -> 11.75s). The serial LSTM predictor and the
+            // small per-op GEMMs pay more in thread-dispatch overhead than the BERT
+            // encoder saves, so stage 1 stays single-threaded by design.
             let s1 = self
                 .stage1
                 .get(&self.stage1_path, &[("input_ids", &[1, n]), ("style", &[1, 256]), ("speed", &[1])])?
