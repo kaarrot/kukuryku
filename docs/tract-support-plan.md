@@ -285,11 +285,12 @@ onnxruntime runs are bit-identical, so the gap is a real tract op difference, no
 model stochasticity. `KOKORO_TRACT_DUMP=<dir>` dumps stage-boundary tensors for
 diffing.
 
-**Perf:** RTF ~0.745 after the stage-2 op work (multithread + STFT/im2col/sin, the
+**Perf:** RTF ~0.62 after the stage-2 op work (multithread + STFT/im2col/sin, the
 `Padded1d` im2col patcher, lazy im2col under a symbolic length, SIMD binary fusion under a
 symbolic length (Tier 3), the AdaIN/Snake scale-mul swap gate + lazy-im2col threshold
-(Tier 4)); onnxruntime is ~0.4. See the caching investigation and the four
-conv/elementwise run-speed sections below.
+(Tier 4), single-pass `SumOfSquares` for the symbolic InstanceNorm variance (Tier 5), and
+folding the lazy-im2col zero-`Pad` into the gather (Tier 6)); onnxruntime is ~0.4. See the
+caching investigation and the six conv/elementwise run-speed sections below.
 
 ### Plan caching investigation (2026-07-03) — exact-shape cache landed; symbolic first thought blocked
 
@@ -594,6 +595,33 @@ read.) **Speed:** a same-session back-to-back A/B (WSL absolute RTF drifts with 
 the paired delta is trustworthy) gave **RTF 0.767 → 0.747, ~2.6%**, monotonic (every fused run
 beat every baseline run). Both stages still "compiled one symbolic plan"; pure-Rust build
 links. Modest but real, parity-positive, and low-risk.
+
+### Tier 6: fold the lazy-im2col zero-Pad into the gather (2026-07-06) — RTF 0.70 → 0.62
+
+The Tier-2 lazy im2col deliberately expresses a padded conv as an explicit zero-`Pad`
+feeding a `Valid` conv, so its gather is a plain in-bounds windowed read. But that's a
+full-tensor copy per conv, and Tier 4's lower lazy threshold multiplied them (41 → 77 `Pad`
+nodes, ~8% of stage 2). This tier removes the copy by folding the padding into the gather.
+
+Key structural facts that made it low-risk: (1) the gather runs **per panel** (`do_panel`) of
+`r` consecutive output positions, and (2) for a rank-1 kernel-K conv over F ≈ 44 k frames,
+only the **first and last panels** touch padding — the interior >99.99% is fully in-bounds.
+So the hot unrolled kernels (`input_8n`/`6n`/`4n`/`2n`) stay **byte-for-byte** on interior
+panels; only the ≤2 boundary panels use a new cold `write_checked` that zero-fills
+out-of-range reads (exactly what the zero-`Pad` supplied). `build_lazy_params` records each
+tap's in-bounds output range (`tap_valid`, same `div_ceil` formula as the eager `padded_1d`
+patcher) plus their intersection (`interior`); `wire_as_lazy_im2col` skips the `Pad` for
+rank-1 and keeps the padded pool spec (multi-dim convs keep the explicit `Pad` — fold is
+rank-1 only). No change to `should_use_lazy` (pads are still concrete at build/eval time).
+
+**Bit-identical** — same values gathered, boundaries zeroed exactly as before (fox 0.9760 /
+hello 0.9774 / sea 0.9705, byte-for-byte equal to the pre-fold waveform). **Speed:** a
+same-session back-to-back A/B gave **RTF 0.698 → 0.623 (~11%)**, monotonic (every folded run
+beat every baseline run). The win *exceeds* the 8% `Pad` bucket because deleting 77
+full-tensor allocations+copies per synth also relieves the allocator/cache pressure that was
+slowing the surrounding memory-bound ops on WSL. The `Pad` bucket disappears from the stage-2
+profile; `OptMatMul` (29%), `Sin` (23%), `Scan` (19%) now dominate. Highest-ROI, zero-fidelity
+tier of the arc. **Cumulative Tier 1–6: RTF 1.734 → ~0.62; gap to onnxruntime (0.4) now ~1.55×.**
 
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 

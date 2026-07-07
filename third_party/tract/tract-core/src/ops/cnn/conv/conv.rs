@@ -436,15 +436,25 @@ impl Conv {
         let (mmm, packing) = self.choose_impl(&x_fact, &w_fact, m, k, &n)?;
         debug!("{name} as lazy_im2col: m={m} k={k} n={n} {mmm:?}");
 
-        // Express any padding as an explicit Pad node feeding a Valid conv, so the
-        // gather offsets below are a plain in-bounds windowed read. This flows
-        // symbolic (TDim) shapes throughout: exported convs use explicit pads,
-        // which stay concrete even when the length axis is a free symbol (the gate
-        // `should_use_lazy` rejects convs whose pads aren't concrete).
+        // Handle padding. For rank-1 convs (the whole vocoder) we fold the zero
+        // padding into the lazy gather: `build_lazy_params` records each tap's
+        // in-bounds output range and the gather zero-fills the ≤2 boundary panels,
+        // so no full-tensor Pad copy is needed. The padded pool spec (and its geo,
+        // computed above) is kept as-is — its offsets go out of bounds only at the
+        // boundary, which the gather guards.
+        //
+        // Multi-dim convs keep the previous behaviour: express padding as an
+        // explicit Pad feeding a Valid conv, so the gather stays a plain in-bounds
+        // read. This flows symbolic (TDim) shapes throughout: exported convs use
+        // explicit pads, which stay concrete even when the length axis is a free
+        // symbol (the gate `should_use_lazy` rejects convs whose pads aren't
+        // concrete).
         let mut active_pool_spec = self.pool_spec.clone();
         let in_shape = active_pool_spec.data_format.shape(x_fact.shape.to_tvec())?;
         let padding = active_pool_spec.computed_padding(in_shape.hw_dims());
-        if padding.iter().any(|axis| !axis.pad_before.is_zero() || !axis.pad_after.is_zero()) {
+        let has_padding =
+            padding.iter().any(|axis| !axis.pad_before.is_zero() || !axis.pad_after.is_zero());
+        if has_padding && in_shape.hw_dims().len() != 1 {
             let mut pads = vec![(0, 0); x_fact.rank()];
             for (ix, ax) in padding.iter().enumerate() {
                 pads[in_shape.h_axis() + ix] =

@@ -12,6 +12,15 @@ pub struct LazyIm2colParams {
     pub packer: PackedFormat,
     pub n_byte_offsets: Vec<isize>,
     pub k_byte_offsets: Vec<isize>,
+    /// Padding fold (rank-1). For each kernel tap, the output-position range whose
+    /// read lands in-bounds of the *unpadded* input; a read at an output position
+    /// outside it is zero — exactly what an explicit zero-`Pad` would have supplied,
+    /// but without the full-tensor copy. `interior` is the intersection over all
+    /// taps: the output range where *every* tap is in-bounds, so panels fully inside
+    /// it use the unchecked gather. Empty `tap_valid` (with a full `interior`) means
+    /// the input was pre-padded (multi-dim path) — the checked gather is never used.
+    pub tap_valid: Vec<Range<isize>>,
+    pub interior: Range<isize>,
 }
 
 /// Build the lazy im2col gather offsets from a *concrete* pool geometry. The
@@ -19,6 +28,10 @@ pub struct LazyIm2colParams {
 /// input-channel × kernel-tap) both depend on the concrete spatial length, so
 /// this is called either at codegen (concrete input) or per-eval (symbolic
 /// length — see [`LazyDeferred`]).
+///
+/// When the geometry carries padding (rank-1 pad-fold path), the offsets can point
+/// out of bounds at the first/last output positions; `tap_valid`/`interior` capture
+/// exactly where, so the gather can zero-fill those reads instead of a `Pad` copy.
 pub fn build_lazy_params(
     geo: &ConcretePoolGeometry,
     input_channels: usize,
@@ -37,7 +50,33 @@ pub fn build_lazy_params(
                 .map(move |x| (x + (ici * c_stride) as isize) * size_of_b)
         })
         .collect();
-    LazyIm2colParams { packer, n_byte_offsets, k_byte_offsets }
+
+    // Per-tap in-bounds output range (same formula as the eager `padded_1d`
+    // patcher): output position `n` reads valid input iff `n*stride + dx` lands in
+    // `[0, input_width)`, where `dx` is the tap's signed input coord. Only rank-1;
+    // the multi-dim path keeps its explicit Pad, so it reports no padding here.
+    let n_len = n_byte_offsets.len() as isize;
+    let (tap_valid, interior) = if geo.patch.rank() == 1 {
+        use num_integer::Integer;
+        let stride = geo.patch.spec.strides[0] as isize;
+        let input_width = geo.patch.spec.input_shape[0] as isize;
+        let output_width = geo.patch.output_shape[0] as isize;
+        let kernel_len = geo.patch.standard_layout_data_field.len();
+        let mut tap_valid = Vec::with_capacity(kernel_len);
+        let (mut lo, mut hi) = (0isize, output_width);
+        for t in 0..kernel_len {
+            let dx = geo.patch.data_field[[t, 0]];
+            let start = Integer::div_ceil(&(-dx), &stride).max(0).min(output_width);
+            let end = Integer::div_ceil(&(input_width - dx), &stride).min(output_width);
+            lo = lo.max(start);
+            hi = hi.min(end);
+            tap_valid.push(start..end);
+        }
+        (tap_valid, lo..hi.max(lo))
+    } else {
+        (vec![], 0..n_len)
+    };
+    LazyIm2colParams { packer, n_byte_offsets, k_byte_offsets, tap_valid, interior }
 }
 
 /// A lazy im2col whose gather offsets can't be baked at codegen because the
@@ -431,6 +470,39 @@ impl LazyIm2colInput {
             }
         }
     }
+
+    /// Bounds-checked gather for the ≤2 boundary panels of a padded rank-1 conv:
+    /// each read is emitted only if the output position is in the tap's valid range
+    /// (see `LazyIm2colParams::tap_valid`), otherwise a zero is written — replacing
+    /// the explicit zero-`Pad` copy. k-outer/n-inner, matching `write`'s ordering.
+    /// Cold path (interior panels use the unchecked `write`), so it isn't unrolled.
+    fn write_checked<T: Datum + Copy>(
+        &self,
+        writer: &mut impl PackingWriter<T>,
+        k_range: std::ops::Range<isize>,
+        mn_range: std::ops::Range<isize>,
+    ) {
+        unsafe {
+            let ptr = self.tensor.as_ptr_unchecked::<u8>();
+            let k_byte_offsets = self.im2col.k_byte_offsets.as_ptr();
+            let n_byte_offsets = self.im2col.n_byte_offsets.as_ptr();
+            let kernel_len = self.im2col.tap_valid.len();
+            // Pad value is always the constant zero (see `wire_as_lazy_im2col`); the
+            // all-zero bit pattern is 0 for every numeric datum type gathered here.
+            let zero: T = std::mem::zeroed();
+            for k in k_range.start..k_range.end {
+                let base = ptr.offset(*k_byte_offsets.offset(k));
+                let valid = self.im2col.tap_valid.get_unchecked((k as usize) % kernel_len);
+                for n in mn_range.start..mn_range.end {
+                    if n >= valid.start && n < valid.end {
+                        writer.write(*(base.offset(*n_byte_offsets.offset(n)) as *const T));
+                    } else {
+                        writer.write(zero);
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl MMMInputValue for LazyIm2colInput {
@@ -481,16 +553,30 @@ impl LazyIm2colInput {
         let mn_range = mn_start as isize..mn_end as isize;
         let k_range = 0..k as isize;
         let packed = buffer.unwrap();
+        // A panel needs the bounds-checked gather only if the pad-fold is active
+        // (`tap_valid` non-empty) and it isn't fully inside the all-in-bounds
+        // interior — i.e. only the first/last panel of a padded rank-1 conv.
+        let interior = &self.im2col.interior;
+        let checked = !self.im2col.tap_valid.is_empty()
+            && !(mn_range.start >= interior.start && mn_range.end <= interior.end);
         if mn_range.len() == r && mn_start % r == 0 {
             let mut writer = self.im2col.packer.write_single_panel_with_k_outer(packed as *mut T);
-            self.write(&mut writer, k_range, mn_range);
+            if checked {
+                self.write_checked(&mut writer, k_range, mn_range);
+            } else {
+                self.write(&mut writer, k_range, mn_range);
+            }
         } else {
             let mut writer = self.im2col.packer.write_with_k_outer(
                 packed as *mut T,
                 k_range.len(),
                 mn_range.len(),
             );
-            self.write(&mut writer, k_range, mn_range);
+            if checked {
+                self.write_checked(&mut writer, k_range, mn_range);
+            } else {
+                self.write(&mut writer, k_range, mn_range);
+            }
         }
         packed
     }
