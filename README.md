@@ -14,7 +14,7 @@ text → espeak-ng IPA phonemes → phoneme-id tokens
 
 > This branch (`tract-prototype`) is focused on `kokoro-tract`. The repo also contains two other
 > binaries — `kokoro` (the same model on **onnxruntime**, used as the speed/quality reference) and
-> `speak` (Orpheus-3B, more natural but ~10× slower than realtime). They are summarized at the
+> `speak-orpheus` (Orpheus-3B, more natural but ~10× slower than realtime). They are summarized at the
 > [bottom](#other-binaries-in-this-repo); the full write-up for the tract work is in
 > [`docs/tract-support-plan.md`](docs/tract-support-plan.md).
 
@@ -47,7 +47,7 @@ pip install numpy onnx                         # only for the one-time model spl
 # 2. Build the pure-Rust binary.
 #    First build compiles the whole dependency tree (the candle git fork + the vendored
 #    tract crates) — several minutes on a clean cache; later builds are seconds.
-cargo build --release --no-default-features --features tract --bin kokoro-tract
+cargo build --release --bin kokoro-tract
 
 # 3. One-time: fetch Kokoro-82M, then split it into the two tract stages (-> kokoro-onyx/).
 ./target/release/kokoro-tract "warm up"        # first run downloads the model into the HF cache,
@@ -80,7 +80,7 @@ than realtime. The sections below expand on each step.
 
 ```bash
 # Pure-Rust, no onnxruntime linked — the Termux/portable build:
-cargo build --release --no-default-features --features tract --bin kokoro-tract
+cargo build --release --bin kokoro-tract
 ```
 
 The first build (clean cache) compiles the full dependency tree — the vendored tract crates plus
@@ -92,7 +92,7 @@ To build it **alongside** the onnxruntime `kokoro` binary for side-by-side compa
 pulls in `ort`, so it needs an onnxruntime `.so` at runtime — see the reference binary below):
 
 ```bash
-cargo build --release --features tract          # builds BOTH kokoro-tract and kokoro
+cargo build --release --features onnx           # builds BOTH kokoro-tract and kokoro
 ```
 
 ## Split the model into two stages (one-time)
@@ -201,7 +201,7 @@ sentences while the next is synthesized.)
 
 ```bash
 pkg install rust espeak-ng ffmpeg
-cargo build --release --no-default-features --features tract --bin kokoro-tract
+cargo build --release --bin kokoro-tract
 ```
 
 Provide the two split subgraphs (see [above](#the-split-files-are-not-committed)) in a directory,
@@ -218,18 +218,29 @@ a mimalloc global allocator, `Square(Sin)`→`SinSq` fusion, and a vectorized `s
 
 ## Other binaries in this repo
 
-Both share the sentence-splitting/streaming front-end but target different models/engines:
+All three share the sentence-splitting/streaming front-end but target different models/engines. Each
+is gated behind a cargo feature; `cargo build --release` (default `tract`) builds only `kokoro-tract`.
+
+| Binary | Model | Engine | Cargo feature |
+|---|---|---|---|
+| `kokoro-tract` | Kokoro-82M | tract (pure Rust) | `tract` *(default)* |
+| `kokoro` | Kokoro-82M | onnxruntime (`ort`) | `onnx` |
+| `speak-orpheus` | Orpheus-3B + SNAC | Candle | `orpheus` |
 
 - **`kokoro`** — the *same* Kokoro-82M pipeline on **onnxruntime** (`ort` `load-dynamic`; the binary
   dlopens an onnxruntime `.so`, e.g. from `pip install onnxruntime`). This is the speed/quality
   reference the table above compares against.
   ```bash
   pip install onnxruntime                        # provides libonnxruntime.so (ORT_DYLIB_PATH to override)
-  cargo build --release --bin kokoro
+  cargo build --release --features onnx --bin kokoro
   ./target/release/kokoro "Hello world."
   ```
-- **`speak`** — **Orpheus-3B** (a Llama-3.2-3B fine-tune) + SNAC codec via Candle. Most natural
-  voice, but ~10× slower than realtime on CPU. Needs `RUSTFLAGS='-C target-cpu=native'` for its
-  AVX2 decode kernels and `CANDLE_CPU_DECODE_EXECUTOR=1` at runtime. See
-  [`plan.md`](plan.md) for its design.
+- **`speak-orpheus`** — **Orpheus-3B** (a Llama-3.2-3B fine-tune) + SNAC codec via Candle. Most natural
+  voice, but ~10× slower than realtime on CPU. Opt-in (`--features orpheus`) since it pulls the heavy
+  candle git-fork dependency tree. Needs `RUSTFLAGS='-C target-cpu=native'` for its AVX2 decode kernels
+  and `CANDLE_CPU_DECODE_EXECUTOR=1` at runtime. See [`plan.md`](plan.md) for its design.
+  ```bash
+  cargo build --release --features orpheus --bin speak-orpheus
+  ./target/release/speak-orpheus "Hello world."
+  ```
 

@@ -3,9 +3,11 @@ name = "speak_tts"
 version = "0.1.0"
 edition = "2024"
 
+# Orpheus-3B + SNAC via Candle; opt-in (heavy candle git-fork dep tree).
 [[bin]]
-name = "speak"
+name = "speak-orpheus"
 path = "src/main.rs"
+required-features = ["orpheus"]
 
 [[bin]]
 name = "kokoro"
@@ -22,10 +24,10 @@ required-features = ["tract"]
 # kaarrot fork: CPU decode fast path (forward_decode_token_into + repack kernels).
 # Enable at runtime with CANDLE_CPU_DECODE_EXECUTOR=1 and build with
 # RUSTFLAGS='-C target-cpu=native' (AVX2+FMA) to engage the SIMD kernels.
-candle-core = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed" }
-candle-nn = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed" }
-candle-transformers = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed" }
-tokenizers = "0.20"
+candle-core = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed", optional = true }
+candle-nn = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed", optional = true }
+candle-transformers = { git = "https://github.com/kaarrot/candle", branch = "feature/cpu-decode-optim-squashed", optional = true }
+tokenizers = { version = "0.20", optional = true }
 hf-hub = "0.4"
 serde_json = "1"
 bytemuck = "1"
@@ -55,12 +57,16 @@ tract-linalg = { version = "0.22.3", optional = true, features = ["multithread-m
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [features]
-# onnxruntime backend (the `kokoro` binary); default so `cargo build` behaves as
-# before. `tract` builds the pure-Rust `kokoro-tract` binary alongside it — build
-# with `--features tract` to get BOTH and compare them; `--no-default-features
-# --features tract` builds only the tract binary (no onnxruntime, for Termux).
-default = ["onnx"]
+# `tract` (the pure-Rust `kokoro-tract` binary) is the default, so a plain
+# `cargo build` produces only `speak` + `kokoro-tract` — no onnxruntime needed.
+# `onnx` builds the onnxruntime-backed `kokoro` binary: `--features onnx` gets
+# BOTH backends to compare them; `--no-default-features --features onnx` builds
+# only the onnx binary.
+default = ["tract"]
 onnx = ["dep:ort"]
+# `speak-orpheus` binary: Orpheus-3B + SNAC via the candle git fork. Opt-in so
+# the default Kokoro build doesn't compile the heavy candle dependency tree.
+orpheus = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
 tract = ["dep:tract-onnx", "dep:tract-linalg", "dep:mimalloc"]
 # Step 0 of docs/tract-support-plan.md: `cargo run --example tract_probe --features tract-probe`
 tract-probe = ["dep:tract-onnx"]
