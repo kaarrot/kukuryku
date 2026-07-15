@@ -67,10 +67,15 @@ than realtime. The sections below expand on each step.
 
 - **Rust** 1.90+ (edition 2024) and a C toolchain (the tract build compiles a small C allocator).
 - **espeak-ng** — phonemizer. `apt install espeak-ng` (or `pkg install espeak-ng` on Termux).
-- **ffmpeg** — playback shells out to `ffplay`. `apt install ffmpeg` (`pkg install ffmpeg` on
-  Termux). Not needed if you only ever write WAVs (`KOKORO_WAV`).
+- **Audio playback** — one of:
+  - **ffmpeg** (preferred, cross-platform) — playback shells out to `ffplay`.
+    `apt install ffmpeg` (`pkg install ffmpeg` on desktop Linux/WSL).
+  - **pulseaudio-utils** (fallback, used on Termux where ffplay is unavailable) — playback
+    shells out to `pacat`. `pkg install pulseaudio` on Termux.
+
+  Not needed if you only ever write WAVs (`KOKORO_WAV`).
 - **A PulseAudio-compatible audio server** for playback (WSL2 provides this via WSLg; desktop
-  Linux via PulseAudio/PipeWire).
+  Linux via PulseAudio/PipeWire; Termux via `pulseaudio --start` with `module-sles-sink`).
 - **~650 MB disk** (the fp32 `model.onnx` ≈ 311 MB plus the two split subgraphs ≈ 311 MB),
   **~80 MB RAM** to run.
 
@@ -200,9 +205,12 @@ sentences while the next is synthesized.)
 `kokoro-tract` is the intended Android backend precisely because it needs no native inference lib:
 
 ```bash
-pkg install rust espeak-ng ffmpeg
+pkg install rust espeak-ng pulseaudio
 cargo build --release --bin kokoro-tract
 ```
+
+(Termux's `ffmpeg` package ships without `ffplay`, so playback there uses `pacat` from
+`pulseaudio-utils`; the binary auto-selects whichever is on `PATH`.)
 
 Provide the two split subgraphs (see [above](#the-split-files-are-not-committed)) in a directory,
 point `KOKORO_TRACT_DIR` at it, and start PulseAudio (e.g. `module-sles-sink`) for playback or just

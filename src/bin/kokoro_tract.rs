@@ -13,7 +13,9 @@
 //   / KOKORO_SPEED / KOKORO_WAV, plus:
 //   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx (default: beside the
 //                      HF-cached model.onnx). Produce them with tools/split_kokoro.py.
-//   KOKORO_TRACT_DUMP  if set to a dir, dump stage-boundary tensors as raw f32.
+//   KOKORO_TRACT_DUMP        if set to a dir, dump stage-boundary tensors as raw f32.
+//   KOKORO_TRACT_NAN_TRACE   step the plan node-by-node and print the first node whose
+//                            output contains a non-finite value (see nan_trace_run).
 
 use anyhow::{Context, Result};
 
@@ -176,7 +178,9 @@ mod tract_backend {
                     .with_context(|| format!("{stage}: no tensor supplied for input '{name}'"))?;
                 ordered.push(t.clone().into());
             }
-            if std::env::var_os("KOKORO_TRACT_PROFILE").is_some() {
+            if std::env::var_os("KOKORO_TRACT_NAN_TRACE").is_some() {
+                nan_trace_run(&self.runnable, ordered, stage)
+            } else if std::env::var_os("KOKORO_TRACT_PROFILE").is_some() {
                 profile_run(&self.runnable, ordered, stage)
             } else {
                 self.runnable.run(ordered).with_context(|| format!("running {stage}"))
@@ -250,6 +254,108 @@ mod tract_backend {
             }
         }
         Ok(out)
+    }
+
+    /// NaN-trace (KOKORO_TRACT_NAN_TRACE): step the plan node-by-node and, the first
+    /// time any f32 output contains a non-finite value, print the culprit node's op /
+    /// id / shapes plus each input's nan/inf/min/max. That pins the failing op class
+    /// (conv, InstanceNorm, atan2, tract-linalg kernel, …) without further rebuilds.
+    /// Cast-to-f32 lets the check see f16 tensors after widening; non-numeric ops are
+    /// skipped silently. Only the first bad node is reported (further NaNs propagate).
+    fn nan_trace_run(
+        runnable: &TypedRunnableModel<TypedModel>,
+        inputs: TVec<TValue>,
+        stage: &str,
+    ) -> Result<TVec<TValue>> {
+        use std::collections::HashMap;
+        use tract_onnx::tract_core::plan::{SimpleState, eval};
+        // Snapshot: op names + first-output stats accumulated as we go, so when
+        // the trace fires we can walk any number of hops upstream from the culprit.
+        let plan_model = runnable.model().clone();
+        let mut stats: HashMap<usize, (String, Vec<usize>, usize, usize, usize, f32, f32)> =
+            HashMap::new();
+        let mut fired = false;
+        let mut state = SimpleState::new(runnable)?;
+        let out = state.run_plan_with_eval(inputs, |session, op_state, node, input| {
+            let r = eval(session, op_state, node, input);
+            if let Ok(ref outputs) = r {
+                if let Some(o) = outputs.first() {
+                    let (nan, inf, n, zeros, mn, mx) = summarize(o);
+                    stats.insert(
+                        node.id,
+                        (node.op().name().into_owned(), o.shape().to_vec(), nan, inf, zeros, mn, mx),
+                    );
+                    if !fired && (nan > 0 || inf > 0) {
+                        fired = true;
+                        eprintln!(
+                            "[nan-trace] {stage}: FIRST bad node #{} op={} shape={:?} nan={nan} inf={inf} zeros={zeros} of {n}",
+                            node.id, node.op().name(), o.shape(),
+                        );
+                        // Walk upstream chain (BFS bounded by depth) from node.id.
+                        let max_depth: usize = std::env::var("KOKORO_TRACT_NAN_HOPS")
+                            .ok().and_then(|v| v.parse().ok()).unwrap_or(5);
+                        let mut frontier: Vec<(usize, usize)> = node.inputs.iter()
+                            .map(|o| (o.node, 1)).collect();
+                        let mut seen: std::collections::HashSet<usize> = std::collections::HashSet::new();
+                        seen.insert(node.id);
+                        while let Some((nid, depth)) = frontier.pop() {
+                            if !seen.insert(nid) { continue }
+                            if depth > max_depth { continue }
+                            let indent = "  ".repeat(depth);
+                            let pred = plan_model.node(nid);
+                            if let Some(s) = stats.get(&nid) {
+                                eprintln!(
+                                    "[nan-trace] {indent}#{nid}/{} shape={:?} nan={} inf={} zeros={} min={:.4e} max={:.4e}",
+                                    s.0, s.1, s.2, s.3, s.4, s.5, s.6,
+                                );
+                            } else {
+                                eprintln!(
+                                    "[nan-trace] {indent}#{nid}/{} (no runtime stats — likely graph input/const)",
+                                    pred.op().name(),
+                                );
+                            }
+                            for o in &pred.inputs {
+                                frontier.push((o.node, depth + 1));
+                            }
+                        }
+                    }
+                }
+            }
+            r
+        })?;
+        if !fired {
+            eprintln!("[nan-trace] {stage}: no non-finite outputs observed");
+        }
+        Ok(out)
+    }
+
+    /// (nan, inf, n, zeros, finite_min, finite_max) for an f32-castable tensor. Zero
+    /// count is important because `Recip` upstream of a NaN needs exact zeros (not
+    /// just small values) to emit Inf. Non-numeric tensors report all zeros.
+    fn summarize(v: &TValue) -> (usize, usize, usize, usize, f32, f32) {
+        let Ok(t) = v.cast_to::<f32>() else { return (0, 0, 0, 0, 0.0, 0.0) };
+        let Ok(s) = t.as_slice::<f32>() else { return (0, 0, 0, 0, 0.0, 0.0) };
+        let mut nan = 0usize;
+        let mut inf = 0usize;
+        let mut zeros = 0usize;
+        let mut mn = f32::INFINITY;
+        let mut mx = f32::NEG_INFINITY;
+        for &x in s {
+            if x.is_nan() {
+                nan += 1;
+            } else if x.is_infinite() {
+                inf += 1;
+            } else {
+                if x == 0.0 { zeros += 1 }
+                if x < mn { mn = x }
+                if x > mx { mx = x }
+            }
+        }
+        if !mn.is_finite() {
+            mn = 0.0;
+            mx = 0.0;
+        }
+        (nan, inf, s.len(), zeros, mn, mx)
     }
 
     /// Render an iterator of tensor shapes as a compact tag like `[1,512,377]x[1,512,1]`.

@@ -576,10 +576,31 @@ q: [i8, u8, i32, i32] => f32::sqrt;
 validation: Validation::Rounding
 );
 
-element_wise!(recip, Recip, [f16, f32, f64] => |_, xs| {
-    xs.iter_mut().for_each(|x| *x = x.recip());
-    Ok(())
-};
+element_wise!(recip, Recip,
+    // f32 path: clamp exact-zero inputs to the smallest normal magnitude (sign
+    // preserved) before reciprocating, so 1/0 becomes a huge *finite* value
+    // instead of Inf. Needed on aarch64: Kokoro's iSTFTNet vocoder feeds this op
+    // an STFT complex slice whose imaginary component hits exact zeros where the
+    // same graph on x86 held tiny non-zeros; the resulting Infs turn the whole
+    // stage-2 output into NaN via Inf-Inf / 0*Inf downstream. Huge-but-finite
+    // sentinels flow through the vocoder's masking correctly. See
+    // docs/debug-silent-tts.md for the full trace and root-cause discussion.
+    [f32] => |_, xs| {
+        xs.iter_mut().for_each(|x: &mut f32| {
+            let denom = if *x == 0.0 {
+                if x.is_sign_negative() { -f32::MIN_POSITIVE } else { f32::MIN_POSITIVE }
+            } else {
+                *x
+            };
+            *x = 1.0 / denom;
+        });
+        Ok(())
+    },
+    [f16, f64] => |_, xs| {
+        xs.iter_mut().for_each(|x| *x = x.recip());
+        Ok(())
+    }
+;
 q: [i8, u8, i32, i32] => f32::recip;
 cost: |dt| {tvec!((Cost::Div(dt), 1))};
 declutter: declutter_recip;
