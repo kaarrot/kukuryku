@@ -548,8 +548,23 @@ validation: Validation::Rounding
 // Fuse `Square(Sin(x))` into a single SinSq pass. `linear_prec` guarantees the Sin
 // feeds only this Square, so rewiring is safe. Both must be plain (no datum-type cast)
 // so the fused op sees the same in/out type. Mirrors declutter_recip's shape.
-fn declutter_square(_model: &TypedModel, _node: &TypedNode) -> TractResult<Option<TypedModelPatch>> {
-    // BISECT: SinSq fusion disabled to test declutter hypothesis.
+fn declutter_square(model: &TypedModel, node: &TypedNode) -> TractResult<Option<TypedModelPatch>> {
+    use super::element_wise::*;
+    let Some(sq) = node.op_as::<ElementWiseOp>() else { return Ok(None) };
+    if sq.1.is_some() {
+        return Ok(None); // Square carries an output cast; don't fold across it.
+    }
+    if let Some(prec) = model.linear_prec(node.id)? {
+        if let Some(ew) = prec.op_as::<ElementWiseOp>() {
+            if ew.0.is::<Sin>() && ew.1.is_none() {
+                let mut patch = TypedModelPatch::default();
+                let mut wire = patch.tap_model(model, prec.inputs[0])?;
+                wire = patch.wire_node(&node.name, sin_sq(), &[wire])?[0];
+                patch.shunt_outside(model, node.id.into(), wire)?;
+                return Ok(Some(patch));
+            }
+        }
+    }
     Ok(None)
 }
 
@@ -561,10 +576,31 @@ q: [i8, u8, i32, i32] => f32::sqrt;
 validation: Validation::Rounding
 );
 
-element_wise!(recip, Recip, [f16, f32, f64] => |_, xs| {
-    xs.iter_mut().for_each(|x| *x = x.recip());
-    Ok(())
-};
+element_wise!(recip, Recip,
+    // f32 path: clamp exact-zero inputs to the smallest normal magnitude (sign
+    // preserved) before reciprocating, so 1/0 becomes a huge *finite* value
+    // instead of Inf. Needed on aarch64: Kokoro's iSTFTNet vocoder feeds this op
+    // an STFT complex slice whose imaginary component hits exact zeros where the
+    // same graph on x86 held tiny non-zeros; the resulting Infs turn the whole
+    // stage-2 output into NaN via Inf-Inf / 0*Inf downstream. Huge-but-finite
+    // sentinels flow through the vocoder's masking correctly. See
+    // docs/debug-silent-tts.md for the full trace and root-cause discussion.
+    [f32] => |_, xs| {
+        xs.iter_mut().for_each(|x: &mut f32| {
+            let denom = if *x == 0.0 {
+                if x.is_sign_negative() { -f32::MIN_POSITIVE } else { f32::MIN_POSITIVE }
+            } else {
+                *x
+            };
+            *x = 1.0 / denom;
+        });
+        Ok(())
+    },
+    [f16, f64] => |_, xs| {
+        xs.iter_mut().for_each(|x| *x = x.recip());
+        Ok(())
+    }
+;
 q: [i8, u8, i32, i32] => f32::recip;
 cost: |dt| {tvec!((Cost::Div(dt), 1))};
 declutter: declutter_recip;
@@ -665,8 +701,42 @@ q: [i8, u8, i32] => f32::cos);
 // reduction). Drives the 48 Snake/oscillator Sin passes (Tier 7 Lever 3b).
 #[inline(always)]
 fn ssin_f32(xin: f32) -> f32 {
-    // BISECT: scalar libm sinf to test whether Tier 7's minimax path is the NaN source.
-    xin.sin()
+    const FOPI: f32 = 1.27323954473516; // 4/pi
+    const DP1: f32 = -0.78515625; // pi/4 in 3 parts
+    const DP2: f32 = -2.4187564849853515625e-4;
+    const DP3: f32 = -3.77489497744594108e-8;
+    const SINCOF_P0: f32 = -1.9515295891e-4;
+    const SINCOF_P1: f32 = 8.3321608736e-3;
+    const SINCOF_P2: f32 = -1.6666654611e-1;
+    const COSCOF_P0: f32 = 2.443315711809948e-5;
+    const COSCOF_P1: f32 = -1.388731625493765e-3;
+    const COSCOF_P2: f32 = 4.166664568298827e-2;
+
+    let sign_bit = xin.to_bits() & 0x8000_0000; // sin is odd; carry input sign
+    let x = xin.abs();
+    let mut j = (x * FOPI) as i32; // octant (floor via truncation, x >= 0)
+    j = (j + 1) & !1; // round up to even
+    let y = j as f32;
+    let swap = ((j & 4) as u32) << 29; // sign flip for octants 4..7 (0 or 0x8000_0000)
+    let use_cos = (j & 2) != 0; // octants 2,3,6,7 evaluate the cos polynomial
+    let sign = sign_bit ^ swap;
+    let r = x + y * DP1 + y * DP2 + y * DP3; // extended-precision reduced angle
+    let z = r * r;
+    let cos = {
+        let p = COSCOF_P0;
+        let p = p * z + COSCOF_P1;
+        let p = p * z + COSCOF_P2;
+        p * z * z - 0.5 * z + 1.0
+    };
+    let sin = {
+        let p = SINCOF_P0;
+        let p = p * z + SINCOF_P1;
+        let p = p * z + SINCOF_P2;
+        p * z * r + r
+    };
+    // Branchless select (LLVM lowers to vblendvps) + sign via XOR.
+    let mag = if use_cos { cos } else { sin };
+    f32::from_bits(mag.to_bits() ^ sign)
 }
 
 element_wise!(sin, Sin,

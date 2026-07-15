@@ -99,7 +99,153 @@ elsewhere.
 - `src/bin/kokoro_tract.rs` — `#[global_allocator] MiMalloc` commented
   out.
 
-## Next step — localize the failing op, don't keep bisecting tiers
+## Localized — first non-finite output is a `Recip`
+
+Added `KOKORO_TRACT_NAN_TRACE=1` (see `nan_trace_run` in
+`src/bin/kokoro_tract.rs`): step the plan node-by-node under
+`SimpleState::run_plan_with_eval` and, the first time any node emits a
+non-finite value, print the node op / id / shapes plus each input's
+nan/inf/min/max.
+
+Single run says:
+
+```
+[nan-trace] stage1: no non-finite outputs observed
+[nan-trace] stage2: FIRST bad node #243 op=Recip out#0 shape=[1, 11, 7801]
+                   nan=0 inf=12234 of 85811
+[nan-trace]   input#0 shape=[1, 11, 7801] nan=0 inf=0 of 85811
+              min=-1.1274 max=0.7234
+```
+
+Reading:
+
+- The `Recip` (1/x) node emits **12,234 `Inf` values (~14% of the
+  output), no NaN yet**. NaN appears later — downstream ops collide the
+  Infs (`Inf − Inf`, `0 × Inf`) and the vocoder's remaining ~1,700 nodes
+  amplify that into the 39000/39000 NaN we observe at s2_out0.
+- The input to Recip is finite: min = −1.1274, max = 0.7234. But for
+  `1/x` to emit `Inf`, `x` must be exactly `±0` — a denormalized-tiny
+  value would still give a large *finite* result. So **12,234 of the
+  85,811 input elements are exact zeros**.
+- That is not a plausible distribution for continuous vocoder features;
+  something upstream is flushing near-zeros to exact zeros. Classic
+  arch-specific SIMD divergence — a subtract-mean or a reduction giving
+  identity instead of a tiny non-zero on aarch64 that stayed non-zero
+  on x86.
+- The bug is therefore **one hop upstream of node #243**, not in Recip
+  itself, and not in any of the Tier 5/6/7 fusions we bisected.
+
+## Upstream chain — Recip is fed by a real/imag STFT slice
+
+`KOKORO_TRACT_NAN_TRACE=1 KOKORO_TRACT_NAN_HOPS=6` (walks predecessors up
+to N hops from the culprit, using per-node summaries cached during the
+run):
+
+```
+#243 Recip           [1,11,7801]      nan=0 inf=12234 zeros=0
+  #233 Gather        [1,11,7801]      zeros=12234
+    #232 Const       (constant — the gather indices)
+    #231 MoveAxis    [1,11,7801,2]    zeros=64538
+      #230 Slice     [1,7801,11,2]    zeros=64538
+        #229 STFT    [1,7801,20,2]    zeros=~109k
+          #228 Pad   [1,39020,2]      zeros=39020
+            #227 AddAxis [1,39020,1]  zeros=0   min=-0.145 max=0.087
+```
+
+Reading:
+
+- **#227 AddAxis** is a normal audio-like tensor (min=-0.145, max=0.087,
+  no zeros) — the vocoder's excitation signal.
+- **#228 Pad** doubles the last dim to 2 with zeros — this is the
+  real/imag pair fed to STFT, with **imaginary = 0 everywhere** (all
+  39020 zeros are the imaginary half). Standard real→complex convention
+  for tract's STFT.
+- **#229 STFT** [1, 7801, 20, 2] — complex spectrum. Because input is
+  real-only, its FFT has structural zeros in certain (bin, frame, re/im)
+  positions.
+- **#230/#231 Slice, MoveAxis** are pure reshape/permute passes
+  preserving those zeros exactly.
+- **#233 Gather** with a Const index picks one component (real or imag)
+  out of each `[re, im]` pair → [1, 11, 7801] with 12,234 exact zeros.
+- **#243 Recip** reciprocates that slice → 12,234 Infs.
+
+Almost certainly a real/imag → magnitude → normalize pattern in Kokoro's
+iSTFTNet vocoder. The graph appears to assume this specific slice never
+hits an exact zero. On x86 the same STFT positions were probably tiny
+non-zeros (denormal or last-bit rounding); on aarch64 tract's STFT
+produces exact `+0.0` there — 12,234 of them — and `1/0 = Inf`. Those
+Infs then poison the rest of the vocoder graph via `Inf − Inf` /
+`0 × Inf` into the 39000/39000 NaN we see at s2_out0.
+
+## Option 1 — diagnostic Recip eps guard
+
+Cheap symptom patch: replace `1/x` with `1/(x + copysign(eps, x))` (or
+`1/x` clamped to a huge finite value) inside tract's f32 Recip element-
+wise op. If audio becomes finite (probably distorted), we've confirmed
+the mechanism is Recip-on-exact-zero and can decide on a real fix:
+
+- surgical eps guard scoped to just this Recip op, or
+- a graph rewrite that inserts a `Max(eps)` before this Recip during
+  optimization, or
+- root-fix the STFT arch divergence so those slots aren't exactly zero
+  in the first place (better, but requires an x64 comparison run to
+  characterize).
+
+Applying (1) next. Rebuild is ~1 min (tract-core recompiles).
+
+## Result: mechanism confirmed, audio is finite
+
+With the diagnostic guard applied (f32 Recip returns `±1e30` for
+exactly-zero inputs, unchanged otherwise), the NaN chain is fully
+broken:
+
+```
+[nan-trace] stage1: no non-finite outputs observed
+[nan-trace] stage2: no non-finite outputs observed
+
+s2_out0: n=39000  nan=0  inf=0  min=-0.3785  max=0.3867  rms=0.0679
+wav:      n=39000  nonzero=27124  min=-12401  max=12670
+```
+
+Stage 2 completes entirely finite. Waveform amplitude is well within
+i16 range with 69% nonzero samples — audible content. The
+`Recip(exact-zero)` → `Inf` → downstream `NaN` mechanism is therefore
+the sole trigger for the silent-TTS symptom.
+
+The `±1e30` is deliberately a large-but-finite sentinel, not `f32::MAX`:
+the reciprocated value likely feeds a `Mul(mask)` (or similar) further
+in the vocoder, and we want that multiplication to stay finite so the
+downstream masking (if any) reveals whether the graph was designed to
+zero out those positions. In this run every stage-2 op stayed finite,
+so downstream masking evidently *is* neutralizing the huge sentinel
+values — meaning the model always expected large-ish values at those
+slots and the zero was purely arch-specific numerical noise. On x86 the
+same slots held tiny (denormal / last-bit) non-zeros whose reciprocals
+were also huge-finite; aarch64 rounded them to exact `+0.0`, and `1/0`
+is the only case that breaks out of "huge-finite → mask → 0" and into
+"Inf → poison the graph".
+
+## Options for a shipped fix
+
+None of these are applied yet — pick after listening to `out.wav` and
+deciding whether audio quality is acceptable with the diagnostic patch:
+
+1. **Keep a scoped f32 eps guard on `Recip`.** Cheapest. The sentinel
+   idea (large-finite on zero) is what already works. Risk: hides real
+   division-by-zero bugs in other users of `tract`. Mitigation: gate
+   behind a feature flag or make it `x.max(eps)` before the reciprocal
+   so the value stays close to what naive libm would emit for a denormal
+   near zero.
+2. **Root-cause the STFT arch divergence.** Compare tract's STFT
+   output for the same padded audio on aarch64 vs x86. If a specific
+   twiddle-factor multiply or a rfft symmetry step is rounding
+   asymmetrically only on aarch64, fix that; then Recip never sees
+   exact zero and no guard is needed. Better long-term but needs an
+   x86 comparison run.
+3. **Graph rewrite (declutter).** In tract's optimizer, detect
+   `Recip(x)` where `x` traces back to STFT slice/gather and insert an
+   `Add(sign(x)*eps)` or `Max(eps)` node. Targeted, no global behavior
+   change; more code than option 1.
 
 Every rebuild is ~9 min and the ranked-suspect strategy has been
 unproductive. Cheaper approach: run stage 2 once and find the first

@@ -632,9 +632,16 @@ impl Reduce {
             // Safe for any successor because `linear_prec` guarantees the Square
             // feeds only this Sum. Scoped to the symbolic case so the concrete
             // (stage-1) MeanOfSquares path below is untouched.
-            // BISECT Tier5: skip the SumOfSquares fusion for symbolic axes.
             if norm.as_i64().is_none() {
-                return Ok(None);
+                let mut patch = TypedModelPatch::default();
+                let wire = patch.tap_model(model, prec.inputs[0])?;
+                let wire = patch.wire_node(
+                    &node.name,
+                    Reduce::new(self.axes.clone(), Reducer::SumOfSquares),
+                    &[wire],
+                )?[0];
+                patch.shunt_outside(model, node.id.into(), wire)?;
+                return Ok(Some(patch));
             }
 
             // Concrete reduced axis: original mean-of-squares match, unchanged —

@@ -454,7 +454,7 @@ impl Conv {
         let padding = active_pool_spec.computed_padding(in_shape.hw_dims());
         let has_padding =
             padding.iter().any(|axis| !axis.pad_before.is_zero() || !axis.pad_after.is_zero());
-        if has_padding /* BISECT Tier6: force explicit-Pad for rank-1 */ {
+        if has_padding && in_shape.hw_dims().len() != 1 {
             let mut pads = vec![(0, 0); x_fact.rank()];
             for (ix, ax) in padding.iter().enumerate() {
                 pads[in_shape.h_axis() + ix] =
