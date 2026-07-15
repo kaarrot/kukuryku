@@ -548,23 +548,8 @@ validation: Validation::Rounding
 // Fuse `Square(Sin(x))` into a single SinSq pass. `linear_prec` guarantees the Sin
 // feeds only this Square, so rewiring is safe. Both must be plain (no datum-type cast)
 // so the fused op sees the same in/out type. Mirrors declutter_recip's shape.
-fn declutter_square(model: &TypedModel, node: &TypedNode) -> TractResult<Option<TypedModelPatch>> {
-    use super::element_wise::*;
-    let Some(sq) = node.op_as::<ElementWiseOp>() else { return Ok(None) };
-    if sq.1.is_some() {
-        return Ok(None); // Square carries an output cast; don't fold across it.
-    }
-    if let Some(prec) = model.linear_prec(node.id)? {
-        if let Some(ew) = prec.op_as::<ElementWiseOp>() {
-            if ew.0.is::<Sin>() && ew.1.is_none() {
-                let mut patch = TypedModelPatch::default();
-                let mut wire = patch.tap_model(model, prec.inputs[0])?;
-                wire = patch.wire_node(&node.name, sin_sq(), &[wire])?[0];
-                patch.shunt_outside(model, node.id.into(), wire)?;
-                return Ok(Some(patch));
-            }
-        }
-    }
+fn declutter_square(_model: &TypedModel, _node: &TypedNode) -> TractResult<Option<TypedModelPatch>> {
+    // BISECT: SinSq fusion disabled to test declutter hypothesis.
     Ok(None)
 }
 

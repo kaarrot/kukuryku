@@ -22,8 +22,9 @@ use speak_tts::kokoro;
 // Retain and reuse the large intermediate-tensor segments instead of returning them
 // to the OS after every op (glibc mmaps/munmaps big blocks, costing first-touch page
 // faults on each fresh output). ~8% infer win, bit-identical. See Cargo.toml note.
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+// BISECT: mimalloc disabled to test allocator hypothesis.
+// #[global_allocator]
+// static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> Result<()> {
     let t0 = std::time::Instant::now();
