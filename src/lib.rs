@@ -264,18 +264,45 @@ pub mod kokoro {
     /// Max sentences of synthesized audio buffered ahead of playback.
     const STREAM_BUFFER: usize = 32;
 
+    /// Pick a raw-PCM sink command. Prefer `ffplay` (portable, needs ffmpeg+SDL);
+    /// fall back to `pacat` (PulseAudio, standard on Linux incl. Termux).
+    fn build_sink_command() -> Result<Command> {
+        let sr = SAMPLE_RATE.to_string();
+        if which("ffplay") {
+            let mut c = Command::new("ffplay");
+            c.args([
+                "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                "-f", "f32le", "-ar", &sr, "-ac", "1", "-i", "pipe:0",
+            ]);
+            return Ok(c);
+        }
+        if which("pacat") {
+            let mut c = Command::new("pacat");
+            c.args(["--raw", "--format=float32le", "--rate", &sr, "--channels=1"]);
+            return Ok(c);
+        }
+        bail!("no audio sink found: install ffmpeg (for ffplay) or pulseaudio (for pacat)");
+    }
+
+    fn which(cmd: &str) -> bool {
+        Command::new(cmd)
+            .arg("--help")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok()
+    }
+
     impl StreamPlayer {
         pub fn new() -> Result<Self> {
             let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(STREAM_BUFFER);
+            let mut cmd = build_sink_command()?;
             let thread = std::thread::spawn(move || -> Result<()> {
-                let mut child = Command::new("ffplay")
-                    .args([
-                        "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
-                        "-f", "f32le", "-ar", &SAMPLE_RATE.to_string(), "-ac", "1", "-i", "pipe:0",
-                    ])
+                let mut child = cmd
                     .stdin(Stdio::piped())
                     .spawn()
-                    .context("spawning ffplay (is ffmpeg installed?)")?;
+                    .context("spawning audio sink (ffplay/pacat)")?;
                 let mut stdin = child.stdin.take().context("ffplay stdin unavailable")?;
                 for chunk in rx.iter() {
                     stdin
