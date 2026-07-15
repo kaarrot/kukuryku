@@ -277,8 +277,14 @@ pub mod kokoro {
             return Ok(c);
         }
         if which("pacat") {
+            // --latency-msec keeps the buffer small: default prebuf is ~2s, which
+            // means clips shorter than that never trigger auto-start and only play
+            // via drain-on-EOF — a race that can drop samples on Android/OpenSL.
             let mut c = Command::new("pacat");
-            c.args(["--raw", "--format=float32le", "--rate", &sr, "--channels=1"]);
+            c.args([
+                "--raw", "--format=float32le", "--rate", &sr, "--channels=1",
+                "--latency-msec=100",
+            ]);
             return Ok(c);
         }
         bail!("no audio sink found: install ffmpeg (for ffplay) or pulseaudio (for pacat)");

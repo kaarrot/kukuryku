@@ -680,42 +680,8 @@ q: [i8, u8, i32] => f32::cos);
 // reduction). Drives the 48 Snake/oscillator Sin passes (Tier 7 Lever 3b).
 #[inline(always)]
 fn ssin_f32(xin: f32) -> f32 {
-    const FOPI: f32 = 1.27323954473516; // 4/pi
-    const DP1: f32 = -0.78515625; // pi/4 in 3 parts
-    const DP2: f32 = -2.4187564849853515625e-4;
-    const DP3: f32 = -3.77489497744594108e-8;
-    const SINCOF_P0: f32 = -1.9515295891e-4;
-    const SINCOF_P1: f32 = 8.3321608736e-3;
-    const SINCOF_P2: f32 = -1.6666654611e-1;
-    const COSCOF_P0: f32 = 2.443315711809948e-5;
-    const COSCOF_P1: f32 = -1.388731625493765e-3;
-    const COSCOF_P2: f32 = 4.166664568298827e-2;
-
-    let sign_bit = xin.to_bits() & 0x8000_0000; // sin is odd; carry input sign
-    let x = xin.abs();
-    let mut j = (x * FOPI) as i32; // octant (floor via truncation, x >= 0)
-    j = (j + 1) & !1; // round up to even
-    let y = j as f32;
-    let swap = ((j & 4) as u32) << 29; // sign flip for octants 4..7 (0 or 0x8000_0000)
-    let use_cos = (j & 2) != 0; // octants 2,3,6,7 evaluate the cos polynomial
-    let sign = sign_bit ^ swap;
-    let r = x + y * DP1 + y * DP2 + y * DP3; // extended-precision reduced angle
-    let z = r * r;
-    let cos = {
-        let p = COSCOF_P0;
-        let p = p * z + COSCOF_P1;
-        let p = p * z + COSCOF_P2;
-        p * z * z - 0.5 * z + 1.0
-    };
-    let sin = {
-        let p = SINCOF_P0;
-        let p = p * z + SINCOF_P1;
-        let p = p * z + SINCOF_P2;
-        p * z * r + r
-    };
-    // Branchless select (LLVM lowers to vblendvps) + sign via XOR.
-    let mag = if use_cos { cos } else { sin };
-    f32::from_bits(mag.to_bits() ^ sign)
+    // BISECT: scalar libm sinf to test whether Tier 7's minimax path is the NaN source.
+    xin.sin()
 }
 
 element_wise!(sin, Sin,
