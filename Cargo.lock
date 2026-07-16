@@ -1363,6 +1363,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "kukuryku"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "candle-core",
+ "candle-nn",
+ "candle-transformers",
+ "hf-hub",
+ "mimalloc",
+ "ort",
+ "serde_json",
+ "tokenizers 0.20.4",
+ "tract-linalg",
+ "tract-onnx",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2587,24 +2605,6 @@ dependencies = [
  "byteorder",
  "libc",
  "winapi",
-]
-
-[[package]]
-name = "speak_tts"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "candle-core",
- "candle-nn",
- "candle-transformers",
- "hf-hub",
- "mimalloc",
- "ort",
- "serde_json",
- "tokenizers 0.20.4",
- "tract-linalg",
- "tract-onnx",
 ]
 
 [[package]]

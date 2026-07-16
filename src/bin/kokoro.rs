@@ -1,8 +1,8 @@
-// kokoro — soft-realtime CPU TTS using Kokoro-82M (ONNX) via onnxruntime (`ort`).
+// kokoro-onyx — soft-realtime CPU TTS using Kokoro-82M (ONNX) via onnxruntime (`ort`).
 //
 // Kokoro is a small non-autoregressive model: it predicts the whole utterance's
 // audio in one ONNX forward pass, so it runs faster than realtime on CPU. This is
-// the reference backend; the pure-Rust equivalent is the `kokoro-tract` binary.
+// the reference backend; the pure-Rust equivalent is the `ryk` binary.
 //
 // Pipeline: text -> espeak-ng IPA phonemes -> phoneme-id tokens -> Kokoro ONNX
 //           (with a per-voice style vector) -> 24 kHz f32 waveform -> ffplay.
@@ -21,7 +21,7 @@ use anyhow::{Context, Result};
 use ort::session::Session;
 use ort::value::TensorRef;
 
-use speak_tts::kokoro::{self, STYLE_DIM};
+use kukuryku::kokoro::{self, STYLE_DIM};
 
 /// With ort's `load-dynamic`, onnxruntime is dlopened at runtime from
 /// `ORT_DYLIB_PATH`. If unset, auto-detect the pip-installed onnxruntime .so

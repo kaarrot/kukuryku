@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Micro-bench for the tract conv/im2col run-time work (see docs/tract-support-plan.md).
 #
-# Runs kokoro-tract on a FIXED single sentence (fixed phoneme count N, so the
+# Runs ryk on a FIXED single sentence (fixed phoneme count N, so the
 # symbolic plan compiles one plan and every run does identical work). Reports:
 #   - pure `infer` seconds (synthesize() = stage1.run + regulator + stage2.run),
 #     best-of-N to cut WSL/scheduler noise — this is the number Tier-1 should move;
@@ -22,10 +22,10 @@ OUT="$OUT_DIR/$LABEL.txt"
 SENTENCE="The old lighthouse keeper climbed the winding staircase every single evening at dusk, carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night."
 
 echo "== building (release) =="
-cargo build --release --features tract --bin kokoro-tract 2>&1 | tail -1
+cargo build --release --features tract --bin ryk 2>&1 | tail -1
 
 run_once() { # prints the "[kokoro] done:" line
-  cargo run --release --features tract --bin kokoro-tract -- "$SENTENCE" 2>&1 \
+  cargo run --release --features tract --bin ryk -- "$SENTENCE" 2>&1 \
     | grep -E "\[kokoro\] (done|\[1/1\])"
 }
 
@@ -41,7 +41,7 @@ done
 printf 'BEST: infer %ss  RTF %s\n' "$BEST" "$BEST_RTF" | tee -a "$OUT"
 
 echo "== stage-2 op profile (1 run, instrumented) ==" | tee -a "$OUT"
-KOKORO_TRACT_PROFILE=1 cargo run --release --features tract --bin kokoro-tract -- "$SENTENCE" 2>&1 \
+KOKORO_TRACT_PROFILE=1 cargo run --release --features tract --bin ryk -- "$SENTENCE" 2>&1 \
   | sed -n '/stage2 profile/,/\[1\/1\]/p' | tee -a "$OUT"
 
 echo

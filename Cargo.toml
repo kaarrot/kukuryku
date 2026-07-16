@@ -1,7 +1,14 @@
 [package]
-name = "speak_tts"
+name = "kukuryku"
 version = "0.1.0"
 edition = "2024"
+
+# The primary binary: pure-Rust Kokoro (tract). `kokoro-tract` below is the same
+# program under its original name, kept so existing scripts and docs keep working.
+[[bin]]
+name = "ryk"
+path = "src/bin/kokoro_tract.rs"
+required-features = ["tract"]
 
 # Orpheus-3B + SNAC via Candle; opt-in (heavy candle git-fork dep tree).
 [[bin]]
@@ -10,11 +17,12 @@ path = "src/main.rs"
 required-features = ["orpheus"]
 
 [[bin]]
-name = "kokoro"
+name = "kokoro-onyx"
 path = "src/bin/kokoro.rs"
 required-features = ["onnx"]
 
-# Pure-Rust counterpart of `kokoro`; same pipeline, tract instead of onnxruntime.
+# Pure-Rust counterpart of `kokoro-onyx`; same pipeline, tract instead of onnxruntime.
+# Alias of `ryk` — same source, same behavior.
 [[bin]]
 name = "kokoro-tract"
 path = "src/bin/kokoro_tract.rs"
@@ -57,9 +65,9 @@ tract-linalg = { version = "0.22.3", optional = true, features = ["multithread-m
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [features]
-# `tract` (the pure-Rust `kokoro-tract` binary) is the default, so a plain
-# `cargo build` produces only `speak` + `kokoro-tract` — no onnxruntime needed.
-# `onnx` builds the onnxruntime-backed `kokoro` binary: `--features onnx` gets
+# `tract` (the pure-Rust `ryk` binary) is the default, so a plain `cargo build`
+# produces only `ryk` + its `kokoro-tract` alias — no onnxruntime needed.
+# `onnx` builds the onnxruntime-backed `kokoro-onyx` binary: `--features onnx` gets
 # BOTH backends to compare them; `--no-default-features --features onnx` builds
 # only the onnx binary.
 default = ["tract"]

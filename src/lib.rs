@@ -1,5 +1,5 @@
 //! Shared, backend-agnostic pieces of the Kokoro-82M TTS pipeline, used by both
-//! the `kokoro` (onnxruntime) and `kokoro-tract` (pure-Rust) binaries. Everything
+//! the `kokoro-onyx` (onnxruntime) and `ryk` (pure-Rust) binaries. Everything
 //! here is independent of the inference engine: text -> phonemes -> token ids +
 //! style vector, asset resolution, and audio output (WAV + ffplay). Each binary
 //! adds only its own model-execution step between `prepare` and `emit`.

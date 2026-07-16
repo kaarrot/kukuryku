@@ -1,6 +1,6 @@
-// kokoro-tract — pure-Rust CPU TTS using Kokoro-82M via `tract` (no onnxruntime,
+// ryk (aka kokoro-tract) — pure-Rust CPU TTS using Kokoro-82M via `tract` (no onnxruntime,
 // no native .so), the Termux/aarch64-friendly backend. Same pipeline and output as
-// the `kokoro` binary; only the model-execution step differs.
+// the `kokoro-onyx` binary; only the model-execution step differs.
 //
 // Kokoro's length regulator expands phoneme-level features to frame level via an
 // alignment matrix whose length = sum(durations) — a value, not a static shape —
@@ -9,7 +9,7 @@
 // is optimized with a concrete phoneme count per utterance, which is what makes
 // tract's static shape inference succeed. See docs/tract-support-plan.md.
 //
-// Config via env (shared with `kokoro`): KOKORO_VOICE / KOKORO_MODEL / KOKORO_LANG
+// Config via env (shared with `kokoro-onyx`): KOKORO_VOICE / KOKORO_MODEL / KOKORO_LANG
 //   / KOKORO_SPEED / KOKORO_WAV, plus:
 //   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx (default: beside the
 //                      HF-cached model.onnx). Produce them with tools/split_kokoro.py.
@@ -19,7 +19,7 @@
 
 use anyhow::{Context, Result};
 
-use speak_tts::kokoro;
+use kukuryku::kokoro;
 
 // Retain and reuse the large intermediate-tensor segments instead of returning them
 // to the OS after every op (glibc mmaps/munmaps big blocks, costing first-touch page

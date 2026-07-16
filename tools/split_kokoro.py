@@ -29,7 +29,7 @@ optimize issue tracked in the plan doc.
 Usage:  python3 tools/split_kokoro.py [MODEL.onnx] [OUT_DIR]
 Default MODEL is the HF cache path for onnx-community/Kokoro-82M-v1.0-ONNX.
 Default OUT_DIR is the project-local `kokoro-onyx/` directory, which is where
-`kokoro-tract` expects the stages when run with `KOKORO_TRACT_DIR=kokoro-onyx`.
+`ryk` expects the stages when run with `KOKORO_TRACT_DIR=kokoro-onyx`.
 (That directory is git-ignored — the fp32 subgraphs are ~311 MB; see the README.)
 """
 import os
