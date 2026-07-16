@@ -21,16 +21,23 @@ sudo apt install -y ffmpeg                     # playback via ffplay — optiona
 #    First build compiles the whole dependency tree (the candle git fork + the vendored tract crates)
 cargo build --release --bin ryk
 
-# 3. Speak — from the project root, ryk finds kokoro-onyx/ on its own
+# 3. Download the model assets (~576 MB, once) — unpacks kokoro-onyx/ next to the binary
+./target/release/ryk --install-assets
+
+# 4. Speak
 ./target/release/ryk "Hello, this is a pure-Rust text to speech test."
 ```
 
-Step 3 assumes a self-contained `kokoro-onyx/` — `stage1.onnx` + `stage2.onnx` alongside
-`model.onnx` and `voices/`. If you don't have one, `tools/fetch_assets.sh` downloads it. That
-layout is what lets step 3 run bare: `ryk` resolves the model from `kokoro-onyx/` and then looks for
-the stages next to it, so no `KOKORO_TRACT_DIR` is needed. See
+Step 3 fetches a pinned release archive, checks its sha256, and unpacks `stage1.onnx` +
+`stage2.onnx` alongside `model.onnx` and `voices/`. It needs no Python, no `pip install`, no
+Hugging Face account, and no shell — it is `ryk` itself. That layout is what lets step 4 run bare:
+`ryk` resolves the model from
+`kokoro-onyx/` and then looks for the stages next to it, so no `KOKORO_TRACT_DIR` is needed. See
 [Split the model into two stages](#split-the-model-into-two-stages-one-time) for why the split
 exists and [Obtaining the split files](#obtaining-the-split-files) for the alternatives.
+
+If you already have a `kokoro-onyx/` in the project root — from a previous checkout or your own
+split — step 3 is unnecessary: `ryk` prefers it over the copy beside the binary.
 
 Each run prints a metrics line (`… tokens | … audio | infer …s | RTF …`); RTF below 1.0 is faster
 than realtime. The sections below expand on each step.
@@ -50,8 +57,8 @@ than realtime. The sections below expand on each step.
   Linux via PulseAudio/PipeWire; Termux via `pulseaudio --start` with `module-sles-sink`).
 - **~650 MB disk** (the fp32 `model.onnx` ≈ 311 MB plus the two split subgraphs ≈ 311 MB),
   **~80 MB RAM** to run.
-- **curl + unzip** — to download the published assets once. See
-  [Obtaining the split files](#obtaining-the-split-files).
+- **Nothing extra to download the assets** — `ryk --install-assets` fetches and unpacks them itself.
+  See [Obtaining the split files](#obtaining-the-split-files).
 - **Python with `numpy` + `onnx`** — *only* if you split the model yourself instead of downloading
   the published archive. Not a runtime dependency.
 
@@ -65,7 +72,7 @@ than realtime. The sections below expand on each step.
 |---|---|---|
 | **`ryk`** | The main binary — Kokoro-82M on tract, pure Rust, no native libs. | *(default)* |
 | `kokoro-tract` | **The same program as `ryk`**, under the name it had before the project became kukuryku. Kept so existing scripts and docs keep working. | *(default)* |
-| `kokoro-onyx` | The same model on **onnxruntime** — the speed/quality reference the table below compares against. Needs an onnxruntime `.so` at runtime. | `--features onnx` |
+| `kokoro-ort` | The same model on **onnxruntime** — the speed/quality reference the table below compares against. Named for the `ort` crate it wraps; the `kokoro-onyx` name is the assets directory, not a binary. Needs an onnxruntime `.so` at runtime. | `--features onnx` |
 | `speak-orpheus` | **Orpheus-3B** + SNAC on Candle. More natural, but ~10× slower than realtime. | `--features orpheus` |
 
 The full write-up for the tract work is in
@@ -74,18 +81,18 @@ focused on `ryk`.
 
 ## How it compares to onnxruntime
 
-To build it **alongside** the onnxruntime `kokoro-onyx` binary for side-by-side comparison (this also
+To build it **alongside** the onnxruntime `kokoro-ort` binary for side-by-side comparison (this also
 pulls in `ort`, so it needs an onnxruntime `.so` at runtime — see the reference binary below):
 
 ```bash
-cargo build --release --features onnx           # builds BOTH ryk and kokoro-onyx
+cargo build --release --features onnx           # builds BOTH ryk and kokoro-ort
 ```
 
 Both backends run the identical pipeline and produce the same audio (waveform correlation
 **~0.976**); they differ only in the inference engine. Measured on a 16-thread WSL2 box,
 `af_heart`, two-sentence streamed run:
 
-| Utterance | `ryk` (pure Rust) | `kokoro-onyx` (onnxruntime) |
+| Utterance | `ryk` (pure Rust) | `kokoro-ort` (onnxruntime) |
 |---|---|---|
 | 242 tokens / 14.60 s audio | infer 7.39 s · **RTF 0.506** | infer 5.04 s · **RTF 0.345** |
 | 221 tokens / 12.97 s audio | infer 6.60 s · **RTF 0.509** | infer 4.51 s · **RTF 0.347** |
@@ -123,17 +130,21 @@ easy path — download it.
 #### Download the published assets (recommended)
 
 ```bash
-tools/fetch_assets.sh
+ryk --install-assets
 ```
 
-Pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases) and
-unpacks it into `kokoro-onyx/`. Needs only `curl` + `unzip` — no Python, no `pip install`, no
-Hugging Face download. The archive carries `model.onnx` too, which is what makes the unpacked
-directory work **fully offline**, and includes the `af_heart` + `am_michael` voices.
+Pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases),
+verifies its sha256, and unpacks it into `kokoro-onyx/` **beside the `ryk` executable** — so an
+installed `ryk` finds its models from any working directory, not just the project root. No Python,
+no `pip install`, no Hugging Face download, and no shell: it is `ryk` itself.
 
-The script targets a pinned asset release (`kokoro-onyx-model`); override with
-`$KUKURYKU_ASSET_TAG`, `$KUKURYKU_REPO`, or by passing a URL directly. The download is checked
-against a pinned sha256 (skipped when you pass your own URL, or when `sha256sum` isn't installed).
+The archive carries `model.onnx` too, which is what makes the unpacked directory work **fully
+offline**, and includes the `af_heart` + `am_michael` voices.
+
+It targets a pinned asset release (`kokoro-onyx-model`); override with `$KUKURYKU_ASSET_TAG` or
+`$KUKURYKU_REPO`. The sha256 check is enforced only for the pinned tag — an overridden tag is a
+different archive, so the pinned hash says nothing about it. Re-running is a no-op once the stages
+are in place; delete the directory to force a re-install.
 
 #### Or split the model yourself
 
@@ -156,10 +167,17 @@ pair is portable.
 
 **Fully offline / self-contained.** If `kokoro-onyx/` also contains `model.onnx` and
 `voices/<voice>.bin`, `ryk` uses those directly and **skips hf-hub entirely** — no network,
-which is what makes an offline run work. In that case `KOKORO_TRACT_DIR` is optional when
-you run from the project root: the local `model.onnx` makes `kokoro-onyx/` the default stage dir
-too. The lookup dir is `KOKORO_TRACT_DIR` if set, else `./kokoro-onyx`; it falls back to the HF
-cache when the local files aren't present. (The `voices/` dir is tiny — ~0.5 MB per voice.)
+which is what makes an offline run work. `KOKORO_TRACT_DIR` is then optional, because the local
+`model.onnx` makes `kokoro-onyx/` the default stage dir too. The lookup order is:
+
+1. `KOKORO_TRACT_DIR`, if set — always wins.
+2. `./kokoro-onyx` — running from the project root, as in the quick start.
+3. `kokoro-onyx/` beside the `ryk` executable — where `--install-assets` puts it, so an installed
+   binary works from any directory.
+4. Otherwise it falls back to the HF cache, downloading `model.onnx` on first use. Note that the
+   split stages are *not* on Hugging Face, so this arm alone won't get `ryk` running.
+
+(The `voices/` dir is tiny — ~0.5 MB per voice.)
 
 > Phonemization uses raw `espeak-ng` rather than Kokoro's reference phonemizer (misaki), so
 > pronunciation is close but not identical on tricky words.

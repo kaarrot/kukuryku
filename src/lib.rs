@@ -1,8 +1,13 @@
 //! Shared, backend-agnostic pieces of the Kokoro-82M TTS pipeline, used by both
-//! the `kokoro-onyx` (onnxruntime) and `ryk` (pure-Rust) binaries. Everything
+//! the `kokoro-ort` (onnxruntime) and `ryk` (pure-Rust) binaries. Everything
 //! here is independent of the inference engine: text -> phonemes -> token ids +
 //! style vector, asset resolution, and audio output (WAV + ffplay). Each binary
 //! adds only its own model-execution step between `prepare` and `emit`.
+
+/// `ryk --install-assets`. Gated on `tract` because that is the only binary that
+/// needs the split stages, and it keeps the http/zip deps out of other builds.
+#[cfg(feature = "tract")]
+pub mod install;
 
 pub mod kokoro {
     use std::collections::HashMap;
@@ -60,13 +65,37 @@ pub mod kokoro {
         pub voice_path: PathBuf,
     }
 
-    /// Directory checked for a project-local asset bundle before hitting the network.
+    /// `kokoro-onyx/` beside the running executable — where `--install-assets` writes
+    /// the bundle, and where an installed `ryk` finds it from any working directory.
+    pub fn exe_assets_dir() -> Option<PathBuf> {
+        let exe = std::env::current_exe().ok()?;
+        Some(exe.parent()?.join("kokoro-onyx"))
+    }
+
+    /// Directory checked for a local asset bundle before hitting the network, in order:
+    ///
+    /// 1. `KOKORO_TRACT_DIR` — explicit override, always wins.
+    /// 2. `./kokoro-onyx` — the repo-root dev workflow (`cargo run` from the checkout).
+    /// 3. `kokoro-onyx/` beside the executable — an installed `ryk`, run from anywhere.
+    ///
     /// Reuses `KOKORO_TRACT_DIR` (where the split stages live) so one env var can point
-    /// at a fully self-contained dir; defaults to `kokoro-onyx/` relative to the CWD.
-    fn local_assets_dir() -> PathBuf {
-        std::env::var_os("KOKORO_TRACT_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("kokoro-onyx"))
+    /// at a fully self-contained dir. Arms 2 and 3 are probed with `is_dir` so a missing
+    /// one falls through rather than short-circuiting; if neither exists we return the
+    /// CWD path, letting `resolve_assets` report against the familiar location.
+    pub fn local_assets_dir() -> PathBuf {
+        if let Some(dir) = std::env::var_os("KOKORO_TRACT_DIR") {
+            return PathBuf::from(dir);
+        }
+        let cwd_dir = PathBuf::from("kokoro-onyx");
+        if cwd_dir.is_dir() {
+            return cwd_dir;
+        }
+        if let Some(dir) = exe_assets_dir() {
+            if dir.is_dir() {
+                return dir;
+            }
+        }
+        cwd_dir
     }
 
     pub fn resolve_assets(model_file: &str, voice: &str) -> Result<Assets> {

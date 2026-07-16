@@ -1,6 +1,6 @@
 // ryk (aka kokoro-tract) — pure-Rust CPU TTS using Kokoro-82M via `tract` (no onnxruntime,
 // no native .so), the Termux/aarch64-friendly backend. Same pipeline and output as
-// the `kokoro-onyx` binary; only the model-execution step differs.
+// the `kokoro-ort` binary; only the model-execution step differs.
 //
 // Kokoro's length regulator expands phoneme-level features to frame level via an
 // alignment matrix whose length = sum(durations) — a value, not a static shape —
@@ -9,17 +9,21 @@
 // is optimized with a concrete phoneme count per utterance, which is what makes
 // tract's static shape inference succeed. See docs/tract-support-plan.md.
 //
-// Config via env (shared with `kokoro-onyx`): KOKORO_VOICE / KOKORO_MODEL / KOKORO_LANG
+// `ryk --install-assets` downloads the split stages + voices + model.onnx from the
+// pinned GitHub release into kokoro-onyx/ beside this executable (see install.rs).
+//
+// Config via env (shared with `kokoro-ort`): KOKORO_VOICE / KOKORO_MODEL / KOKORO_LANG
 //   / KOKORO_SPEED / KOKORO_WAV, plus:
-//   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx (default: beside the
-//                      HF-cached model.onnx). Produce them with tools/split_kokoro.py.
+//   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx (default: ./kokoro-onyx,
+//                      else kokoro-onyx/ beside the binary, else beside the HF-cached
+//                      model.onnx). Produce them with tools/split_kokoro.py.
 //   KOKORO_TRACT_DUMP        if set to a dir, dump stage-boundary tensors as raw f32.
 //   KOKORO_TRACT_NAN_TRACE   step the plan node-by-node and print the first node whose
 //                            output contains a non-finite value (see nan_trace_run).
 
 use anyhow::{Context, Result};
 
-use kukuryku::kokoro;
+use kukuryku::{install, kokoro};
 
 // Retain and reuse the large intermediate-tensor segments instead of returning them
 // to the OS after every op (glibc mmaps/munmaps big blocks, costing first-touch page
@@ -28,6 +32,11 @@ use kukuryku::kokoro;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> Result<()> {
+    // Before read_text(), which would otherwise treat the flag as text to speak.
+    if std::env::args().nth(1).as_deref() == Some("--install-assets") {
+        return install::run();
+    }
+
     let t0 = std::time::Instant::now();
     eprintln!("[kokoro] backend: tract (pure Rust, two-stage split)");
 

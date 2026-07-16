@@ -16,12 +16,15 @@ name = "speak-orpheus"
 path = "src/main.rs"
 required-features = ["orpheus"]
 
+# Named for the `ort` crate (ONNX Runtime) it wraps. NOT `kokoro-onyx`: that name
+# belongs to the assets directory, and `ryk --install-assets` unpacks kokoro-onyx/
+# beside the binaries — a binary of the same name would collide with it.
 [[bin]]
-name = "kokoro-onyx"
+name = "kokoro-ort"
 path = "src/bin/kokoro.rs"
 required-features = ["onnx"]
 
-# Pure-Rust counterpart of `kokoro-onyx`; same pipeline, tract instead of onnxruntime.
+# Pure-Rust counterpart of `kokoro-ort`; same pipeline, tract instead of onnxruntime.
 # Alias of `ryk` — same source, same behavior.
 [[bin]]
 name = "kokoro-tract"
@@ -63,11 +66,18 @@ tract-linalg = { version = "0.22.3", optional = true, features = ["multithread-m
 # alloc/free churn (installed as the kokoro-tract #[global_allocator]). ~8% infer win,
 # bit-identical, and portable (helps the Termux/musl target too, unlike glibc mallopt).
 mimalloc = { version = "0.1", default-features = false, optional = true }
+# `ryk --install-assets`: fetch + verify + unpack the release zip (see install.rs).
+# All three are pure Rust, so the installer keeps `ryk`'s no-native-deps property
+# on every target — rustls rather than native-tls (no OpenSSL to find on Windows),
+# and zip's deflate-only feature set (its bzip2/zstd/lzma codecs are C).
+ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+sha2 = { version = "0.10", optional = true }
 
 [features]
 # `tract` (the pure-Rust `ryk` binary) is the default, so a plain `cargo build`
 # produces only `ryk` + its `kokoro-tract` alias — no onnxruntime needed.
-# `onnx` builds the onnxruntime-backed `kokoro-onyx` binary: `--features onnx` gets
+# `onnx` builds the onnxruntime-backed `kokoro-ort` binary: `--features onnx` gets
 # BOTH backends to compare them; `--no-default-features --features onnx` builds
 # only the onnx binary.
 default = ["tract"]
@@ -75,7 +85,7 @@ onnx = ["dep:ort"]
 # `speak-orpheus` binary: Orpheus-3B + SNAC via the candle git fork. Opt-in so
 # the default Kokoro build doesn't compile the heavy candle dependency tree.
 orpheus = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers"]
-tract = ["dep:tract-onnx", "dep:tract-linalg", "dep:mimalloc"]
+tract = ["dep:tract-onnx", "dep:tract-linalg", "dep:mimalloc", "dep:ureq", "dep:zip", "dep:sha2"]
 # Step 0 of docs/tract-support-plan.md: `cargo run --example tract_probe --features tract-probe`
 tract-probe = ["dep:tract-onnx"]
 

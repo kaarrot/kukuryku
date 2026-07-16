@@ -1,4 +1,4 @@
-// kokoro-onyx — soft-realtime CPU TTS using Kokoro-82M (ONNX) via onnxruntime (`ort`).
+// kokoro-ort — soft-realtime CPU TTS using Kokoro-82M (ONNX) via onnxruntime (`ort`).
 //
 // Kokoro is a small non-autoregressive model: it predicts the whole utterance's
 // audio in one ONNX forward pass, so it runs faster than realtime on CPU. This is
