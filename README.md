@@ -26,11 +26,11 @@ cargo build --release --bin ryk
 ```
 
 Step 3 assumes a self-contained `kokoro-onyx/` — `stage1.onnx` + `stage2.onnx` alongside
-`model.onnx` and `voices/`. That is what lets it run bare: `ryk` resolves the model from
-`kokoro-onyx/` and then looks for the stages next to it, so no `KOKORO_TRACT_DIR` is needed. `ryk`
-cannot run the unsplit model, so the pair must be there — see
-[Split the model into two stages](#split-the-model-into-two-stages-one-time) for what that means and
-how to get it.
+`model.onnx` and `voices/`. If you don't have one, `tools/fetch_assets.sh` downloads it. That
+layout is what lets step 3 run bare: `ryk` resolves the model from `kokoro-onyx/` and then looks for
+the stages next to it, so no `KOKORO_TRACT_DIR` is needed. See
+[Split the model into two stages](#split-the-model-into-two-stages-one-time) for why the split
+exists and [Obtaining the split files](#obtaining-the-split-files) for the alternatives.
 
 Each run prints a metrics line (`… tokens | … audio | infer …s | RTF …`); RTF below 1.0 is faster
 than realtime. The sections below expand on each step.
@@ -50,9 +50,10 @@ than realtime. The sections below expand on each step.
   Linux via PulseAudio/PipeWire; Termux via `pulseaudio --start` with `module-sles-sink`).
 - **~650 MB disk** (the fp32 `model.onnx` ≈ 311 MB plus the two split subgraphs ≈ 311 MB),
   **~80 MB RAM** to run.
-- **Python with `numpy` + `onnx`** — *only* to produce the split files once, and only if you
-  can't copy an existing pair. Not a runtime dependency. See
+- **curl + unzip** — to download the published assets once. See
   [Obtaining the split files](#obtaining-the-split-files).
+- **Python with `numpy` + `onnx`** — *only* if you split the model yourself instead of downloading
+  the published archive. Not a runtime dependency.
 
 `ryk` needs **no onnxruntime at all** — that is the whole point of the tract backend.
 
@@ -67,9 +68,9 @@ than realtime. The sections below expand on each step.
 | `kokoro-onyx` | The same model on **onnxruntime** — the speed/quality reference the table below compares against. Needs an onnxruntime `.so` at runtime. | `--features onnx` |
 | `speak-orpheus` | **Orpheus-3B** + SNAC on Candle. More natural, but ~10× slower than realtime. | `--features orpheus` |
 
-`kokoro-onyx` and `speak-orpheus` are covered at the [bottom](#other-binaries-in-this-repo); the full
-write-up for the tract work is in [`docs/tract-support-plan.md`](docs/tract-support-plan.md).
-This branch (`tract-prototype`) is focused on `ryk`.
+The full write-up for the tract work is in
+[`docs/tract-support-plan.md`](docs/tract-support-plan.md). This branch (`tract-prototype`) is
+focused on `ryk`.
 
 ## How it compares to onnxruntime
 
@@ -113,35 +114,45 @@ with the repo**. Getting them is a one-time step, described next.
 
 ### Obtaining the split files
 
-`stage1.onnx` + `stage2.onnx` are fp32 and large (≈ 311 MB together) and don't meaningfully compress
-(fp32 weights are near-incompressible), so they are kept out of git — the split step writes them
-into the git-ignored **`kokoro-onyx/`** directory instead. They are just the original Kokoro weights
-re-partitioned: nothing about them is machine-specific, so a pair produced anywhere works
-everywhere. That gives you two ways to get them.
+`stage1.onnx` + `stage2.onnx` are fp32 and large (≈ 325 MB together) and don't meaningfully compress
+(fp32 weights are near-incompressible), so they are kept out of git — they live in the git-ignored
+**`kokoro-onyx/`** directory instead. They are just the original Kokoro weights re-partitioned:
+nothing about them is machine-specific, so one published pair works on every target. Hence the
+easy path — download it.
 
-**Either** produce them yourself with the bundled script:
+#### Download the published assets (recommended)
+
+```bash
+tools/fetch_assets.sh
+```
+
+Pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases) and
+unpacks it into `kokoro-onyx/`. Needs only `curl` + `unzip` — no Python, no `pip install`, no
+Hugging Face download. The archive carries `model.onnx` too, which is what makes the unpacked
+directory work **fully offline**, and includes the `af_heart` + `am_michael` voices.
+
+The script targets a pinned asset release (`kokoro-onyx-model`); override with
+`$KUKURYKU_ASSET_TAG`, `$KUKURYKU_REPO`, or by passing a URL directly. The download is checked
+against a pinned sha256 (skipped when you pass your own URL, or when `sha256sum` isn't installed).
+
+#### Or split the model yourself
+
+Needed if you want a voice the archive doesn't carry, or a Kokoro variant of your own:
 
 ```bash
 pip install numpy onnx                            # the script's only deps (no onnxruntime needed)
 python3 tools/split_kokoro.py                     # writes kokoro-onyx/stage1.onnx + stage2.onnx
 ```
 
-`numpy` + `onnx` are needed **only for this step** — they are build-time tooling for the split, not
-a runtime dependency of `ryk`, which stays pure Rust. With no arguments the script reads the
-HF-cached `onnx/model.onnx` for `onnx-community/Kokoro-82M-v1.0-ONNX` and writes the pair into the
+`numpy` + `onnx` are needed **only for this step** — they are tooling for the split, not a runtime
+dependency of `ryk`, which stays pure Rust. With no arguments the script reads the HF-cached
+`onnx/model.onnx` for `onnx-community/Kokoro-82M-v1.0-ONNX` and writes the pair into the
 project-local **`kokoro-onyx/`** directory (a stable path that lives with the checkout, instead of
 the HF cache's snapshot-hashed dir). If your `model.onnx` lives somewhere else, pass an explicit
 source/dest: `python3 tools/split_kokoro.py path/to/model.onnx [OUT_DIR]`.
 
-**Or** copy an existing `stage1.onnx` + `stage2.onnx` into `kokoro-onyx/` — from another checkout,
-another machine, or a colleague. No Python, no `pip install`, no HF download.
-
-Either way, **point `ryk` at the dir with `KOKORO_TRACT_DIR=kokoro-onyx`** (it otherwise looks next
-to the cached `model.onnx`):
-
-```bash
-KOKORO_TRACT_DIR=kokoro-onyx ./target/release/ryk "Hello world."
-```
+Copying an existing `stage1.onnx` + `stage2.onnx` from another checkout or machine works too — the
+pair is portable.
 
 **Fully offline / self-contained.** If `kokoro-onyx/` also contains `model.onnx` and
 `voices/<voice>.bin`, `ryk` uses those directly and **skips hf-hub entirely** — no network,
