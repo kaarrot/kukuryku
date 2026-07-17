@@ -98,6 +98,45 @@ pub mod kokoro {
         cwd_dir
     }
 
+    /// Assets for the tract (`ryk`) binary: the directory holding the split stages
+    /// plus the voice file. Deliberately *not* [`Assets`] — the tract path never
+    /// reads the monolithic `model.onnx`, so requiring it (as [`resolve_assets`]
+    /// does, correctly, for `kokoro-ort`) only forced a pointless 325 MB download
+    /// into `~/.cache/huggingface` on any box whose bundle lacked it.
+    pub struct TractAssets {
+        pub dir: PathBuf,
+        pub voice_path: PathBuf,
+    }
+
+    /// Resolve the split-model dir + voice for `ryk` without ever touching the HF
+    /// cache for the model. The dir (see [`local_assets_dir`]) must already hold
+    /// `stage1.onnx` + `stage2.onnx` — those come from `ryk --install-assets`, not
+    /// HF — so a missing pair is a clear error, not a silent network fetch. Only a
+    /// missing *voice* falls back to the HF cache (voices do live in [`REPO`]).
+    pub fn resolve_assets_tract(voice: &str) -> Result<TractAssets> {
+        let dir = local_assets_dir();
+        let stage1 = dir.join("stage1.onnx");
+        let stage2 = dir.join("stage2.onnx");
+        if !stage1.is_file() || !stage2.is_file() {
+            bail!(
+                "split model not found in {} (need stage1.onnx + stage2.onnx).\n  \
+                 run `ryk --install-assets` to fetch the bundle, or point KOKORO_TRACT_DIR \
+                 at a directory that has them.",
+                dir.display()
+            );
+        }
+        let local_voice = dir.join("voices").join(format!("{voice}.bin"));
+        let voice_path = if local_voice.is_file() {
+            local_voice
+        } else {
+            let api = Api::new().context("creating hf-hub api")?;
+            api.model(REPO.to_string())
+                .get(&format!("voices/{voice}.bin"))
+                .with_context(|| format!("fetching voice {voice}"))?
+        };
+        Ok(TractAssets { dir, voice_path })
+    }
+
     pub fn resolve_assets(model_file: &str, voice: &str) -> Result<Assets> {
         // Project-local bundle first: if the assets dir already holds `<model>.onnx` and
         // `voices/<voice>.bin`, use them and skip hf-hub entirely — no network, which is

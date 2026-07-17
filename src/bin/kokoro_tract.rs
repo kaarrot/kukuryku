@@ -21,7 +21,7 @@
 //   KOKORO_TRACT_NAN_TRACE   step the plan node-by-node and print the first node whose
 //                            output contains a non-finite value (see nan_trace_run).
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use kukuryku::{install, kokoro};
 
@@ -31,10 +31,47 @@ use kukuryku::{install, kokoro};
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+/// One-line usage + the env vars that configure a run. Kept here (not in `kokoro`)
+/// because the flag set is per-binary: `ryk` is the only one with `--install-assets`.
+fn print_help() {
+    print!(
+        "ryk {version} — pure-Rust Kokoro-82M TTS (tract backend)
+
+USAGE:
+    ryk [TEXT...]           speak TEXT (all args joined); reads stdin if none given
+    ryk --install-assets    download the split model + voices beside the binary
+    ryk --help | -h         show this help
+    ryk --version | -V      show version
+
+ENV:
+    KOKORO_VOICE   voice name (default af_heart)
+    KOKORO_LANG    espeak-ng language (default en-us)
+    KOKORO_SPEED   speaking rate multiplier (default 1.0)
+    KOKORO_WAV     also write synthesized audio to this WAV path
+    KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
+",
+        version = env!("CARGO_PKG_VERSION"),
+    );
+}
+
 fn main() -> Result<()> {
-    // Before read_text(), which would otherwise treat the flag as text to speak.
-    if std::env::args().nth(1).as_deref() == Some("--install-assets") {
-        return install::run();
+    // Handle flags before read_text(), which would otherwise treat a flag as text
+    // to speak (espeak-ng phonemizes "--help" into gibberish audio, not usage).
+    match std::env::args().nth(1).as_deref() {
+        Some("--install-assets") => return install::run(),
+        Some("--help" | "-h") => {
+            print_help();
+            return Ok(());
+        }
+        Some("--version" | "-V") => {
+            println!("ryk {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        // An unknown `--flag` is a mistake, not something to read aloud.
+        Some(arg) if arg.starts_with("--") => {
+            anyhow::bail!("unknown flag `{arg}` (see `ryk --help`)");
+        }
+        _ => {}
     }
 
     let t0 = std::time::Instant::now();
@@ -42,22 +79,15 @@ fn main() -> Result<()> {
 
     let text = kokoro::read_text()?;
     let voice = kokoro::env_or("KOKORO_VOICE", "af_heart");
-    let model_file = kokoro::env_or("KOKORO_MODEL", "onnx/model.onnx");
     let lang = kokoro::env_or("KOKORO_LANG", "en-us");
     let speed: f32 = kokoro::env_or("KOKORO_SPEED", "1.0").parse().unwrap_or(1.0);
 
     eprintln!("[kokoro] resolving assets...");
-    let assets = kokoro::resolve_assets(&model_file, &voice)?;
-
-    // ---- two-stage tract inference with a Rust length regulator ----
-    let dir = match std::env::var_os("KOKORO_TRACT_DIR") {
-        Some(d) => std::path::PathBuf::from(d),
-        None => assets
-            .model_path
-            .parent()
-            .context("model path has no parent dir")?
-            .to_path_buf(),
-    };
+    // The tract path loads stage1.onnx + stage2.onnx, never the monolithic
+    // model.onnx — so resolve the split-model dir directly rather than deriving it
+    // from a model.onnx we'd have to download but never read.
+    let assets = kokoro::resolve_assets_tract(&voice)?;
+    let dir = assets.dir.clone();
     eprintln!("[kokoro] loading split model (stage1.onnx + stage2.onnx) from {}", dir.display());
 
     // Compile both subgraphs once (symbolic length dims) and reuse the plans for
