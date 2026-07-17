@@ -18,7 +18,6 @@ sudo apt install -y ffmpeg                     # playback via ffplay — optiona
                                                # playback falls back to pacat (PulseAudio)
 
 # 2. Build the pure-Rust binary.
-#    First build compiles the whole dependency tree (the candle git fork + the vendored tract crates)
 cargo build --release --bin ryk
 
 # 3. Download the model assets (~576 MB, once) — unpacks kokoro-onyx/ next to the binary
@@ -29,18 +28,13 @@ cargo build --release --bin ryk
 ```
 
 Step 3 fetches a pinned release archive, checks its sha256, and unpacks `stage1.onnx` +
-`stage2.onnx` alongside `model.onnx` and `voices/`. It needs no Python, no `pip install`, no
-Hugging Face account, and no shell — it is `ryk` itself. That layout is what lets step 4 run bare:
-`ryk` resolves the model from
-`kokoro-onyx/` and then looks for the stages next to it, so no `KOKORO_TRACT_DIR` is needed. See
+`stage2.onnx` alongside `model.onnx` and `voices/`.
+See
 [Split the model into two stages](#split-the-model-into-two-stages-one-time) for why the split
 exists and [Obtaining the split files](#obtaining-the-split-files) for the alternatives.
 
 If you already have a `kokoro-onyx/` in the project root — from a previous checkout or your own
 split — step 3 is unnecessary: `ryk` prefers it over the copy beside the binary.
-
-Each run prints a metrics line (`… tokens | … audio | infer …s | RTF …`); RTF below 1.0 is faster
-than realtime. The sections below expand on each step.
 
 ## Prerequisites
 
@@ -48,22 +42,11 @@ than realtime. The sections below expand on each step.
 - **espeak-ng** — phonemizer. `apt install espeak-ng` (or `pkg install espeak-ng` on Termux).
 - **Audio playback** — one of:
   - **ffmpeg** (preferred, cross-platform) — playback shells out to `ffplay`.
-    `apt install ffmpeg` (`pkg install ffmpeg` on desktop Linux/WSL).
+    `apt install ffmpeg`.
   - **pulseaudio-utils** (fallback, used on Termux where ffplay is unavailable) — playback
-    shells out to `pacat`. `pkg install pulseaudio` on Termux.
-
-  Not needed if you only ever write WAVs (`KOKORO_WAV`).
-- **A PulseAudio-compatible audio server** for playback (WSL2 provides this via WSLg; desktop
-  Linux via PulseAudio/PipeWire). On Termux, `ryk` auto-starts one (`pulseaudio --start` with
-  `module-sles-sink`) when it uses the `pacat` sink, so no manual step is needed.
-- **~650 MB disk** (the fp32 `model.onnx` ≈ 311 MB plus the two split subgraphs ≈ 311 MB),
-  **~80 MB RAM** to run.
-- **Nothing extra to download the assets** — `ryk --install-assets` fetches and unpacks them itself.
-  See [Obtaining the split files](#obtaining-the-split-files).
-- **Python with `numpy` + `onnx`** — *only* if you split the model yourself instead of downloading
-  the published archive. Not a runtime dependency.
-
-`ryk` needs **no onnxruntime at all** — that is the whole point of the tract backend.
+    shells out to `pacat`. `pkg install pulseaudio` on Termux. On Termux, `ryk` auto-starts one
+    (`pulseaudio --start` with `module-sles-sink`) when it uses the `pacat` sink, so no manual
+    step is needed.
 
 ## Binaries
 
@@ -90,7 +73,7 @@ cargo build --release --features onnx           # builds BOTH ryk and kokoro-ort
 ```
 
 Both backends run the identical pipeline and produce the same audio (waveform correlation
-**~0.976**); they differ only in the inference engine. Measured on a 16-thread WSL2 box,
+**~0.976**); they differ only in the inference engine. Measured on a 16-thread box,
 `af_heart`, two-sentence streamed run:
 
 | Utterance | `ryk` (pure Rust) | `kokoro-ort` (onnxruntime) |
@@ -98,7 +81,7 @@ Both backends run the identical pipeline and produce the same audio (waveform co
 | 242 tokens / 14.60 s audio | infer 7.39 s · **RTF 0.506** | infer 5.04 s · **RTF 0.345** |
 | 221 tokens / 12.97 s audio | infer 6.60 s · **RTF 0.509** | infer 4.51 s · **RTF 0.347** |
 
-Both are comfortably faster than realtime. tract is currently **~1.47× slower than onnxruntime**
+Both are comfortably faster than realtime. Tract is currently **~1.47× slower than onnxruntime**
 (down from ~3.6× at the start of the optimization arc — see Tiers 1–7 in the plan doc). The
 remaining gap is MLAS-class matmul-kernel work; onnxruntime's kernels are hard to beat. You trade
 that ~1.5× for a **fully self-contained, dependency-free binary**.
@@ -109,21 +92,14 @@ Tract cannot optimize Kokoro's **monolithic** graph: its length regulator expand
 features to frame level via an alignment matrix whose frame-axis length is
 `sum(round(durations))` — a *value*, not a static shape — which tract's shape inference can't
 represent. `ryk` sidesteps this by **splitting the model at the length regulator** into
-two subgraphs and rebuilding the alignment in Rust between them:
-
-```
-stage1.onnx : input_ids, style, speed → phoneme features [1,640,N] + [1,512,N] + durations [1,N]
-   (Rust length regulator: round durations, build the [N, total_frames] alignment matrix)
-stage2.onnx : the two feature tensors + alignment → decoder + iSTFTNet → waveform
-```
+two subgraphs and rebuilding the alignment in Rust between them.
 
 So `ryk` cannot run the stock `model.onnx` — it needs the two subgraphs, and they are **not shipped
 with the repo**. Getting them is a one-time step, described next.
 
 ### Obtaining the split files
 
-`stage1.onnx` + `stage2.onnx` are fp32 and large (≈ 325 MB together) and don't meaningfully compress
-(fp32 weights are near-incompressible), so they are kept out of git — they live in the git-ignored
+`stage1.onnx` + `stage2.onnx` are fp32 and large (≈ 325 MB together). They live in the git-ignored
 **`kokoro-onyx/`** directory instead. They are just the original Kokoro weights re-partitioned:
 nothing about them is machine-specific, so one published pair works on every target. Hence the
 easy path — download it.
@@ -135,10 +111,7 @@ ryk --install-assets
 ```
 
 Pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases),
-verifies its sha256, and unpacks it into `kokoro-onyx/` **beside the `ryk` executable** — so an
-installed `ryk` finds its models from any working directory, not just the project root. No Python,
-no `pip install`, no Hugging Face download, and no shell: it is `ryk` itself.
-
+verifies its sha256, and unpacks it into `kokoro-onyx/` **beside the `ryk` executable**.
 The archive carries `model.onnx` too, which is what makes the unpacked directory work **fully
 offline**, and includes the `af_heart` + `am_michael` voices.
 
@@ -147,7 +120,7 @@ It targets a pinned asset release (`kokoro-onyx-model`); override with `$KUKURYK
 different archive, so the pinned hash says nothing about it. Re-running is a no-op once the stages
 are in place; delete the directory to force a re-install.
 
-#### Or split the model yourself
+#### Split the model yourself
 
 Needed if you want a voice the archive doesn't carry, or a Kokoro variant of your own:
 
@@ -157,20 +130,13 @@ python3 tools/split_kokoro.py                     # writes kokoro-onyx/stage1.on
 ```
 
 `numpy` + `onnx` are needed **only for this step** — they are tooling for the split, not a runtime
-dependency of `ryk`, which stays pure Rust. With no arguments the script reads the HF-cached
+dependency. With no arguments the script reads the HF-cached
 `onnx/model.onnx` for `onnx-community/Kokoro-82M-v1.0-ONNX` and writes the pair into the
 project-local **`kokoro-onyx/`** directory (a stable path that lives with the checkout, instead of
 the HF cache's snapshot-hashed dir). If your `model.onnx` lives somewhere else, pass an explicit
 source/dest: `python3 tools/split_kokoro.py path/to/model.onnx [OUT_DIR]`.
 
-Copying an existing `stage1.onnx` + `stage2.onnx` from another checkout or machine works too — the
-pair is portable.
-
-**Fully offline / self-contained.** `ryk` runs the split stages, **not** the monolithic
-`model.onnx` — so if the assets dir holds `stage1.onnx` + `stage2.onnx` + `voices/<voice>.bin`,
-it uses them directly and touches the network only if a requested voice is missing. (The
-`model.onnx` the archive also ships is for `kokoro-ort`; `ryk` never reads it.) The dir is
-resolved in order:
+The dir is resolved in order:
 
 1. `KOKORO_TRACT_DIR`, if set — always wins.
 2. `./kokoro-onyx` — running from the project root, as in the quick start.
@@ -180,8 +146,6 @@ resolved in order:
 If none of these holds `stage1.onnx` + `stage2.onnx`, `ryk` errors and points you at
 `ryk --install-assets` — the split stages are *not* on Hugging Face, so there is no useful
 network fallback for them. Only a missing **voice** is fetched from the HF cache.
-
-(The `voices/` dir is tiny — ~0.5 MB per voice.)
 
 > Phonemization uses raw `espeak-ng` rather than Kokoro's reference phonemizer (misaki), so
 > pronunciation is close but not identical on tricky words.
@@ -223,10 +187,9 @@ sentences while the next is synthesized.)
 
 ## Low-latency editor use (`--serve` / `--send`)
 
-Every plain `ryk` invocation compiles the two tract stages before the first sentence (~4 s on a
-desktop, more on a phone). Fine once; painful if you speak text repeatedly — e.g. reading
-selections from an editor. The **warm daemon** pays that cost once and keeps the compiled
-pipeline hot:
+Every plain `ryk` invocation compiles the two tract stages before the first sentence (~4s on a
+desktop, more on a phone). Fine once; painful if you speak text repeatedly. The **warm daemon**
+pays that cost once and keeps the compiled pipeline hot:
 
 ```bash
 # The daemon auto-starts on the first --send and stays warm; no separate step needed.
@@ -244,22 +207,6 @@ order, gaplessly. Voice/lang/speed are read per request (from `KOKORO_VOICE` / `
 The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
 an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the
 one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
-
-### From vim / emacs
-
-Pipe the current selection to the client over stdin — no shell-quoting or `ARG_MAX` limits, and
-newlines/paragraphs survive:
-
-- **vim** — speak the visual selection without modifying the buffer:
-  ```vim
-  xnoremap <leader>s :w !ryk --send<CR>
-  ```
-- **emacs** — speak the region asynchronously (the `0` destination means "don't wait"):
-  ```elisp
-  (defun ryk-speak-region (beg end)
-    (interactive "r")
-    (call-process-region beg end "ryk" nil 0 nil "--send"))
-  ```
 
 See [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md) for the design and open follow-ups.
 
