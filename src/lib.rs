@@ -350,6 +350,12 @@ pub mod kokoro {
             let mut c = Command::new("ffplay");
             c.args([
                 "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                // Start playback the instant the first samples arrive. Without these,
+                // ffmpeg buffers ~analyzeduration (~5s) of input before starting, so a
+                // single short sentence into the persistent `--serve` pipe never plays
+                // until more data (the next sentence) arrives — one-shot only worked
+                // because EOF flushed the buffer. probesize's minimum is 32 bytes.
+                "-probesize", "32", "-analyzeduration", "0", "-fflags", "nobuffer",
                 "-f", "f32le", "-ar", &sr, "-ac", "1", "-i", "pipe:0",
             ]);
             return Ok(c);
