@@ -85,6 +85,9 @@ fn main() -> Result<()> {
             all.extend_from_slice(&audio);
         }
         player.push(audio)?;
+        if i == 0 {
+            eprintln!("[kokoro] first audio at {:.2}s", t0.elapsed().as_secs_f64());
+        }
     }
 
     player.finish()?;
@@ -506,6 +509,26 @@ mod tract_backend {
             // Compile each stage once with shared symbolic length dims: N (phoneme
             // count) across stage 1 + the two stage-2 feature tensors, and F (frame
             // count) on the alignment's frame axis.
+            //
+            // The two compiles are independent, so run them concurrently: stage 2's
+            // `into_optimized()` (~3.9s) is the long pole, and building it on a
+            // background thread while stage 1 (~1.4s) compiles here drops startup
+            // compile wall-time to ~max(the two) instead of the sum. tract's
+            // optimizer holds no shared mutable state across models, and the result
+            // is bit-identical to sequential compilation — only wall-time changes.
+            let stage2_path_bg = stage2_path.clone();
+            let stage2_handle = std::thread::spawn(move || {
+                StagePlan::build(
+                    &stage2_path_bg,
+                    &[
+                        (S1_FEAT_640, &[Fixed(1), Fixed(640), Sym("N")]),
+                        (S1_FEAT_512, &[Fixed(1), Fixed(512), Sym("N")]),
+                        (S2_ALIGNMENT, &[Sym("N"), Sym("F")]),
+                        ("style", &[Fixed(1), Fixed(256)]),
+                    ],
+                    "stage2",
+                )
+            });
             let stage1 = StagePlan::build(
                 &stage1_path,
                 &[
@@ -515,16 +538,9 @@ mod tract_backend {
                 ],
                 "stage1",
             );
-            let stage2 = StagePlan::build(
-                &stage2_path,
-                &[
-                    (S1_FEAT_640, &[Fixed(1), Fixed(640), Sym("N")]),
-                    (S1_FEAT_512, &[Fixed(1), Fixed(512), Sym("N")]),
-                    (S2_ALIGNMENT, &[Sym("N"), Sym("F")]),
-                    ("style", &[Fixed(1), Fixed(256)]),
-                ],
-                "stage2",
-            );
+            let stage2 = stage2_handle
+                .join()
+                .map_err(|_| anyhow::anyhow!("stage2 compile thread panicked"))?;
             Ok(Pipeline { stage1_path, stage2_path, executor, stage1, stage2 })
         }
 
