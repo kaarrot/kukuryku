@@ -165,17 +165,20 @@ source/dest: `python3 tools/split_kokoro.py path/to/model.onnx [OUT_DIR]`.
 Copying an existing `stage1.onnx` + `stage2.onnx` from another checkout or machine works too — the
 pair is portable.
 
-**Fully offline / self-contained.** If `kokoro-onyx/` also contains `model.onnx` and
-`voices/<voice>.bin`, `ryk` uses those directly and **skips hf-hub entirely** — no network,
-which is what makes an offline run work. `KOKORO_TRACT_DIR` is then optional, because the local
-`model.onnx` makes `kokoro-onyx/` the default stage dir too. The lookup order is:
+**Fully offline / self-contained.** `ryk` runs the split stages, **not** the monolithic
+`model.onnx` — so if the assets dir holds `stage1.onnx` + `stage2.onnx` + `voices/<voice>.bin`,
+it uses them directly and touches the network only if a requested voice is missing. (The
+`model.onnx` the archive also ships is for `kokoro-ort`; `ryk` never reads it.) The dir is
+resolved in order:
 
 1. `KOKORO_TRACT_DIR`, if set — always wins.
 2. `./kokoro-onyx` — running from the project root, as in the quick start.
 3. `kokoro-onyx/` beside the `ryk` executable — where `--install-assets` puts it, so an installed
    binary works from any directory.
-4. Otherwise it falls back to the HF cache, downloading `model.onnx` on first use. Note that the
-   split stages are *not* on Hugging Face, so this arm alone won't get `ryk` running.
+
+If none of these holds `stage1.onnx` + `stage2.onnx`, `ryk` errors and points you at
+`ryk --install-assets` — the split stages are *not* on Hugging Face, so there is no useful
+network fallback for them. Only a missing **voice** is fetched from the HF cache.
 
 (The `voices/` dir is tiny — ~0.5 MB per voice.)
 
@@ -187,12 +190,15 @@ which is what makes an offline run work. `KOKORO_TRACT_DIR` is then optional, be
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `KOKORO_VOICE` | `af_heart` | Voice (e.g. `am_michael`, `bf_emma`, …) |
-| `KOKORO_MODEL` | `onnx/model.onnx` | Model file in the HF repo (fp32; used to locate the split dir) |
 | `KOKORO_LANG` | `en-us` | espeak-ng language |
 | `KOKORO_SPEED` | `1.0` | Speaking rate |
 | `KOKORO_WAV` | _(unset)_ | If set, write a 16-bit PCM WAV here instead of / in addition to playing |
-| `KOKORO_TRACT_DIR` | _(next to `model.onnx`)_ | Directory holding `stage1.onnx` + `stage2.onnx` |
+| `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/` |
 | `KOKORO_TRACT_THREADS` | _(all cores)_ | Thread-pool size for the stage-2 vocoder |
+| `RYK_SOCKET` | `$XDG_RUNTIME_DIR/ryk.sock` | Daemon socket for `--serve`/`--send` (see below) |
+
+(`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
+`ryk` ignores it, since it runs the split stages, not `model.onnx`.)
 
 Diagnostics (rarely needed): `KOKORO_TRACT_PROFILE=1` prints a per-op stage-2 profile,
 `KOKORO_TRACT_PROFILE_NODES=N` the top-N individual nodes, `KOKORO_TRACT_DUMP=dir` dumps
@@ -213,6 +219,48 @@ while the model works ahead. Since `ryk` is under realtime, its compute is maske
 playback — first-audio latency is just model-load + the first sentence, and the rest is seamless.
 (If you push it *over* realtime, e.g. on a slow phone CPU, you'll instead hear a short gap between
 sentences while the next is synthesized.)
+
+## Low-latency editor use (`--serve` / `--send`)
+
+Every plain `ryk` invocation compiles the two tract stages before the first sentence (~4 s on a
+desktop, more on a phone). Fine once; painful if you speak text repeatedly — e.g. reading
+selections from an editor. The **warm daemon** pays that cost once and keeps the compiled
+pipeline hot:
+
+```bash
+# The daemon auto-starts on the first --send and stays warm; no separate step needed.
+echo "Hello from the warm daemon." | ryk --send
+ryk --send "This one is near-instant."
+```
+
+`ryk --send` reads text from its arguments (or stdin) and hands it to the daemon, which
+synthesizes and plays it. The first `--send` starts the daemon if it isn't running and waits for
+it to warm up; every send after that returns immediately. Requests are **queued** and played in
+order, gaplessly. Voice/lang/speed are read per request (from `KOKORO_VOICE` / `KOKORO_LANG` /
+`KOKORO_SPEED` on the *client*), so you can switch voice without restarting the daemon. Run
+`ryk --serve` yourself if you'd rather manage the daemon explicitly (foreground, or as a service).
+
+The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
+an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the
+one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
+
+### From vim / emacs
+
+Pipe the current selection to the client over stdin — no shell-quoting or `ARG_MAX` limits, and
+newlines/paragraphs survive:
+
+- **vim** — speak the visual selection without modifying the buffer:
+  ```vim
+  xnoremap <leader>s :w !ryk --send<CR>
+  ```
+- **emacs** — speak the region asynchronously (the `0` destination means "don't wait"):
+  ```elisp
+  (defun ryk-speak-region (beg end)
+    (interactive "r")
+    (call-process-region beg end "ryk" nil 0 nil "--send"))
+  ```
+
+See [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md) for the design and open follow-ups.
 
 ## Termux / Android (aarch64)
 
