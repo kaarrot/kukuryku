@@ -32,7 +32,8 @@ struct Job {
 }
 
 /// Where the daemon listens and the client connects. `$RYK_SOCKET` wins; else
-/// `$XDG_RUNTIME_DIR/ryk.sock`; else `/tmp/ryk-$USER.sock`.
+/// `$XDG_RUNTIME_DIR/ryk.sock`; else `$TMPDIR/ryk-$USER.sock` (Termux sets
+/// `$TMPDIR` to `$PREFIX/tmp` and has no `/tmp`); else `/tmp/ryk-$USER.sock`.
 pub fn socket_path() -> PathBuf {
     if let Some(p) = std::env::var_os("RYK_SOCKET") {
         return PathBuf::from(p);
@@ -41,6 +42,9 @@ pub fn socket_path() -> PathBuf {
         return Path::new(&dir).join("ryk.sock");
     }
     let user = std::env::var("USER").unwrap_or_else(|_| "user".to_string());
+    if let Some(dir) = std::env::var_os("TMPDIR") {
+        return Path::new(&dir).join(format!("ryk-{user}.sock"));
+    }
     PathBuf::from(format!("/tmp/ryk-{user}.sock"))
 }
 
