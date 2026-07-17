@@ -54,7 +54,8 @@ than realtime. The sections below expand on each step.
 
   Not needed if you only ever write WAVs (`KOKORO_WAV`).
 - **A PulseAudio-compatible audio server** for playback (WSL2 provides this via WSLg; desktop
-  Linux via PulseAudio/PipeWire; Termux via `pulseaudio --start` with `module-sles-sink`).
+  Linux via PulseAudio/PipeWire). On Termux, `ryk` auto-starts one (`pulseaudio --start` with
+  `module-sles-sink`) when it uses the `pacat` sink, so no manual step is needed.
 - **~650 MB disk** (the fp32 `model.onnx` ≈ 311 MB plus the two split subgraphs ≈ 311 MB),
   **~80 MB RAM** to run.
 - **Nothing extra to download the assets** — `ryk --install-assets` fetches and unpacks them itself.
@@ -274,9 +275,12 @@ cargo build --release --bin ryk
 (Termux's `ffmpeg` package ships without `ffplay`, so playback there uses `pacat` from
 `pulseaudio-utils`; the binary auto-selects whichever is on `PATH`.)
 
-Provide the two split subgraphs (see [above](#obtaining-the-split-files)) in a directory,
-point `KOKORO_TRACT_DIR` at it, and start PulseAudio (e.g. `module-sles-sink`) for playback or just
-use `KOKORO_WAV`.
+Provide the two split subgraphs (see [above](#obtaining-the-split-files)) in a directory and
+point `KOKORO_TRACT_DIR` at it. When it falls back to `pacat`, `ryk` **auto-starts PulseAudio**
+(`pulseaudio --start`, loading `module-sles-sink` on Android; add args via `RYK_PULSE_ARGS`) if
+none is running — so playback works without a manual `pulseaudio --start`, which matters for the
+detached `--serve` daemon. Or just use `KOKORO_WAV`. (The `ffplay` path, used on desktop, instead
+relies on the audio server your session already runs — PulseAudio, PipeWire, or ALSA via SDL.)
 
 ## How it works, fidelity, and performance
 
