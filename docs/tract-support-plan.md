@@ -710,6 +710,22 @@ onnxruntime (0.4) now ~1.25×. Remaining stage-2 profile: `OptMatMul` 36% (MLAS-
 scope), `Scan` 24% (recurrent body-bound), `OptMulByScalar` 12%; `SinSq` down to 4%. The
 low-hanging levers are now exhausted — further parity to 0.4 needs matmul-kernel work.
 
+### Startup: parallel stage1/stage2 compile (2026-07-17) — compile 3.33 s → 1.97 s
+
+Time-to-first-audio (not RTF) was dominated by the one-time `into_optimized()` compile in
+`Pipeline::new`, which built stage 1 then stage 2 **sequentially**. The two compiles are
+independent (tract's optimizer holds no shared mutable state across models), so stage 2 now
+builds on a `std::thread` while stage 1 compiles on the calling thread; `new` joins the handle
+(mapping a thread panic to an anyhow error) before returning. Wall-time drops from the sum to
+~max of the two — measured **3.33 s → 1.97 s** on this box (stage 1 ~1.9 s, stage 2 ~1.5 s;
+under the parallel path stage 2's log line even prints first). Output is **bit-identical**
+(before/after WAV byte-for-byte equal); only wall-time changes, and it should help more on
+Termux where compiles are slower. No SIMD, no ARM/x86 divergence. Also added a
+`first audio at Ns` stderr line in `main` so the metric is measurable on both targets. The
+`PerShape` fallback (`KOKORO_TRACT_FORCE_PERSHAPE`) compiles lazily at run time and is
+untouched. `src/bin/kokoro_tract.rs` (`Pipeline::new`). Note this attacks startup, not the
+run-speed levers above — a quantized model would not have helped it.
+
 ### Where the ~0.94 vocoder gap comes from (2026-07-02)
 
 Bisected Stage 2 tract-vs-ORT with intermediate probe points (add tensors as extra
