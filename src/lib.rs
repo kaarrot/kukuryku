@@ -9,6 +9,16 @@
 #[cfg(feature = "tract")]
 pub mod install;
 
+/// The two-stage tract inference `Pipeline`. In the library so both the `ryk`
+/// binary's one-shot path and the `serve` daemon can share one compiled pipeline.
+#[cfg(feature = "tract")]
+pub mod tract_backend;
+
+/// `ryk --serve` (warm daemon) + `ryk --send` (thin client). Unix-only (uses
+/// `std::os::unix::net`); additive to the one-shot path.
+#[cfg(all(feature = "tract", unix))]
+pub mod serve;
+
 pub mod kokoro {
     use std::collections::HashMap;
     use std::io::Write;
