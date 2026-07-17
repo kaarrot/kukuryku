@@ -1,1 +1,16 @@
 /target
+/vendor
+
+# tract conv bench outputs (machine-specific)
+tools/bench_out/
+
+# project-local Kokoro model + split subgraphs (split_kokoro.py default output).
+# Kept out of the repo: the fp32 subgraphs are ~311 MB and don't compress.
+kokoro-onyx/
+# The same assets packed for a GitHub release; `ryk --install-assets` downloads
+# and unpacks it (and cleans up the .part on success).
+kokoro-onyx.zip
+kokoro-onyx.zip.part
+
+# nested tract crate build artifacts
+third_party/tract/**/target/
