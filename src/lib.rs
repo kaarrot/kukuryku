@@ -355,6 +355,10 @@ pub mod kokoro {
             return Ok(c);
         }
         if which("pacat") {
+            // pacat needs a running PulseAudio server. Start one if none is up —
+            // the `--serve` daemon is launched detached, so there's no interactive
+            // shell to run `pulseaudio --start` first.
+            ensure_pulseaudio();
             // --latency-msec keeps the buffer small: default prebuf is ~2s, which
             // means clips shorter than that never trigger auto-start and only play
             // via drain-on-EOF — a race that can drop samples on Android/OpenSL.
@@ -376,6 +380,46 @@ pub mod kokoro {
             .stderr(Stdio::null())
             .status()
             .is_ok()
+    }
+
+    /// Make sure a PulseAudio server is running before we hand back a `pacat` sink.
+    ///
+    /// Idempotent: `pulseaudio --check` exits 0 when a server is already up, so on
+    /// desktop Linux (which already has a per-session daemon) this is a no-op. When
+    /// none is running we start one — on Android/Termux that also needs the OpenSL ES
+    /// sink module, and extra start args can be passed via `RYK_PULSE_ARGS`. If the
+    /// `pulseaudio` binary is absent there's nothing to do; `pacat` then fails with
+    /// its own clear error.
+    fn ensure_pulseaudio() {
+        if !which("pulseaudio") {
+            return;
+        }
+        let running = Command::new("pulseaudio")
+            .arg("--check")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if running {
+            return;
+        }
+        eprintln!("[kokoro] no PulseAudio server running; starting one (pulseaudio --start)");
+        let mut c = Command::new("pulseaudio");
+        c.arg("--start").arg("--exit-idle-time=-1");
+        // Termux/Android has no default sink; load the OpenSL ES output.
+        if cfg!(target_os = "android") {
+            c.arg("--load=module-sles-sink");
+        }
+        if let Ok(extra) = std::env::var("RYK_PULSE_ARGS") {
+            c.args(extra.split_whitespace());
+        }
+        match c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status() {
+            Ok(s) if s.success() => {}
+            Ok(s) => eprintln!("[kokoro] `pulseaudio --start` exited with {s}; pacat may fail"),
+            Err(e) => eprintln!("[kokoro] could not start pulseaudio: {e}; pacat may fail"),
+        }
     }
 
     impl StreamPlayer {
