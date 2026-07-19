@@ -10,16 +10,18 @@
 // tract's static shape inference succeed. See docs/tract-support-plan.md.
 //
 // `ryk --install-assets` downloads the split stages + voices + model.onnx from the
-// pinned GitHub release into kokoro-onyx/ beside this executable (see install.rs).
+// pinned GitHub release into the OS-specific per-user data dir (see install.rs);
+// pass --dev to install beside the executable instead (for `cargo run` on a checkout).
 //
 // For the low-latency `--serve` (warm daemon) / `--send` (client) modes, see serve.rs
 // and docs/ryk-cli-and-daemon.md. The one-shot path below is unchanged by them.
 //
 // Config via env (mostly shared with `kokoro-ort`): KOKORO_VOICE / KOKORO_LANG /
 //   KOKORO_SPEED / KOKORO_WAV, plus:
-//   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx + voices/ (default:
-//                      ./kokoro-onyx, else kokoro-onyx/ beside the binary). Produce
-//                      them with tools/split_kokoro.py or `ryk --install-assets`.
+//   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx + voices/ (default
+//                      lookup: OS-specific user data dir, else ./kokoro-onyx, else
+//                      kokoro-onyx/ beside the binary). Produce it with
+//                      tools/split_kokoro.py or `ryk --install-assets`.
 //   KOKORO_TRACT_DUMP        if set to a dir, dump stage-boundary tensors as raw f32.
 //   KOKORO_TRACT_NAN_TRACE   step the plan node-by-node and print the first node whose
 //                            output contains a non-finite value (see nan_trace_run).
@@ -44,7 +46,13 @@ USAGE:
     ryk [TEXT...]           speak TEXT (all args joined); reads stdin if none given
     ryk --serve             run the warm daemon (compile once, serve over a socket)
     ryk --send [TEXT...]    send TEXT/stdin to the daemon (auto-starts it); low-latency
-    ryk --install-assets    download the split model + voices beside the binary
+    ryk --install-assets [--dev]
+                            download the split model + voices into the OS-specific
+                            per-user data dir (Linux: ~/.local/share/kukuryku,
+                            macOS: ~/Library/Application Support/kukuryku,
+                            Windows: %APPDATA%\\kukuryku). --dev writes beside the
+                            binary instead — for iterating on a checkout without
+                            polluting the real user data dir.
     ryk --help | -h         show this help
     ryk --version | -V      show version
 
@@ -54,6 +62,8 @@ ENV:
     KOKORO_SPEED   speaking rate multiplier (default 1.0)
     KOKORO_WAV     also write synthesized audio to this WAV path
     KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
+    KUKURYKU_ASSET_DIR  override the --install-assets target (absolute path, or
+                        the literal `exe` for the exe-adjacent dir)
     RYK_SOCKET     daemon socket path (default $XDG_RUNTIME_DIR/ryk.sock)
 ",
         version = env!("CARGO_PKG_VERSION"),
@@ -64,7 +74,20 @@ fn main() -> Result<()> {
     // Handle flags before read_text(), which would otherwise treat a flag as text
     // to speak (espeak-ng phonemizes "--help" into gibberish audio, not usage).
     match std::env::args().nth(1).as_deref() {
-        Some("--install-assets") => return install::run(),
+        Some("--install-assets") => {
+            // `--dev` is the only supported extra arg here: force the
+            // exe-adjacent install target (for `cargo run` on a checkout)
+            // instead of the OS-specific user data dir. Any other trailing arg
+            // is a mistake, not a filename.
+            let dev = match std::env::args().nth(2).as_deref() {
+                None => false,
+                Some("--dev") => true,
+                Some(other) => anyhow::bail!(
+                    "unknown argument `{other}` to --install-assets (only `--dev` accepted)"
+                ),
+            };
+            return install::run(dev);
+        }
         Some("--help" | "-h") => {
             print_help();
             return Ok(());

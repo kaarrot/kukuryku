@@ -73,6 +73,14 @@ mimalloc = { version = "0.1", default-features = false, optional = true }
 ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
 zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
 sha2 = { version = "0.10", optional = true }
+# XDG / OS-specific data dir for the unpacked model bundle. `cargo install`
+# drops `ryk` into `~/.cargo/bin` (not writable at install time on system-wide
+# installs, and the wrong place for ~600 MB of weights anyway), so
+# `--install-assets` lands the bundle in `dirs::data_dir()/kukuryku/kokoro-onyx`
+# instead — `~/.local/share/...` on Linux, `~/Library/Application Support/...`
+# on macOS, `%APPDATA%\...` on Windows. Non-optional so both backends
+# (tract + onnx) find the same install target.
+dirs = "5"
 
 [features]
 # `tract` (the pure-Rust `ryk` binary) is the default, so a plain `cargo build`

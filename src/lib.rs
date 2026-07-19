@@ -75,26 +75,45 @@ pub mod kokoro {
         pub voice_path: PathBuf,
     }
 
-    /// `kokoro-onyx/` beside the running executable — where `--install-assets` writes
-    /// the bundle, and where an installed `ryk` finds it from any working directory.
+    /// `kokoro-onyx/` beside the running executable. The dev-mode install
+    /// target: `--install-assets --dev` writes here for local iteration on a
+    /// checkout, so `cargo run` doesn't pollute the real user data dir. Also
+    /// serves as a last-resort runtime lookup so old installs keep working.
     pub fn exe_assets_dir() -> Option<PathBuf> {
         let exe = std::env::current_exe().ok()?;
         Some(exe.parent()?.join("kokoro-onyx"))
     }
 
+    /// The user data-dir install target: `dirs::data_dir()/kukuryku/kokoro-onyx`.
+    /// Right place for ~600 MB of weights: `~/.local/share/...` on Linux,
+    /// `~/Library/Application Support/...` on macOS, `%APPDATA%\...` on Windows.
+    /// Never falls back to CWD — a `None` here means the platform has no data-dir
+    /// (bare embedded, no `$HOME`), and callers should surface that as an error.
+    pub fn user_assets_dir() -> Option<PathBuf> {
+        Some(dirs::data_dir()?.join("kukuryku").join("kokoro-onyx"))
+    }
+
     /// Directory checked for a local asset bundle before hitting the network, in order:
     ///
     /// 1. `KOKORO_TRACT_DIR` — explicit override, always wins.
-    /// 2. `./kokoro-onyx` — the repo-root dev workflow (`cargo run` from the checkout).
-    /// 3. `kokoro-onyx/` beside the executable — an installed `ryk`, run from anywhere.
+    /// 2. `user_assets_dir()` — the standard install target for `--install-assets`.
+    /// 3. `./kokoro-onyx` — the repo-root dev workflow (`cargo run` from the checkout).
+    /// 4. `kokoro-onyx/` beside the executable — the `--install-assets --dev` target.
     ///
     /// Reuses `KOKORO_TRACT_DIR` (where the split stages live) so one env var can point
-    /// at a fully self-contained dir. Arms 2 and 3 are probed with `is_dir` so a missing
-    /// one falls through rather than short-circuiting; if neither exists we return the
-    /// CWD path, letting `resolve_assets` report against the familiar location.
+    /// at a fully self-contained dir. Arms 2–4 are probed with `is_dir` so a missing one
+    /// falls through rather than short-circuiting; if none exist we return the user data
+    /// path (or CWD if we couldn't compute one), letting `resolve_assets` report against
+    /// the location `--install-assets` would target.
     pub fn local_assets_dir() -> PathBuf {
         if let Some(dir) = std::env::var_os("KOKORO_TRACT_DIR") {
             return PathBuf::from(dir);
+        }
+        let user_dir = user_assets_dir();
+        if let Some(ref dir) = user_dir {
+            if dir.is_dir() {
+                return dir.clone();
+            }
         }
         let cwd_dir = PathBuf::from("kokoro-onyx");
         if cwd_dir.is_dir() {
@@ -105,7 +124,7 @@ pub mod kokoro {
                 return dir;
             }
         }
-        cwd_dir
+        user_dir.unwrap_or(cwd_dir)
     }
 
     /// Assets for the tract (`ryk`) binary: the directory holding the split stages

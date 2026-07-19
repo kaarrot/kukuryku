@@ -20,7 +20,10 @@ sudo apt install -y ffmpeg                     # playback via ffplay — optiona
 # 2. Build the pure-Rust binary.
 cargo build --release --bin ryk
 
-# 3. Download the model assets (~576 MB, once) — unpacks kokoro-onyx/ next to the binary
+# 3. Download the model assets (~576 MB, once) — unpacks into the OS-specific per-user data dir
+#    (Linux: ~/.local/share/kukuryku/kokoro-onyx/,
+#     macOS: ~/Library/Application Support/kukuryku/kokoro-onyx/,
+#     Windows: %APPDATA%\kukuryku\kokoro-onyx\)
 ./target/release/ryk --install-assets
 
 # 4. Speak
@@ -34,7 +37,42 @@ See
 exists and [Obtaining the split files](#obtaining-the-split-files) for the alternatives.
 
 If you already have a `kokoro-onyx/` in the project root — from a previous checkout or your own
-split — step 3 is unnecessary: `ryk` prefers it over the copy beside the binary.
+split — step 3 is unnecessary: `ryk` prefers it over the user-data-dir copy.
+
+## Install (users, no clone)
+
+Once you don't need a checkout, install the published binary and assets straight from
+crates.io / GitHub — no `cargo build`, no `target/`:
+
+```bash
+# 1. System deps (same as the Quick start)
+sudo apt install -y espeak-ng ffmpeg     # or: pkg install espeak-ng ffmpeg  (Termux)
+
+# 2. The binary — cargo installs it into ~/.cargo/bin (put that on your PATH)
+cargo install --locked --git https://github.com/kaarrot/kukuryku ryk
+
+# 3. The ~576 MB model bundle — into the OS per-user data dir (see step 3 in Quick start)
+ryk --install-assets
+
+# 4. Speak
+ryk "Hello from an installed ryk."
+```
+
+Why the split? `cargo install` copies the compiled binary into `~/.cargo/bin` and nothing else —
+no post-install hook, no asset placement. So `--install-assets` is a one-time follow-up that
+fetches the ~576 MB weight bundle into the OS's per-user data dir (`~/.local/share/kukuryku/…`
+on Linux, `~/Library/Application Support/kukuryku/…` on macOS, `%APPDATA%\kukuryku\…` on
+Windows). Re-running is a no-op once the stages are in place; delete the directory to force a
+re-install.
+
+Overrides:
+
+- `ryk --install-assets --dev` — installs beside the running binary (`target/debug/kokoro-onyx/`
+  on a `cargo run` checkout) instead of the user data dir. Use this when iterating on the
+  install logic so you don't pollute your real `~/.local/share`.
+- `KUKURYKU_ASSET_DIR=/some/path ryk --install-assets` — write the bundle at an explicit path
+  (packagers, CI, Nix). `KUKURYKU_ASSET_DIR=exe` selects the exe-adjacent layout without
+  hard-coding a path.
 
 ## Prerequisites
 
@@ -111,9 +149,12 @@ ryk --install-assets
 ```
 
 Pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases),
-verifies its sha256, and unpacks it into `kokoro-onyx/` **beside the `ryk` executable**.
-The archive carries `model.onnx` too, which is what makes the unpacked directory work **fully
-offline**, and includes the `af_heart` + `am_michael` voices.
+verifies its sha256, and unpacks it into `kokoro-onyx/` inside the **OS-specific per-user data
+dir** — `~/.local/share/kukuryku/` on Linux, `~/Library/Application Support/kukuryku/` on macOS,
+`%APPDATA%\kukuryku\` on Windows. Pass `--dev` to install beside the running executable
+instead (see the [Install](#install-users-no-clone) section). The archive carries `model.onnx`
+too, which is what makes the unpacked directory work **fully offline**, and includes the
+`af_heart` + `am_michael` voices.
 
 It targets a pinned asset release (`kokoro-onyx-model`); override with `$KUKURYKU_ASSET_TAG` or
 `$KUKURYKU_REPO`. The sha256 check is enforced only for the pinned tag — an overridden tag is a
@@ -139,9 +180,12 @@ source/dest: `python3 tools/split_kokoro.py path/to/model.onnx [OUT_DIR]`.
 The dir is resolved in order:
 
 1. `KOKORO_TRACT_DIR`, if set — always wins.
-2. `./kokoro-onyx` — running from the project root, as in the quick start.
-3. `kokoro-onyx/` beside the `ryk` executable — where `--install-assets` puts it, so an installed
-   binary works from any directory.
+2. `dirs::data_dir()/kukuryku/kokoro-onyx` — the OS-specific per-user data dir where
+   `--install-assets` unpacks the bundle. Standard install target for an installed `ryk`.
+3. `./kokoro-onyx` — running from the project root, as in the quick start.
+4. `kokoro-onyx/` beside the `ryk` executable — the `--install-assets --dev` target, for
+   iterating on a checkout without polluting the real user data dir. Also serves as a
+   last-resort arm so old installs keep working.
 
 If none of these holds `stage1.onnx` + `stage2.onnx`, `ryk` errors and points you at
 `ryk --install-assets` — the split stages are *not* on Hugging Face, so there is no useful
