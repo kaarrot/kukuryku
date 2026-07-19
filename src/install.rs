@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use sha2::{Digest, Sha256};
 
-use crate::kokoro::{env_or, exe_assets_dir};
+use crate::kokoro::{env_or, exe_assets_dir, user_assets_dir};
 
 /// Pinned deliberately, not `latest`: the assets are versioned separately from
 /// the code (they only change if the Kokoro weights or split_kokoro.py do), and
@@ -24,15 +24,44 @@ pub const ASSET_FILE: &str = "kokoro-onyx.zip";
 /// sha256 of the zip on the pinned tag above; re-zipping the assets changes it.
 pub const ASSET_SHA256: &str = "469f4a2425a57454bddb93cbe4dfdb6628f8f1de3a9d85fe6193f77e258de594";
 
-/// Where an installed `ryk` keeps its assets: `kokoro-onyx/` beside the executable.
-/// Deliberately the same helper the third lookup arm of
-/// [`crate::kokoro::local_assets_dir`] uses, so what this writes is what that finds.
+/// Where `--install-assets` writes the bundle by default: the OS-specific
+/// per-user data dir (see [`crate::kokoro::user_assets_dir`]). Matches the
+/// second (and now primary) lookup arm of [`crate::kokoro::local_assets_dir`]
+/// so what we write is what the runtime finds.
 pub fn install_dir() -> Result<PathBuf> {
+    user_assets_dir().context(
+        "no user data directory available on this platform \
+         (set KOKORO_TRACT_DIR or pass --dev to install beside the binary)",
+    )
+}
+
+/// Dev install location: `kokoro-onyx/` next to the running executable.
+/// Selected by `--install-assets --dev` (or `KUKURYKU_ASSET_DIR=exe`) so a
+/// `cargo run` on a checkout doesn't drop 600 MB into the real user data dir.
+pub fn dev_install_dir() -> Result<PathBuf> {
     exe_assets_dir().context("locating the running executable")
 }
 
-pub fn run() -> Result<()> {
-    let dest = install_dir()?;
+/// Which install target to write to, resolved from CLI + env in this order:
+/// 1. `KUKURYKU_ASSET_DIR` — explicit absolute path (or `exe` for the exe-adjacent dir).
+/// 2. `dev` flag (from `--install-assets --dev`) — force the exe-adjacent dir.
+/// 3. Default: the user data dir.
+fn resolve_install_dir(dev: bool) -> Result<PathBuf> {
+    if let Some(v) = std::env::var_os("KUKURYKU_ASSET_DIR") {
+        if v == "exe" {
+            return dev_install_dir();
+        }
+        return Ok(PathBuf::from(v));
+    }
+    if dev { dev_install_dir() } else { install_dir() }
+}
+
+/// `--install-assets` entry point. `dev=true` (from `--dev`) installs beside
+/// the running binary instead of the user data dir — matches the pre-XDG
+/// layout, useful when iterating on a `cargo run` checkout without polluting
+/// the real `~/.local/share/kukuryku`.
+pub fn run(dev: bool) -> Result<()> {
+    let dest = resolve_install_dir(dev)?;
     // The zip has a top-level kokoro-onyx/, so extracting at the parent lands the
     // files in `dest` itself rather than dest/kokoro-onyx/.
     let root = dest
@@ -53,19 +82,33 @@ pub fn run() -> Result<()> {
     let tag = env_or("KUKURYKU_ASSET_TAG", ASSET_TAG);
     let url = format!("https://github.com/{repo}/releases/download/{tag}/{ASSET_FILE}");
 
-    let part = root.join("kokoro-onyx.zip.part");
+    // Download inside the app's own OS-specific dir (parent of the extract
+    // target, i.e. `dirs::data_dir()/kukuryku/`) rather than /tmp: that keeps
+    // the ~600 MB fetch on the same filesystem as the final extract, so the
+    // extract is a plain rename/copy within one fs instead of a cross-device
+    // copy from tmpfs. Cleanup happens via the RAII guard below on every exit.
+    let part = root.join(format!("{ASSET_FILE}.part"));
+
+    // Ensure the zip is removed on every early return below (mismatch, extract
+    // failure, missing marker, panic) — not just the success path.
+    struct TempFile(PathBuf);
+    impl Drop for TempFile {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+    let _tmp_guard = TempFile(part.clone());
+
     let digest = download(&url, &part)?;
 
     // Only enforce the pinned hash for the pinned tag: an overridden tag/repo is
     // some other zip, and this hash says nothing about it.
     if tag == ASSET_TAG && repo == ASSET_REPO && digest != ASSET_SHA256 {
-        let _ = fs::remove_file(&part);
         bail!("sha256 mismatch\n  expected {ASSET_SHA256}\n  got      {digest}");
     }
 
     println!("== extracting -> {} ==", dest.display());
     unzip(&part, &root)?;
-    fs::remove_file(&part).ok();
 
     if !dest.join("stage1.onnx").is_file() {
         bail!("extracted archive has no {}/stage1.onnx", dest.display());
