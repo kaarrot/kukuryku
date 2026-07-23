@@ -37,9 +37,14 @@ pub mod kokoro {
         std::env::var(key).unwrap_or_else(|_| default.to_string())
     }
 
-    /// Text from CLI args, else stdin.
+    /// Text from CLI args, else stdin. A leading `--` is the usual argv separator and
+    /// is dropped, which is the only way to speak text that itself starts with a dash
+    /// (`ryk -- "- first bullet"`) without it looking like a flag.
     pub fn read_text() -> Result<String> {
-        let args: Vec<String> = std::env::args().skip(1).collect();
+        let mut args: Vec<String> = std::env::args().skip(1).collect();
+        if args.first().is_some_and(|a| a == "--") {
+            args.remove(0);
+        }
         if !args.is_empty() {
             return Ok(args.join(" "));
         }
@@ -57,9 +62,13 @@ pub mod kokoro {
     /// output differs slightly from Kokoro's reference phonemizer, so pronunciation
     /// is close but not identical — fine for a prototype. Unknown symbols (e.g. the
     /// ZWJ ties espeak emits) are dropped later by the vocab filter.
+    ///
+    /// The `--` before `text` matters: espeak-ng parses a leading `-` as a CLI option,
+    /// so a markdown bullet (`- item`) or a chunk like `---` would otherwise fail the
+    /// whole run with `unrecognized option`.
     pub fn phonemize(text: &str, lang: &str) -> Result<String> {
         let out = Command::new("espeak-ng")
-            .args(["-q", "--ipa=3", "-v", lang, text])
+            .args(["-q", "--ipa=3", "-v", lang, "--", text])
             .output()
             .context("running espeak-ng (is it installed?)")?;
         if !out.status.success() {
@@ -198,19 +207,65 @@ pub mod kokoro {
         pub token_len: usize, // unpadded token count
     }
 
+    /// Outcome of preparing one chunk. Neither non-`Ready` variant is fatal: a chunk
+    /// with nothing to say is simply not spoken, and the rest of the input plays on.
+    pub enum ChunkPrep {
+        /// Ready to synthesize.
+        Ready(Prepared),
+        /// Phonemized fine, but nothing survived the vocab filter — a punctuation-only
+        /// line (`};`, ```` ``` ````, `???`), which is what pasted code is full of.
+        Unspeakable,
+        /// espeak-ng itself failed on this chunk; already reported to stderr.
+        Failed,
+    }
+
     /// Phonemize + tokenize (Kokoro fixed vocab) + pick the voice style row.
-    pub fn prepare(text: &str, lang: &str, voice_path: &std::path::Path) -> Result<Prepared> {
+    ///
+    /// Returns `None` when the chunk phonemizes to nothing the model can say — see
+    /// [`ChunkPrep::Unspeakable`]. Callers that want espeak-ng failures tolerated too
+    /// should use [`prepare_or_skip`].
+    pub fn prepare(text: &str, lang: &str, voice_path: &std::path::Path) -> Result<Option<Prepared>> {
+        let phonemes = phonemize(text, lang)?;
+        prepare_from_phonemes(phonemes, voice_path)
+    }
+
+    /// [`prepare`], with espeak-ng process failures downgraded to a skip. Errors that
+    /// still propagate are setup problems (an unreadable voice file), not text ones.
+    pub fn prepare_or_skip(
+        text: &str,
+        lang: &str,
+        voice_path: &std::path::Path,
+    ) -> Result<ChunkPrep> {
+        let phonemes = match phonemize(text, lang) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("[kokoro] skipping chunk (espeak-ng failed: {e:#})");
+                return Ok(ChunkPrep::Failed);
+            }
+        };
+        Ok(match prepare_from_phonemes(phonemes, voice_path)? {
+            Some(p) => ChunkPrep::Ready(p),
+            None => ChunkPrep::Unspeakable,
+        })
+    }
+
+    /// Tokenize IPA against the fixed vocab and pick the style row. Symbols the vocab
+    /// doesn't carry (e.g. espeak's ZWJ ties) are dropped silently; if *nothing* is
+    /// left there is no utterance to make, hence `Ok(None)` rather than an error.
+    fn prepare_from_phonemes(
+        phonemes: String,
+        voice_path: &std::path::Path,
+    ) -> Result<Option<Prepared>> {
         let vocab: HashMap<String, i64> =
             serde_json::from_str(include_str!("kokoro_vocab.json")).context("parsing vocab")?;
 
-        let phonemes = phonemize(text, lang)?;
         let mut tokens: Vec<i64> = phonemes
             .chars()
             .filter_map(|c| vocab.get(&c.to_string()).copied())
             .collect();
         tokens.truncate(MAX_PHONEMES);
         if tokens.is_empty() {
-            bail!("no recognizable phonemes produced for the input text");
+            return Ok(None);
         }
         let token_len = tokens.len();
 
@@ -227,7 +282,7 @@ pub mod kokoro {
         ids.extend_from_slice(&tokens);
         ids.push(0);
 
-        Ok(Prepared { phonemes, ids, style, token_len })
+        Ok(Some(Prepared { phonemes, ids, style, token_len }))
     }
 
     /// Split a paragraph into sentence-sized chunks for streaming synthesis.
@@ -329,6 +384,20 @@ pub mod kokoro {
             out.push(cur);
         }
         out
+    }
+
+    /// Warn that a whole input produced no audio. Not an error: skipping every chunk is
+    /// a legitimate outcome for, say, a pasted block of pure punctuation. `failed` counts
+    /// [`ChunkPrep::Failed`] chunks, which point at a broken espeak-ng rather than at the text.
+    pub fn warn_nothing_spoken(failed: usize) {
+        if failed > 0 {
+            eprintln!(
+                "[kokoro] nothing speakable in input ({failed} chunk(s) failed to phonemize \
+                 — is espeak-ng installed?)"
+            );
+        } else {
+            eprintln!("[kokoro] nothing speakable in input");
+        }
     }
 
     /// Per-chunk metrics line (audio seconds, synth time, realtime factor).
@@ -517,5 +586,81 @@ pub mod kokoro {
         }
         std::fs::write(path, out)?;
         Ok(())
+    }
+}
+
+/// Chunk-skipping behaviour: text that can't be spoken must not abort the run.
+///
+/// These need `espeak-ng` on PATH but no model assets — the decision to skip a chunk
+/// is made before the voice file is ever read, so a bogus voice path is enough to
+/// prove which branch was taken.
+#[cfg(test)]
+mod tests {
+    use super::kokoro::*;
+    use std::path::Path;
+
+    fn prep(text: &str) -> anyhow::Result<Option<Prepared>> {
+        prepare(text, "en-us", Path::new("/nonexistent/voice.bin"))
+    }
+
+    /// Punctuation-only lines — what pasted code is full of — phonemize to nothing.
+    /// Reaching the (missing) voice file would mean we tried to synthesize them.
+    #[test]
+    fn punctuation_only_chunks_are_unspeakable() {
+        for text in ["};", "}", "|>", "```", "???", ". . ."] {
+            assert!(matches!(prep(text), Ok(None)), "expected {text:?} to be unspeakable");
+        }
+    }
+
+    /// Real code phonemizes fine and must still be spoken, not skipped. It gets past
+    /// the vocab filter, so the bogus voice path is what stops it.
+    #[test]
+    fn code_with_letters_is_still_spoken() {
+        for text in ["#[derive(Debug)]", "=>", "*/", "for x in xs {"] {
+            assert!(prep(text).is_err(), "expected {text:?} to reach the voice-file read");
+        }
+    }
+
+    /// espeak-ng parses a leading `-` as a CLI option unless argv carries `--`.
+    #[test]
+    fn leading_dash_text_phonemizes() {
+        let out = phonemize("- first bullet", "en-us").expect("leading dash must not fail");
+        assert!(!out.is_empty());
+    }
+
+    /// The reported bug, end to end at the chunk level: prose with code pasted into it.
+    /// The `};` line used to abort the whole run, so the prose after it was never spoken.
+    /// `split_sentences`' merge rule absorbs most stray punctuation into a speakable
+    /// neighbour; what reaches `prepare` alone is a fragment with no speakable neighbour
+    /// to merge into (a leading one) or a punctuation run too long to merge.
+    #[test]
+    fn code_interleaved_with_prose_keeps_the_prose() {
+        for (text, want_skipped) in [
+            ("};\nThe function returns early there.", "};"),
+            (
+                "The parser handles that case.\n>>>>>>>>>>>>>>>>>>>>\nThen it recurses downward.",
+                ">>>>>>>>>>>>>>>>>>>>",
+            ),
+        ] {
+            let chunks = split_sentences(text);
+            let skipped: Vec<&String> =
+                chunks.iter().filter(|c| matches!(prep(c), Ok(None))).collect();
+            assert_eq!(skipped, vec![want_skipped], "wrong chunks skipped for {text:?}");
+            // Every other chunk still gets synthesized, so no prose is lost.
+            assert!(chunks.iter().filter(|c| !matches!(prep(c), Ok(None))).count() >= 1);
+        }
+    }
+
+    /// An input that is nothing but punctuation: every chunk skipped, no audio, no error.
+    #[test]
+    fn all_punctuation_input_is_entirely_unspeakable() {
+        let chunks = split_sentences("};\n```\n???");
+        assert!(chunks.iter().all(|c| matches!(prep(c), Ok(None))));
+    }
+
+    /// A missing voice file is a setup problem and must stay fatal, never a skip.
+    #[test]
+    fn voice_errors_are_not_swallowed() {
+        assert!(matches!(prepare_or_skip("hello there", "en-us", Path::new("/nope.bin")), Err(_)));
     }
 }

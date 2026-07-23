@@ -44,6 +44,7 @@ fn print_help() {
 
 USAGE:
     ryk [TEXT...]           speak TEXT (all args joined); reads stdin if none given
+    ryk -- TEXT...          same, but TEXT may start with a dash (`ryk -- \"- bullet\"`)
     ryk --serve             run the warm daemon (compile once, serve over a socket)
     ryk --send [TEXT...]    send TEXT/stdin to the daemon (auto-starts it); low-latency
     ryk --install-assets [--dev]
@@ -118,6 +119,8 @@ fn main() -> Result<()> {
                 anyhow::bail!("--send is only supported on Unix; use one-shot `ryk TEXT`");
             }
         }
+        // `--` ends flag parsing; `read_text` drops it and speaks the rest verbatim.
+        Some("--") => {}
         // An unknown `--flag` is a mistake, not something to read aloud.
         Some(arg) if arg.starts_with("--") => {
             anyhow::bail!("unknown flag `{arg}` (see `ryk --help`)");
@@ -152,9 +155,19 @@ fn main() -> Result<()> {
     let want_wav = std::env::var("KOKORO_WAV").ok();
     let mut all: Vec<f32> = Vec::new();
     let (mut total_audio, mut total_infer) = (0usize, 0f64);
+    // Chunks that yielded no utterance are skipped, not fatal; `failed` separates a
+    // broken espeak-ng from text that simply has nothing to say (see warn_nothing_spoken).
+    let (mut spoken, mut failed) = (0usize, 0usize);
 
     for (i, sentence) in sentences.iter().enumerate() {
-        let prep = kokoro::prepare(sentence, &lang, &assets.voice_path)?;
+        let prep = match kokoro::prepare_or_skip(sentence, &lang, &assets.voice_path)? {
+            kokoro::ChunkPrep::Ready(prep) => prep,
+            kokoro::ChunkPrep::Unspeakable => continue,
+            kokoro::ChunkPrep::Failed => {
+                failed += 1;
+                continue;
+            }
+        };
         let infer_start = std::time::Instant::now();
         let audio = pipeline.synthesize(&prep.ids, &prep.style, speed)?;
         let infer_secs = infer_start.elapsed().as_secs_f64();
@@ -166,12 +179,18 @@ fn main() -> Result<()> {
             all.extend_from_slice(&audio);
         }
         player.push(audio)?;
-        if i == 0 {
+        spoken += 1;
+        // Keyed off `spoken`, not `i`: chunk 0 may have been skipped.
+        if spoken == 1 {
             eprintln!("[kokoro] first audio at {:.2}s", t0.elapsed().as_secs_f64());
         }
     }
 
     player.finish()?;
+    if spoken == 0 {
+        kokoro::warn_nothing_spoken(failed);
+        return Ok(());
+    }
     if let Some(path) = want_wav {
         kokoro::write_wav(&path, &all)?;
         eprintln!("[kokoro] wrote {path}");

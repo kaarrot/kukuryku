@@ -223,6 +223,13 @@ that window. `ryk` handles arbitrarily long text by **splitting the input into s
 synthesizing each as its own short utterance — always inside the window, and each with its own
 clean prosody.
 
+**Chunks with nothing to say are skipped, not fatal.** Text pasted from an editor often carries
+punctuation-only lines (`};`, a ``` ``` ``` fence, a `>>>>>>>>` separator) that espeak-ng phonemizes
+to nothing. `ryk` drops those chunks, logs one line to stderr, and speaks the rest — it no longer
+aborts the whole run partway through. If *every* chunk is unspeakable it warns
+`nothing speakable in input` and exits cleanly. Only setup problems (a missing voice file, no
+espeak-ng) are still hard errors.
+
 Playback streams with look-ahead buffering: one persistent `ffplay` plays sentences back-to-back
 while the model works ahead. Since `ryk` is under realtime, its compute is masked behind
 playback — first-audio latency is just model-load + the first sentence, and the rest is seamless.
