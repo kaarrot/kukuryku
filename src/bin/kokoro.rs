@@ -77,9 +77,19 @@ fn main() -> Result<()> {
     let want_wav = std::env::var("KOKORO_WAV").ok();
     let mut all: Vec<f32> = Vec::new();
     let (mut total_audio, mut total_infer) = (0usize, 0f64);
+    // Chunks that yielded no utterance are skipped, not fatal; `failed` separates a
+    // broken espeak-ng from text that simply has nothing to say (see warn_nothing_spoken).
+    let (mut spoken, mut failed) = (0usize, 0usize);
 
     for (i, sentence) in sentences.iter().enumerate() {
-        let prep = kokoro::prepare(sentence, &lang, &assets.voice_path)?;
+        let prep = match kokoro::prepare_or_skip(sentence, &lang, &assets.voice_path)? {
+            kokoro::ChunkPrep::Ready(prep) => prep,
+            kokoro::ChunkPrep::Unspeakable => continue,
+            kokoro::ChunkPrep::Failed => {
+                failed += 1;
+                continue;
+            }
+        };
 
         let infer_start = std::time::Instant::now();
         let id_tensor =
@@ -108,9 +118,14 @@ fn main() -> Result<()> {
             all.extend_from_slice(&audio);
         }
         player.push(audio)?;
+        spoken += 1;
     }
 
     player.finish()?;
+    if spoken == 0 {
+        kokoro::warn_nothing_spoken(failed);
+        return Ok(());
+    }
     if let Some(path) = want_wav {
         kokoro::write_wav(&path, &all)?;
         eprintln!("[kokoro] wrote {path}");

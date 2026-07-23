@@ -177,10 +177,24 @@ fn speak_job(
         "[ryk-serve] speak: voice={} lang={} speed={} {} sentence(s)",
         job.voice, job.lang, job.speed, sentences.len(),
     );
+    // A chunk with nothing to say is skipped so the rest of the utterance still plays,
+    // and an all-skipped job is a warning rather than an error — the daemon stays warm.
+    let (mut spoken, mut failed) = (0usize, 0usize);
     for sentence in &sentences {
-        let prep = kokoro::prepare(sentence, &job.lang, &voice_path)?;
+        let prep = match kokoro::prepare_or_skip(sentence, &job.lang, &voice_path)? {
+            kokoro::ChunkPrep::Ready(prep) => prep,
+            kokoro::ChunkPrep::Unspeakable => continue,
+            kokoro::ChunkPrep::Failed => {
+                failed += 1;
+                continue;
+            }
+        };
         let audio = pipeline.synthesize(&prep.ids, &prep.style, job.speed)?;
         player.push(audio)?;
+        spoken += 1;
+    }
+    if spoken == 0 {
+        kokoro::warn_nothing_spoken(failed);
     }
     Ok(())
 }
@@ -240,8 +254,12 @@ pub fn send() -> Result<()> {
 
 /// Client text: args after `--send` (joined), else stdin.
 fn client_text() -> Result<String> {
-    // argv: [prog, "--send", TEXT...] — skip the program name and the flag.
-    let args: Vec<String> = std::env::args().skip(2).collect();
+    // argv: [prog, "--send", TEXT...] — skip the program name and the flag. A `--`
+    // after `--send` is the argv separator (`ryk --send -- "- bullet"`), not text.
+    let mut args: Vec<String> = std::env::args().skip(2).collect();
+    if args.first().is_some_and(|a| a == "--") {
+        args.remove(0);
+    }
     if !args.is_empty() {
         return Ok(args.join(" "));
     }
