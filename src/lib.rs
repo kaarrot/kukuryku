@@ -19,11 +19,23 @@ pub mod tract_backend;
 #[cfg(all(feature = "tract", unix))]
 pub mod serve;
 
+/// Verbose logging: `-v`/`--verbose` on the CLI silences by default and re-enables
+/// the `[kokoro]`/`[ryk-serve]`/`[ryk]` informational chatter. Use via [`info!`].
+/// Errors and warnings (espeak failures, "nothing speakable", daemon errors, …)
+/// print unconditionally — those are outcomes, not stats.
+#[macro_export]
+macro_rules! info {
+    ($($arg:tt)*) => {
+        if $crate::kokoro::verbose() { eprintln!($($arg)*) }
+    };
+}
+
 pub mod kokoro {
     use std::collections::HashMap;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
+    use std::sync::OnceLock;
 
     use anyhow::{Context, Result, bail};
     use hf_hub::api::sync::Api;
@@ -37,11 +49,31 @@ pub mod kokoro {
         std::env::var(key).unwrap_or_else(|_| default.to_string())
     }
 
+    /// Verbose-logging switch (see the crate-level [`crate::info!`] macro). Off by
+    /// default; `main` calls [`set_verbose`] when the user passes `-v`/`--verbose`,
+    /// and `KOKORO_VERBOSE=1` in the environment does the same for callers that
+    /// don't parse CLI args (e.g. the `--serve` daemon spawned by `--send`).
+    static VERBOSE: OnceLock<bool> = OnceLock::new();
+
+    pub fn set_verbose(v: bool) {
+        // First setter wins. Main runs before anything logs, so this is fine; a
+        // second call (won't happen in practice) is silently ignored.
+        let _ = VERBOSE.set(v);
+    }
+
+    pub fn verbose() -> bool {
+        *VERBOSE.get_or_init(|| std::env::var_os("KOKORO_VERBOSE").is_some())
+    }
+
     /// Text from CLI args, else stdin. A leading `--` is the usual argv separator and
     /// is dropped, which is the only way to speak text that itself starts with a dash
-    /// (`ryk -- "- first bullet"`) without it looking like a flag.
+    /// (`ryk -- "- first bullet"`) without it looking like a flag. `-v`/`--verbose`
+    /// is also dropped so it can appear anywhere in argv without being spoken.
     pub fn read_text() -> Result<String> {
-        let mut args: Vec<String> = std::env::args().skip(1).collect();
+        let mut args: Vec<String> = std::env::args()
+            .skip(1)
+            .filter(|a| a != "-v" && a != "--verbose")
+            .collect();
         if args.first().is_some_and(|a| a == "--") {
             args.remove(0);
         }
@@ -400,8 +432,12 @@ pub mod kokoro {
         }
     }
 
-    /// Per-chunk metrics line (audio seconds, synth time, realtime factor).
+    /// Per-chunk metrics line (audio seconds, synth time, realtime factor). Verbose
+    /// only; the default mode stays quiet — these are stats, not user output.
     pub fn report_chunk(idx: usize, total: usize, token_len: usize, audio_len: usize, infer_secs: f64) {
+        if !verbose() {
+            return;
+        }
         let audio_secs = audio_len as f64 / SAMPLE_RATE as f64;
         let rtf = infer_secs / audio_secs.max(1e-9);
         eprintln!(

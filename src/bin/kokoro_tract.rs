@@ -28,7 +28,7 @@
 
 use anyhow::Result;
 
-use kukuryku::{install, kokoro, tract_backend};
+use kukuryku::{info, install, kokoro, tract_backend};
 
 // Retain and reuse the large intermediate-tensor segments instead of returning them
 // to the OS after every op (glibc mmaps/munmaps big blocks, costing first-touch page
@@ -56,6 +56,8 @@ USAGE:
                             polluting the real user data dir.
     ryk --help | -h         show this help
     ryk --version | -V      show version
+    -v | --verbose          print the `[kokoro] ...` progress/stats lines
+                            (default is silent; also enabled by KOKORO_VERBOSE=1)
 
 ENV:
     KOKORO_VOICE   voice name (default af_heart)
@@ -72,15 +74,25 @@ ENV:
 }
 
 fn main() -> Result<()> {
+    // -v/--verbose can appear anywhere in argv (`ryk -v hi` or `ryk hi -v`); flip
+    // the switch first, then reason from an argv that has it removed so the
+    // positional flag parsing below stays trivial.
+    if std::env::args().any(|a| a == "-v" || a == "--verbose") {
+        kokoro::set_verbose(true);
+    }
+    let args: Vec<String> = std::env::args()
+        .filter(|a| a != "-v" && a != "--verbose")
+        .collect();
+
     // Handle flags before read_text(), which would otherwise treat a flag as text
     // to speak (espeak-ng phonemizes "--help" into gibberish audio, not usage).
-    match std::env::args().nth(1).as_deref() {
+    match args.get(1).map(String::as_str) {
         Some("--install-assets") => {
             // `--dev` is the only supported extra arg here: force the
             // exe-adjacent install target (for `cargo run` on a checkout)
             // instead of the OS-specific user data dir. Any other trailing arg
             // is a mistake, not a filename.
-            let dev = match std::env::args().nth(2).as_deref() {
+            let dev = match args.get(2).map(String::as_str) {
                 None => false,
                 Some("--dev") => true,
                 Some(other) => anyhow::bail!(
@@ -129,27 +141,27 @@ fn main() -> Result<()> {
     }
 
     let t0 = std::time::Instant::now();
-    eprintln!("[kokoro] backend: tract (pure Rust, two-stage split)");
+    info!("[kokoro] backend: tract (pure Rust, two-stage split)");
 
     let text = kokoro::read_text()?;
     let voice = kokoro::env_or("KOKORO_VOICE", "af_heart");
     let lang = kokoro::env_or("KOKORO_LANG", "en-us");
     let speed: f32 = kokoro::env_or("KOKORO_SPEED", "1.0").parse().unwrap_or(1.0);
 
-    eprintln!("[kokoro] resolving assets...");
+    info!("[kokoro] resolving assets...");
     // The tract path loads stage1.onnx + stage2.onnx, never the monolithic
     // model.onnx — so resolve the split-model dir directly rather than deriving it
     // from a model.onnx we'd have to download but never read.
     let assets = kokoro::resolve_assets_tract(&voice)?;
     let dir = assets.dir.clone();
-    eprintln!("[kokoro] loading split model (stage1.onnx + stage2.onnx) from {}", dir.display());
+    info!("[kokoro] loading split model (stage1.onnx + stage2.onnx) from {}", dir.display());
 
     // Compile both subgraphs once (symbolic length dims) and reuse the plans for
     // every sentence — so per-sentence cost is just `run`, not re-optimization.
     let mut pipeline = tract_backend::Pipeline::new(&dir)?;
 
     let sentences = kokoro::split_sentences(&text);
-    eprintln!("[kokoro] {} sentence chunk(s)", sentences.len());
+    info!("[kokoro] {} sentence chunk(s)", sentences.len());
 
     let player = kokoro::StreamPlayer::new()?;
     let want_wav = std::env::var("KOKORO_WAV").ok();
@@ -182,7 +194,7 @@ fn main() -> Result<()> {
         spoken += 1;
         // Keyed off `spoken`, not `i`: chunk 0 may have been skipped.
         if spoken == 1 {
-            eprintln!("[kokoro] first audio at {:.2}s", t0.elapsed().as_secs_f64());
+            info!("[kokoro] first audio at {:.2}s", t0.elapsed().as_secs_f64());
         }
     }
 
@@ -193,10 +205,10 @@ fn main() -> Result<()> {
     }
     if let Some(path) = want_wav {
         kokoro::write_wav(&path, &all)?;
-        eprintln!("[kokoro] wrote {path}");
+        info!("[kokoro] wrote {path}");
     }
     let audio_secs = total_audio as f64 / kokoro::SAMPLE_RATE as f64;
-    eprintln!(
+    info!(
         "[kokoro] done: {audio_secs:.2}s audio | infer {total_infer:.2}s | RTF {:.3} | total {:.2}s",
         total_infer / audio_secs.max(1e-9),
         t0.elapsed().as_secs_f64(),

@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use tract_onnx::prelude::*;
 use tract_onnx::tract_hir::infer::ShapeFactoid;
 
+use crate::info;
+
 /// One input dimension in a plan spec: a fixed size, or a named symbol shared
 /// across inputs. Shared symbols let a *single* optimized plan serve every
 /// phoneme count N / frame count F, so `into_optimized()` is paid once total
@@ -314,7 +316,7 @@ fn build_executor() -> tract_linalg::multithread::Executor {
         .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
         .unwrap_or(1);
     if threads > 1 {
-        eprintln!("[kokoro] tract executor: {threads} threads");
+        info!("[kokoro] tract executor: {threads} threads");
         Executor::multithread(threads)
     } else {
         Executor::SingleThread
@@ -351,10 +353,13 @@ impl StagePlan {
         }
         match Stage::build(path, spec) {
             Ok(st) => {
-                eprintln!("[kokoro] {name}: compiled one symbolic plan (length-independent)");
+                info!("[kokoro] {name}: compiled one symbolic plan (length-independent)");
                 StagePlan::Symbolic(st)
             }
             Err(e) => {
+                // Warning (not `info!`): symbolic-plan failure means every distinct
+                // length re-pays the ~1–4 s optimize cost — surprising perf cliff
+                // that users should see even in silent mode.
                 eprintln!(
                     "[kokoro] {name}: symbolic optimize failed ({e:#}); \
                      falling back to per-exact-shape plans"
