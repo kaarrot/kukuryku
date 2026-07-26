@@ -21,6 +21,7 @@ use anyhow::{Context, Result};
 use ort::session::Session;
 use ort::value::TensorRef;
 
+use kukuryku::info;
 use kukuryku::kokoro::{self, STYLE_DIM};
 
 /// With ort's `load-dynamic`, onnxruntime is dlopened at runtime from
@@ -40,7 +41,7 @@ fn ensure_ort_dylib() {
         if o.status.success() {
             let p = String::from_utf8_lossy(&o.stdout).trim().to_string();
             if !p.is_empty() {
-                eprintln!("[kokoro] onnxruntime: {p}");
+                info!("[kokoro] onnxruntime: {p}");
                 // SAFE: single-threaded, before any ort call reads the var.
                 unsafe { std::env::set_var("ORT_DYLIB_PATH", &p) };
             }
@@ -49,9 +50,15 @@ fn ensure_ort_dylib() {
 }
 
 fn main() -> Result<()> {
+    // -v/--verbose can appear anywhere; flip the switch before anything logs.
+    // Mirrors the ryk (tract) binary — same silent-by-default policy.
+    if std::env::args().any(|a| a == "-v" || a == "--verbose") {
+        kokoro::set_verbose(true);
+    }
+
     let t0 = std::time::Instant::now();
     ensure_ort_dylib();
-    eprintln!("[kokoro] backend: onnxruntime");
+    info!("[kokoro] backend: onnxruntime");
 
     let text = kokoro::read_text()?;
     let voice = kokoro::env_or("KOKORO_VOICE", "af_heart");
@@ -59,16 +66,16 @@ fn main() -> Result<()> {
     let lang = kokoro::env_or("KOKORO_LANG", "en-us");
     let speed: f32 = kokoro::env_or("KOKORO_SPEED", "1.0").parse().unwrap_or(1.0);
 
-    eprintln!("[kokoro] resolving assets...");
+    info!("[kokoro] resolving assets...");
     let assets = kokoro::resolve_assets(&model_file, &voice)?;
 
     // Split into sentence chunks and stream: synthesize each, queue it, and let
     // playback of earlier sentences mask synthesis of later ones (see StreamPlayer).
     let sentences = kokoro::split_sentences(&text);
-    eprintln!("[kokoro] {} sentence chunk(s)", sentences.len());
+    info!("[kokoro] {} sentence chunk(s)", sentences.len());
 
     // ---- ONNX inference: load the model once, run one forward pass per chunk ----
-    eprintln!("[kokoro] loading model ({model_file})...");
+    info!("[kokoro] loading model ({model_file})...");
     let mut session = Session::builder()?
         .commit_from_file(&assets.model_path)
         .context("loading kokoro onnx model")?;
@@ -128,10 +135,10 @@ fn main() -> Result<()> {
     }
     if let Some(path) = want_wav {
         kokoro::write_wav(&path, &all)?;
-        eprintln!("[kokoro] wrote {path}");
+        info!("[kokoro] wrote {path}");
     }
     let audio_secs = total_audio as f64 / kokoro::SAMPLE_RATE as f64;
-    eprintln!(
+    info!(
         "[kokoro] done: {audio_secs:.2}s audio | infer {total_infer:.2}s | RTF {:.3} | total {:.2}s",
         total_infer / audio_secs.max(1e-9),
         t0.elapsed().as_secs_f64(),

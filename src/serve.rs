@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 
+use crate::info;
 use crate::kokoro;
 use crate::tract_backend::Pipeline;
 
@@ -78,10 +79,10 @@ pub fn serve() -> Result<()> {
     let voice0 = kokoro::env_or("KOKORO_VOICE", "af_heart");
     let assets = kokoro::resolve_assets_tract(&voice0)?;
     let dir = assets.dir.clone();
-    eprintln!("[ryk-serve] compiling pipeline from {} ...", dir.display());
+    info!("[ryk-serve] compiling pipeline from {} ...", dir.display());
     let t0 = Instant::now();
     let pipeline = Pipeline::new(&dir)?;
-    eprintln!("[ryk-serve] pipeline ready in {:.2}s", t0.elapsed().as_secs_f64());
+    info!("[ryk-serve] pipeline ready in {:.2}s", t0.elapsed().as_secs_f64());
 
     // One long-lived audio sink for the daemon's whole life: queued utterances
     // play gaplessly back-to-back and ffplay/pacat stays warm.
@@ -95,7 +96,7 @@ pub fn serve() -> Result<()> {
     let listener =
         UnixListener::bind(&path).with_context(|| format!("binding {}", path.display()))?;
     let _guard = SocketGuard(path.clone());
-    eprintln!("[ryk-serve] listening on {}", path.display());
+    info!("[ryk-serve] listening on {}", path.display());
 
     for conn in listener.incoming() {
         match conn {
@@ -127,7 +128,7 @@ fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>) -> Result<()> {
             let chars = job.text.chars().count();
             tx.send(job).map_err(|_| anyhow::anyhow!("worker thread gone"))?;
             conn.write_all(b"ok\n").ok();
-            eprintln!("[ryk-serve] queued utterance ({chars} chars)");
+            info!("[ryk-serve] queued utterance ({chars} chars)");
             Ok(())
         }
         Err(e) => {
@@ -173,7 +174,7 @@ fn speak_job(
 ) -> Result<()> {
     let voice_path = resolve_voice(dir, &job.voice, voices)?;
     let sentences = kokoro::split_sentences(&job.text);
-    eprintln!(
+    info!(
         "[ryk-serve] speak: voice={} lang={} speed={} {} sentence(s)",
         job.voice, job.lang, job.speed, sentences.len(),
     );
@@ -248,15 +249,20 @@ pub fn send() -> Result<()> {
     if let Some(msg) = resp.strip_prefix("err:") {
         bail!("daemon rejected request:{msg}");
     }
-    eprintln!("[ryk] queued {} chars -> {}", text.chars().count(), path.display());
+    info!("[ryk] queued {} chars -> {}", text.chars().count(), path.display());
     Ok(())
 }
 
 /// Client text: args after `--send` (joined), else stdin.
 fn client_text() -> Result<String> {
-    // argv: [prog, "--send", TEXT...] — skip the program name and the flag. A `--`
-    // after `--send` is the argv separator (`ryk --send -- "- bullet"`), not text.
-    let mut args: Vec<String> = std::env::args().skip(2).collect();
+    // Drop the program name, `--send` itself, and any `-v`/`--verbose` (which may
+    // appear on either side of `--send`, e.g. `ryk -v --send hi` or
+    // `ryk --send -v hi`). What's left is user text plus an optional argv
+    // separator `--` that read-verbatim callers use for leading-dash text.
+    let mut args: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|a| a != "--send" && a != "-v" && a != "--verbose")
+        .collect();
     if args.first().is_some_and(|a| a == "--") {
         args.remove(0);
     }
@@ -278,7 +284,7 @@ fn client_text() -> Result<String> {
 fn spawn_daemon(path: &Path) -> Result<()> {
     let exe = std::env::current_exe().context("locating the ryk executable")?;
     let log = path.with_extension("log");
-    eprintln!(
+    info!(
         "[ryk] no daemon at {}; starting one (log: {}) ...",
         path.display(),
         log.display(),
