@@ -201,6 +201,7 @@ network fallback for them. Only a missing **voice** is fetched from the HF cache
 | `KOKORO_VOICE` | `af_heart` | Voice (e.g. `am_michael`, `bf_emma`, …) |
 | `KOKORO_LANG` | `en-us` | espeak-ng language |
 | `KOKORO_SPEED` | `1.0` | Speaking rate |
+| `KOKORO_RAW` | _(unset)_ | If set, skip the markdown cleanup and speak input verbatim (same as `--raw`) |
 | `KOKORO_WAV` | _(unset)_ | If set, write a 16-bit PCM WAV here instead of / in addition to playing |
 | `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/` |
 | `KOKORO_TRACT_THREADS` | _(all cores)_ | Thread-pool size for the stage-2 vocoder |
@@ -213,6 +214,31 @@ Diagnostics (rarely needed): `KOKORO_TRACT_PROFILE=1` prints a per-op stage-2 pr
 `KOKORO_TRACT_PROFILE_NODES=N` the top-N individual nodes, `KOKORO_TRACT_DUMP=dir` dumps
 stage-boundary tensors. `tools/bench_conv.sh <label>` runs a fixed-sentence best-of-N timing +
 profile for A/B work.
+
+### Markdown is stripped before speaking
+
+Listening to a `.md` file used to mean hearing its syntax: a nested `** bullet **` had every
+asterisk pronounced, headings announced their hashes, and tables and code fences turned into long
+runs of punctuation names. `ryk` now runs a **markdown cleanup pass over all input by default**
+(`src/markdown.rs`), before the sentence splitting below.
+
+- **Dropped:** fenced code blocks, tables, horizontal rules, images, HTML tags, link URLs,
+  link-reference definitions.
+- **Kept, markers removed:** emphasis (`**bold**`, `_italic_`, `~~strike~~`), headings (which gain
+  a period so they land as their own utterance), blockquotes, bullet markers, inline `` `code` ``
+  (usually a function or file name that belongs in the sentence), and link *text*.
+- **Left alone:** ordered-list numbers (`1.` — informative when listening), and anything that only
+  looks like markup: `3 * 4 = 12`, `snake_case_name`, `Vec<String>`, `a < b > c`.
+
+Pass **`--raw`** (or set `KOKORO_RAW=1`) to speak the input verbatim instead. To see what the pass
+does to a file without listening to it:
+
+```bash
+ryk --show-text < notes.md
+```
+
+`docs/markdown-stripping.md` has the full rule table and the reasoning behind the false-positive
+guards.
 
 ### Long input, and streaming across sentences
 

@@ -54,16 +54,22 @@ USAGE:
                             Windows: %APPDATA%\\kukuryku). --dev writes beside the
                             binary instead — for iterating on a checkout without
                             polluting the real user data dir.
+    ryk --show-text [TEXT...]
+                            print the cleaned-up text that would be spoken, then
+                            exit — for checking the markdown pass on a real file
     ryk --help | -h         show this help
     ryk --version | -V      show version
     -v | --verbose          print the `[kokoro] ...` progress/stats lines
                             (default is silent; also enabled by KOKORO_VERBOSE=1)
+    --raw                   speak the input verbatim: skip the markdown cleanup
+                            that is applied by default (also: KOKORO_RAW=1)
 
 ENV:
     KOKORO_VOICE   voice name (default af_heart)
     KOKORO_LANG    espeak-ng language (default en-us)
     KOKORO_SPEED   speaking rate multiplier (default 1.0)
     KOKORO_WAV     also write synthesized audio to this WAV path
+    KOKORO_RAW     set to disable the markdown cleanup (same as --raw)
     KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
     KUKURYKU_ASSET_DIR  override the --install-assets target (absolute path, or
                         the literal `exe` for the exe-adjacent dir)
@@ -80,8 +86,13 @@ fn main() -> Result<()> {
     if std::env::args().any(|a| a == "-v" || a == "--verbose") {
         kokoro::set_verbose(true);
     }
+    // Same deal for `--raw`, which turns *off* the markdown pass that is otherwise
+    // applied to all input (see kokoro::clean_input).
+    if std::env::args().any(|a| a == "--raw") {
+        kokoro::set_strip_markdown(false);
+    }
     let args: Vec<String> = std::env::args()
-        .filter(|a| a != "-v" && a != "--verbose")
+        .filter(|a| a != "-v" && a != "--verbose" && a != "--raw")
         .collect();
 
     // Handle flags before read_text(), which would otherwise treat a flag as text
@@ -107,6 +118,13 @@ fn main() -> Result<()> {
         }
         Some("--version" | "-V") => {
             println!("ryk {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        }
+        // Print what *would* be spoken and stop. The markdown pass is otherwise
+        // invisible until you hear it, so this is how you check it on a real file
+        // (and how you confirm `--raw` bypasses it).
+        Some("--show-text") => {
+            println!("{}", kokoro::read_text()?);
             return Ok(());
         }
         // Warm-daemon modes (Unix-only): keep the compiled pipeline hot across

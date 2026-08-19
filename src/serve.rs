@@ -253,26 +253,30 @@ pub fn send() -> Result<()> {
     Ok(())
 }
 
-/// Client text: args after `--send` (joined), else stdin.
+/// Client text: args after `--send` (joined), else stdin, markdown-stripped.
+///
+/// Stripping happens here, client-side, so `--raw` is honoured per invocation and
+/// the wire header stays `voice\tlang\tspeed`. The daemon speaks whatever body it
+/// receives and never re-strips it.
 fn client_text() -> Result<String> {
-    // Drop the program name, `--send` itself, and any `-v`/`--verbose` (which may
-    // appear on either side of `--send`, e.g. `ryk -v --send hi` or
+    // Drop the program name, `--send` itself, and any `-v`/`--verbose`/`--raw`
+    // (which may appear on either side of `--send`, e.g. `ryk -v --send hi` or
     // `ryk --send -v hi`). What's left is user text plus an optional argv
     // separator `--` that read-verbatim callers use for leading-dash text.
     let mut args: Vec<String> = std::env::args()
         .skip(1)
-        .filter(|a| a != "--send" && a != "-v" && a != "--verbose")
+        .filter(|a| a != "--send" && a != "-v" && a != "--verbose" && a != "--raw")
         .collect();
     if args.first().is_some_and(|a| a == "--") {
         args.remove(0);
     }
     if !args.is_empty() {
-        return Ok(args.join(" "));
+        return Ok(kokoro::clean_input(&args.join(" ")));
     }
     let mut buf = String::new();
     std::io::stdin().read_to_string(&mut buf).context("reading stdin")?;
-    let buf = buf.trim().to_string();
-    if buf.is_empty() {
+    let buf = kokoro::clean_input(buf.trim());
+    if buf.trim().is_empty() {
         bail!("no text provided (pass after --send or pipe to stdin)");
     }
     Ok(buf)

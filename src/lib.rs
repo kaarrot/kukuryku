@@ -19,6 +19,10 @@ pub mod tract_backend;
 #[cfg(all(feature = "tract", unix))]
 pub mod serve;
 
+/// Markdown-aware input cleanup. Unconditional (no feature gate): it is pure
+/// std and both binaries' text path runs through it.
+pub mod markdown;
+
 /// Verbose logging: `-v`/`--verbose` on the CLI silences by default and re-enables
 /// the `[kokoro]`/`[ryk-serve]`/`[ryk]` informational chatter. Use via [`info!`].
 /// Errors and warnings (espeak failures, "nothing speakable", daemon errors, …)
@@ -65,26 +69,54 @@ pub mod kokoro {
         *VERBOSE.get_or_init(|| std::env::var_os("KOKORO_VERBOSE").is_some())
     }
 
-    /// Text from CLI args, else stdin. A leading `--` is the usual argv separator and
-    /// is dropped, which is the only way to speak text that itself starts with a dash
+    /// Markdown-stripping switch (see [`crate::markdown::strip`]). *On* by default —
+    /// the common input is a `.md` file or an editor selection from one, and the
+    /// rules leave plain prose alone. `--raw` on the CLI turns it off, as does
+    /// `KOKORO_RAW` in the environment for callers that don't parse argv.
+    static STRIP_MD: OnceLock<bool> = OnceLock::new();
+
+    pub fn set_strip_markdown(v: bool) {
+        // First setter wins, like set_verbose: main runs before any text is read.
+        let _ = STRIP_MD.set(v);
+    }
+
+    pub fn strip_markdown() -> bool {
+        *STRIP_MD.get_or_init(|| std::env::var_os("KOKORO_RAW").is_none())
+    }
+
+    /// Apply the markdown pass unless it's switched off. The single place both
+    /// text readers funnel through, so the one-shot and `--send` paths can't drift.
+    pub fn clean_input(text: &str) -> String {
+        if strip_markdown() { crate::markdown::strip(text) } else { text.to_string() }
+    }
+
+    /// Text from CLI args, else stdin, with markdown syntax stripped (see
+    /// [`clean_input`]). A leading `--` is the usual argv separator and is dropped,
+    /// which is the only way to speak text that itself starts with a dash
     /// (`ryk -- "- first bullet"`) without it looking like a flag. `-v`/`--verbose`
-    /// is also dropped so it can appear anywhere in argv without being spoken.
+    /// and `--raw` are also dropped so they can appear anywhere in argv without
+    /// being spoken, as is `--show-text` (which reads through this function to
+    /// print exactly what would have been said).
+    ///
+    /// The markdown pass runs here rather than per chunk because its fenced-code
+    /// state machine is multi-line — it has to see the whole document before
+    /// [`split_sentences`] cuts it up.
     pub fn read_text() -> Result<String> {
         let mut args: Vec<String> = std::env::args()
             .skip(1)
-            .filter(|a| a != "-v" && a != "--verbose")
+            .filter(|a| a != "-v" && a != "--verbose" && a != "--raw" && a != "--show-text")
             .collect();
         if args.first().is_some_and(|a| a == "--") {
             args.remove(0);
         }
         if !args.is_empty() {
-            return Ok(args.join(" "));
+            return Ok(clean_input(&args.join(" ")));
         }
         use std::io::Read;
         let mut buf = String::new();
         std::io::stdin().read_to_string(&mut buf)?;
-        let buf = buf.trim().to_string();
-        if buf.is_empty() {
+        let buf = clean_input(buf.trim());
+        if buf.trim().is_empty() {
             bail!("no text provided (pass as args or pipe to stdin)");
         }
         Ok(buf)
@@ -692,6 +724,29 @@ mod tests {
     fn all_punctuation_input_is_entirely_unspeakable() {
         let chunks = split_sentences("};\n```\n???");
         assert!(chunks.iter().all(|c| matches!(prep(c), Ok(None))));
+    }
+
+    /// The markdown pass and the chunker have to agree: after stripping, a real
+    /// document should have no chunk left that phonemizes to nothing. Before the
+    /// strip, the fence/table/rule lines were exactly the chunks that got skipped.
+    #[test]
+    fn stripped_markdown_leaves_no_unspeakable_chunks() {
+        let doc = "# Design notes\n\n\
+                   - **bold** item with `Pipeline::new` inline\n\
+                   - see [the doc](docs/playback_control.md)\n\n\
+                   ```rust\nlet x = 1;\n```\n\n\
+                   | a | b |\n|---|---|\n\n\
+                   ---\n\n\
+                   That is all.";
+        let cleaned = crate::markdown::strip(doc);
+        let chunks = split_sentences(&cleaned);
+        assert!(!chunks.is_empty());
+        for chunk in &chunks {
+            assert!(!matches!(prep(chunk), Ok(None)), "{chunk:?} phonemized to nothing");
+        }
+        // The syntax itself is gone, the prose is not.
+        assert!(!cleaned.contains("**") && !cleaned.contains("```") && !cleaned.contains('|'));
+        assert!(cleaned.contains("bold item") && cleaned.contains("That is all."));
     }
 
     /// A missing voice file is a setup problem and must stay fatal, never a skip.

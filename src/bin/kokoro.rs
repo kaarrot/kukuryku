@@ -55,6 +55,10 @@ fn main() -> Result<()> {
     if std::env::args().any(|a| a == "-v" || a == "--verbose") {
         kokoro::set_verbose(true);
     }
+    // `--raw` disables the markdown cleanup applied to all input by default.
+    if std::env::args().any(|a| a == "--raw") {
+        kokoro::set_strip_markdown(false);
+    }
 
     let t0 = std::time::Instant::now();
     ensure_ort_dylib();

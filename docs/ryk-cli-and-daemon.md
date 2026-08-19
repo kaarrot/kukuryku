@@ -96,6 +96,11 @@ Per-request voice/lang/speed is cheap (voice path resolved on demand, cached in 
 `HashMap<String, PathBuf>`) and avoids "restart the daemon to change voice". The client
 always sends the header from its own env, so there's no ambiguity.
 
+The **markdown cleanup happens client-side**, in `client_text` (see
+`docs/markdown-stripping.md`): the body on the wire is already stripped, so `--raw` is honoured
+per invocation without a fourth header field, and the daemon never re-strips what it receives.
+A non-`ryk` client speaking this socket directly gets no cleanup and should strip its own text.
+
 ### Socket path
 
 `$RYK_SOCKET` if set, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`. On
