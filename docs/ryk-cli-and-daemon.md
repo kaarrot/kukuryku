@@ -63,8 +63,12 @@ dependencies** (std `UnixListener`/`UnixStream`, `thread`, `mpsc`, `process`).
 ### Daemon — `ryk --serve`
 
 - Resolve assets + `Pipeline::new()` once.
-- One long-lived `StreamPlayer` (ffplay/pacat stays warm; playback is gapless *across*
-  queued requests, not just within one).
+- One `StreamPlayer` for the daemon's life. The sink process (`ffplay`/`pacat`) stays warm
+  across overlapping or nearby requests (gapless playback, including while the next sentence
+  synthesizes). After a **10-minute grace period** (`RYK_SINK_IDLE_MS`, default `600000`)
+  with an empty queue it closes, so PulseAudio can idle-exit instead of pinning the OpenSL
+  HAL all day. The next `push` respawns it. Ten minutes is long enough for a typical
+  "select → hear, pause, select again" editor session.
 - A **listener** accepts connections; a single **worker thread** owns the `Pipeline` and
   drains an `mpsc` job queue FIFO. Per job: `split_sentences` → per sentence `prepare` +
   `synthesize` → `player.push` (backpressure paces synthesis to playback).
@@ -134,6 +138,12 @@ a new `src/serve.rs` can use it. The bin slims to flag dispatch + the existing o
 - **Barge-in** (stop current, speak new) — nicer for rapid re-selection, but needs a
   `StreamPlayer` kill path (kill the ffplay/pacat child + abort remaining sentences between
   utterances). Deferred in favor of queue.
-- **Idle auto-shutdown** (`RYK_IDLE_TIMEOUT`) so a forgotten daemon doesn't linger.
+- **Idle auto-shutdown** (`RYK_IDLE_TIMEOUT`, default 1800s) so a forgotten daemon doesn't
+  linger. Implemented: the accept loop is nonblocking and exits once no jobs are pending
+  and the audio sink has closed. The sink itself uses a **10-minute grace**
+  (`RYK_SINK_IDLE_MS`, default `600000`) after the last sample before closing, so an
+  editor session can `--send` again without restarting OpenSL; the daemon idle clock
+  starts only after that grace. `0`/`off`/`none`/`-1` disables the daemon timeout.
+  `--send` already auto-starts a replacement.
 - **Windows** — `AF_UNIX`/named-pipe transport; one-shot already works there.
 - **Voice preloading** — should the daemon pre-resolve a set of voices, or lazily on first use?

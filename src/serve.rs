@@ -10,12 +10,14 @@
 //! daemon. See docs/ryk-cli-and-daemon.md.
 
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::Shutdown;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
@@ -59,8 +61,45 @@ impl Drop for SocketGuard {
 
 // ------------------------------- daemon --------------------------------------
 
+/// Default `--serve` lifetime with no jobs and no live audio sink. `--send` already
+/// auto-starts a replacement, so a forgotten daemon shouldn't sit for days. `0` /
+/// `off` / `none` / `-1` disables. Override with `$RYK_IDLE_TIMEOUT` (seconds).
+pub const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 1800;
+
+/// Parse `$RYK_IDLE_TIMEOUT`. `None` means "run until killed".
+pub(crate) fn parse_idle_timeout(val: Option<&str>) -> Option<Duration> {
+    match val {
+        None => Some(Duration::from_secs(DEFAULT_IDLE_TIMEOUT_SECS)),
+        Some(s) if matches!(s, "" | "0" | "off" | "none" | "-1") => None,
+        Some(s) => match s.parse::<u64>() {
+            Ok(0) => None,
+            Ok(secs) => Some(Duration::from_secs(secs)),
+            Err(_) => Some(Duration::from_secs(DEFAULT_IDLE_TIMEOUT_SECS)),
+        },
+    }
+}
+
+fn daemon_idle_timeout() -> Option<Duration> {
+    parse_idle_timeout(std::env::var("RYK_IDLE_TIMEOUT").ok().as_deref())
+}
+
+/// Parse `$RYK_SINK_IDLE_MS`. Missing or unparseable values use the 10-minute default.
+pub(crate) fn parse_sink_idle_ms(val: Option<&str>) -> Duration {
+    match val {
+        None => kokoro::DEFAULT_SINK_IDLE,
+        Some(s) => match s.parse::<u64>() {
+            Ok(ms) => Duration::from_millis(ms),
+            Err(_) => kokoro::DEFAULT_SINK_IDLE,
+        },
+    }
+}
+
+fn sink_idle_duration() -> Duration {
+    parse_sink_idle_ms(std::env::var("RYK_SINK_IDLE_MS").ok().as_deref())
+}
+
 /// Run the warm daemon: compile the pipeline once, then serve queued utterances
-/// over a Unix socket until killed.
+/// over a Unix socket until killed or idle.
 pub fn serve() -> Result<()> {
     let path = socket_path();
 
@@ -84,28 +123,51 @@ pub fn serve() -> Result<()> {
     let pipeline = Pipeline::new(&dir)?;
     info!("[ryk-serve] pipeline ready in {:.2}s", t0.elapsed().as_secs_f64());
 
-    // One long-lived audio sink for the daemon's whole life: queued utterances
-    // play gaplessly back-to-back and ffplay/pacat stays warm.
-    let player = kokoro::StreamPlayer::new()?;
+    // Sink stays warm across overlapping / nearby utterances, then closes so
+    // PulseAudio can idle-exit. The compiled pipeline stays hot until the
+    // daemon idle timeout.
+    let sink_idle = sink_idle_duration();
+    info!(
+        "[ryk-serve] audio sink grace {}s after last sample",
+        sink_idle.as_secs()
+    );
+    let player = kokoro::StreamPlayer::with_sink_idle(sink_idle)?;
+    let sink_live = player.sink_live_flag();
 
     // A single worker owns the pipeline (it's `&mut` / single-instance) and drains
     // an mpsc queue FIFO — that is the "queue" concurrency policy for free.
+    let pending = Arc::new(AtomicUsize::new(0));
     let (tx, rx) = mpsc::channel::<Job>();
-    let worker = std::thread::spawn(move || worker_loop(pipeline, player, dir, rx));
+    let pending_w = Arc::clone(&pending);
+    let worker = std::thread::spawn(move || worker_loop(pipeline, player, dir, rx, pending_w));
 
     let listener =
         UnixListener::bind(&path).with_context(|| format!("binding {}", path.display()))?;
     let _guard = SocketGuard(path.clone());
-    info!("[ryk-serve] listening on {}", path.display());
+    let idle_timeout = daemon_idle_timeout();
+    match idle_timeout {
+        Some(t) => info!(
+            "[ryk-serve] listening on {} (idle timeout {}s)",
+            path.display(),
+            t.as_secs()
+        ),
+        None => info!("[ryk-serve] listening on {} (no idle timeout)", path.display()),
+    }
 
-    for conn in listener.incoming() {
-        match conn {
-            Ok(conn) => {
-                if let Err(e) = handle_conn(conn, &tx) {
-                    eprintln!("[ryk-serve] connection error: {e:#}");
+    if let Some(timeout) = idle_timeout {
+        listener.set_nonblocking(true).context("setting listener nonblocking")?;
+        accept_loop(&listener, &tx, &pending, &sink_live, timeout)?;
+    } else {
+        // Blocking accept: no 250ms poll when the user disabled idle-exit.
+        for conn in listener.incoming() {
+            match conn {
+                Ok(conn) => {
+                    if let Err(e) = handle_conn(conn, &tx, &pending) {
+                        eprintln!("[ryk-serve] connection error: {e:#}");
+                    }
                 }
+                Err(e) => eprintln!("[ryk-serve] accept error: {e}"),
             }
-            Err(e) => eprintln!("[ryk-serve] accept error: {e}"),
         }
     }
 
@@ -114,9 +176,49 @@ pub fn serve() -> Result<()> {
     Ok(())
 }
 
+fn accept_loop(
+    listener: &UnixListener,
+    tx: &mpsc::Sender<Job>,
+    pending: &AtomicUsize,
+    sink_live: &AtomicBool,
+    idle_timeout: Duration,
+) -> Result<()> {
+    let mut idle_since: Option<Instant> = None;
+    loop {
+        match listener.accept() {
+            Ok((conn, _)) => {
+                idle_since = None;
+                if let Err(e) = handle_conn(conn, tx, pending) {
+                    eprintln!("[ryk-serve] connection error: {e:#}");
+                }
+            }
+            Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted => {
+                let truly_idle =
+                    pending.load(Ordering::Acquire) == 0 && !sink_live.load(Ordering::Acquire);
+                if truly_idle {
+                    let since = idle_since.get_or_insert_with(Instant::now);
+                    if since.elapsed() >= idle_timeout {
+                        eprintln!(
+                            "[ryk-serve] idle for {}s; shutting down",
+                            idle_timeout.as_secs()
+                        );
+                        return Ok(());
+                    }
+                } else {
+                    idle_since = None;
+                }
+                std::thread::sleep(Duration::from_millis(250));
+            }
+            Err(e) => eprintln!("[ryk-serve] accept error: {e}"),
+        }
+    }
+}
+
 /// Read one utterance from a connection (header line + body to EOF), enqueue it,
 /// and ack the client.
-fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>) -> Result<()> {
+fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>, pending: &AtomicUsize) -> Result<()> {
+    // Blocking read on this connection; the listener itself is nonblocking.
+    conn.set_nonblocking(false).ok();
     let mut reader = BufReader::new(conn.try_clone().context("cloning connection")?);
     let mut header = String::new();
     reader.read_line(&mut header).context("reading request header")?;
@@ -126,7 +228,11 @@ fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>) -> Result<()> {
     match parse_request(&header, body) {
         Ok(job) => {
             let chars = job.text.chars().count();
-            tx.send(job).map_err(|_| anyhow::anyhow!("worker thread gone"))?;
+            pending.fetch_add(1, Ordering::Release);
+            if tx.send(job).is_err() {
+                pending.fetch_sub(1, Ordering::Release);
+                bail!("worker thread gone");
+            }
             conn.write_all(b"ok\n").ok();
             info!("[ryk-serve] queued utterance ({chars} chars)");
             Ok(())
@@ -152,11 +258,37 @@ fn parse_request(header: &str, body: String) -> Result<Job> {
     Ok(Job { voice, lang, speed, text })
 }
 
+/// Decrements the pending-job count when a worker iteration finishes (including
+/// on panic unwind), so a failed synth cannot pin the idle timer forever.
+struct PendingGuard<'a>(&'a AtomicUsize);
+impl Drop for PendingGuard<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Release);
+    }
+}
+
+/// Keeps `pacat`/`ffplay` open while the next sentence of this utterance is still
+/// synthesizing — that gap can be longer than the sink idle, and closing the pipe
+/// there is what produces a click between sentences.
+struct SinkHold<'a>(&'a kokoro::StreamPlayer);
+impl Drop for SinkHold<'_> {
+    fn drop(&mut self) {
+        self.0.release_sink();
+    }
+}
+
 /// The worker: owns the pipeline, drains the queue, plays each utterance. Runs
 /// until the queue is closed (daemon shutdown), then drains playback.
-fn worker_loop(mut pipeline: Pipeline, player: kokoro::StreamPlayer, dir: PathBuf, rx: mpsc::Receiver<Job>) {
+fn worker_loop(
+    mut pipeline: Pipeline,
+    player: kokoro::StreamPlayer,
+    dir: PathBuf,
+    rx: mpsc::Receiver<Job>,
+    pending: Arc<AtomicUsize>,
+) {
     let mut voices: HashMap<String, PathBuf> = HashMap::new();
     for job in rx {
+        let _pending = PendingGuard(&pending);
         if let Err(e) = speak_job(&mut pipeline, &player, &dir, &mut voices, &job) {
             eprintln!("[ryk-serve] synth error: {e:#}");
         }
@@ -172,6 +304,8 @@ fn speak_job(
     voices: &mut HashMap<String, PathBuf>,
     job: &Job,
 ) -> Result<()> {
+    player.hold_sink();
+    let _hold = SinkHold(player);
     let voice_path = resolve_voice(dir, &job.voice, voices)?;
     let sentences = kokoro::split_sentences(&job.text);
     info!(
@@ -322,5 +456,48 @@ fn connect_retry(path: &Path) -> Result<UnixStream> {
                 )));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn idle_timeout_default_is_thirty_minutes() {
+        assert_eq!(parse_idle_timeout(None), Some(Duration::from_secs(1800)));
+    }
+
+    #[test]
+    fn idle_timeout_zero_or_off_disables() {
+        for v in ["0", "off", "none", "-1", ""] {
+            assert_eq!(parse_idle_timeout(Some(v)), None, "{v}");
+        }
+    }
+
+    #[test]
+    fn idle_timeout_parses_seconds() {
+        assert_eq!(parse_idle_timeout(Some("60")), Some(Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn idle_timeout_garbage_falls_back_to_default() {
+        assert_eq!(parse_idle_timeout(Some("nope")), Some(Duration::from_secs(1800)));
+    }
+
+    #[test]
+    fn sink_idle_default_is_ten_minutes() {
+        assert_eq!(parse_sink_idle_ms(None), Duration::from_secs(10 * 60));
+        assert_eq!(kokoro::DEFAULT_SINK_IDLE, Duration::from_secs(10 * 60));
+    }
+
+    #[test]
+    fn sink_idle_parses_milliseconds() {
+        assert_eq!(parse_sink_idle_ms(Some("3000")), Duration::from_millis(3000));
+    }
+
+    #[test]
+    fn sink_idle_garbage_falls_back_to_default() {
+        assert_eq!(parse_sink_idle_ms(Some("nope")), Duration::from_secs(10 * 60));
     }
 }

@@ -84,7 +84,8 @@ Overrides:
   - **pulseaudio-utils** (fallback, used on Termux where ffplay is unavailable) — playback
     shells out to `pacat`. `pkg install pulseaudio` on Termux. On Termux, `ryk` auto-starts one
     (`pulseaudio --start` with `module-sles-sink`) when it uses the `pacat` sink, so no manual
-    step is needed.
+    step is needed. PulseAudio is **not** started with `--exit-idle-time=-1`; once `pacat`
+    disconnects it can exit after its usual ~20s idle.
 
 ## Binaries
 
@@ -206,6 +207,9 @@ network fallback for them. Only a missing **voice** is fetched from the HF cache
 | `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/` |
 | `KOKORO_TRACT_THREADS` | _(all cores)_ | Thread-pool size for the stage-2 vocoder |
 | `RYK_SOCKET` | `$XDG_RUNTIME_DIR/ryk.sock` | Daemon socket for `--serve`/`--send` (see below) |
+| `RYK_IDLE_TIMEOUT` | `1800` (seconds) | `--serve` exits after this long with no jobs and no live audio sink. `0`/`off`/`none`/`-1` disables. `--send` auto-starts a replacement. |
+| `RYK_SINK_IDLE_MS` | `600000` (10 minutes) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe (no OpenSL restart click). Then the sink closes and PulseAudio can idle-exit. |
+| `RYK_PULSE_ARGS` | _(unset)_ | Extra args for `pulseaudio --start` (Termux). Do **not** pass `--exit-idle-time=-1` unless you want the daemon to pin the audio HAL awake. |
 
 (`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
 `ryk` ignores it, since it runs the split stages, not `model.onnx`.)
@@ -281,6 +285,14 @@ order, gaplessly. Voice/lang/speed are read per request (from `KOKORO_VOICE` / `
 `KOKORO_SPEED` on the *client*), so you can switch voice without restarting the daemon. Run
 `ryk --serve` yourself if you'd rather manage the daemon explicitly (foreground, or as a service).
 
+The **compiled pipeline** stays hot between sends. The **audio sink** stays warm for a
+**10-minute grace period** after the last sample (`RYK_SINK_IDLE_MS`, default `600000`):
+consecutive sentences of one utterance, and `--send`s that overlap or arrive within those
+10 minutes, share one `pacat`/`ffplay` pipe so playback stays gapless. After the grace period
+the sink exits and PulseAudio can idle-exit (~20s more). After `RYK_IDLE_TIMEOUT` seconds of
+no jobs *and* no live sink (default 30 minutes, so ~40 minutes after the last send) the daemon
+itself exits; the next `--send` starts a fresh one (~4s compile).
+
 The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
 an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the
 one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
@@ -301,10 +313,14 @@ cargo build --release --bin ryk
 
 Provide the two split subgraphs (see [above](#obtaining-the-split-files)) in a directory and
 point `KOKORO_TRACT_DIR` at it. When it falls back to `pacat`, `ryk` **auto-starts PulseAudio**
-(`pulseaudio --start`, loading `module-sles-sink` on Android; add args via `RYK_PULSE_ARGS`) if
+(`pulseaudio --start`, loading `module-sles-sink` on Android; extra args via `RYK_PULSE_ARGS`) if
 none is running — so playback works without a manual `pulseaudio --start`, which matters for the
-detached `--serve` daemon. Or just use `KOKORO_WAV`. (The `ffplay` path, used on desktop, instead
-relies on the audio server your session already runs — PulseAudio, PipeWire, or ALSA via SDL.)
+detached `--serve` daemon. It does **not** pin PulseAudio awake (`--exit-idle-time=-1`); `--serve`
+keeps `pacat` up for a **10-minute grace period** after the last sample (`RYK_SINK_IDLE_MS`) so
+an editor session can send again without restarting OpenSL, then closes the sink so PulseAudio
+can idle-exit. The next utterance after that grace respawns both. Or just use `KOKORO_WAV`.
+(The `ffplay` path, used on desktop, instead relies on the audio server your session already
+runs — PulseAudio, PipeWire, or ALSA via SDL.)
 
 ## How it works, fidelity, and performance
 
