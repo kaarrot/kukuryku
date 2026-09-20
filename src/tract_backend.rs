@@ -303,22 +303,269 @@ fn f32_tensor(v: &TValue) -> Result<Tensor> {
     Ok(Tensor::from_shape(&shape, &data)?)
 }
 
-/// Build the tract thread pool (KOKORO_TRACT_THREADS, else available cores).
-/// tract runs single-threaded by default (~1 core); we scope this pool to the
-/// conv/matmul-heavy stage 2 only, since stage 1's matmuls are tiny and the pool
-/// overhead would slow them down.
+/// One online core and its capacity (sysfs `cpu_capacity`, else max freq).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CpuCore {
+    id: usize,
+    capacity: u32,
+}
+
+/// `$KOKORO_TRACT_CPUSET`: keyword or an explicit list (`4-6`, `0-3,7`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CpusetSpec {
+    Auto,
+    Mid,
+    Little,
+    All,
+    OffPrime,
+    Explicit(Vec<usize>),
+}
+
+/// Parse `0-3,7` / `4-6` style lists. Empty or garbage → `None`.
+fn parse_cpu_list(s: &str) -> Option<Vec<usize>> {
+    let mut out = Vec::new();
+    for part in s.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        if let Some((a, b)) = part.split_once('-') {
+            let start: usize = a.trim().parse().ok()?;
+            let end: usize = b.trim().parse().ok()?;
+            if start > end {
+                return None;
+            }
+            out.extend(start..=end);
+        } else {
+            out.push(part.parse().ok()?);
+        }
+    }
+    out.sort_unstable();
+    out.dedup();
+    if out.is_empty() { None } else { Some(out) }
+}
+
+fn format_cpu_list(cpus: &[usize]) -> String {
+    if cpus.is_empty() {
+        return String::new();
+    }
+    let mut parts = Vec::new();
+    let mut start = cpus[0];
+    let mut prev = cpus[0];
+    for &c in &cpus[1..] {
+        if c == prev + 1 {
+            prev = c;
+            continue;
+        }
+        parts.push(fmt_cpu_range(start, prev));
+        start = c;
+        prev = c;
+    }
+    parts.push(fmt_cpu_range(start, prev));
+    parts.join(",")
+}
+
+fn fmt_cpu_range(a: usize, b: usize) -> String {
+    if a == b { format!("{a}") } else { format!("{a}-{b}") }
+}
+
+fn parse_cpuset_spec(s: &str) -> Option<CpusetSpec> {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "" | "auto" => Some(CpusetSpec::Auto),
+        "mid" => Some(CpusetSpec::Mid),
+        "little" => Some(CpusetSpec::Little),
+        "all" => Some(CpusetSpec::All),
+        "off-prime" | "off_prime" => Some(CpusetSpec::OffPrime),
+        other => parse_cpu_list(other).map(CpusetSpec::Explicit),
+    }
+}
+
+fn cpuset_from_env() -> CpusetSpec {
+    match std::env::var("KOKORO_TRACT_CPUSET") {
+        Err(_) => CpusetSpec::Auto,
+        Ok(s) => parse_cpuset_spec(&s).unwrap_or_else(|| {
+            eprintln!("[kokoro] ignoring invalid KOKORO_TRACT_CPUSET={s:?}");
+            CpusetSpec::Auto
+        }),
+    }
+}
+
+/// Capacity groups, ascending. Each group's cpu ids are sorted.
+fn groups_by_capacity(cpus: &[CpuCore]) -> Vec<(u32, Vec<usize>)> {
+    let mut map = std::collections::BTreeMap::<u32, Vec<usize>>::new();
+    for c in cpus {
+        map.entry(c.capacity).or_default().push(c.id);
+    }
+    map.into_iter()
+        .map(|(cap, mut ids)| {
+            ids.sort_unstable();
+            (cap, ids)
+        })
+        .collect()
+}
+
+fn nth_highest_group(cpus: &[CpuCore], n: usize) -> Option<Vec<usize>> {
+    let groups = groups_by_capacity(cpus);
+    let idx = groups.len().checked_sub(n + 1)?;
+    Some(groups[idx].1.clone())
+}
+
+/// Unique max-capacity core (the prime), if that group has size 1.
+fn unique_prime(cpus: &[CpuCore]) -> Option<usize> {
+    let groups = groups_by_capacity(cpus);
+    let last = groups.last()?;
+    if last.1.len() == 1 { Some(last.1[0]) } else { None }
+}
+
+/// Drop a singleton prime, then take the highest remaining cluster.
+/// Homogeneous (one capacity) → `None` (do not pin).
+fn auto_android_cpuset(cpus: &[CpuCore]) -> Option<Vec<usize>> {
+    if groups_by_capacity(cpus).len() < 2 {
+        return None;
+    }
+    let mut remaining: Vec<CpuCore> = cpus.to_vec();
+    if let Some(prime) = unique_prime(cpus) {
+        remaining.retain(|c| c.id != prime);
+    }
+    nth_highest_group(&remaining, 0)
+}
+
+fn off_prime_cpuset(cpus: &[CpuCore]) -> Option<Vec<usize>> {
+    let prime = unique_prime(cpus)?;
+    let mut ids: Vec<usize> = cpus.iter().map(|c| c.id).filter(|&id| id != prime).collect();
+    if ids.is_empty() {
+        return None;
+    }
+    ids.sort_unstable();
+    Some(ids)
+}
+
+fn pick_cpuset(spec: &CpusetSpec, topo: &[CpuCore], android: bool) -> Option<Vec<usize>> {
+    let all: Vec<usize> = {
+        let mut ids: Vec<usize> = topo.iter().map(|c| c.id).collect();
+        ids.sort_unstable();
+        ids
+    };
+    let chosen = match spec {
+        CpusetSpec::All => None,
+        CpusetSpec::Auto => {
+            if android { auto_android_cpuset(topo) } else { None }
+        }
+        CpusetSpec::Mid => nth_highest_group(topo, 1).or_else(|| nth_highest_group(topo, 0)),
+        CpusetSpec::Little => groups_by_capacity(topo).into_iter().next().map(|(_, ids)| ids),
+        CpusetSpec::OffPrime => off_prime_cpuset(topo).or_else(|| {
+            if all.is_empty() { None } else { Some(all.clone()) }
+        }),
+        CpusetSpec::Explicit(ids) => {
+            if topo.is_empty() {
+                Some(ids.clone())
+            } else {
+                let online: std::collections::HashSet<usize> = all.iter().copied().collect();
+                let v: Vec<usize> = ids.iter().copied().filter(|id| online.contains(id)).collect();
+                if v.is_empty() { None } else { Some(v) }
+            }
+        }
+    };
+    match chosen {
+        Some(cs) if !all.is_empty() && cs == all => None, // pin-to-all is a no-op
+        other => other,
+    }
+}
+
+fn read_online_cpus() -> Option<Vec<usize>> {
+    let s = std::fs::read_to_string("/sys/devices/system/cpu/online").ok()?;
+    parse_cpu_list(s.trim())
+}
+
+fn read_capacity(cpu: usize) -> Option<u32> {
+    let cap = format!("/sys/devices/system/cpu/cpu{cpu}/cpu_capacity");
+    if let Ok(s) = std::fs::read_to_string(&cap) {
+        if let Ok(v) = s.trim().parse() {
+            return Some(v);
+        }
+    }
+    let freq = format!("/sys/devices/system/cpu/cpu{cpu}/cpufreq/cpuinfo_max_freq");
+    std::fs::read_to_string(freq).ok()?.trim().parse().ok()
+}
+
+fn read_topology() -> Vec<CpuCore> {
+    let Some(online) = read_online_cpus() else {
+        return Vec::new();
+    };
+    online
+        .into_iter()
+        .filter_map(|id| Some(CpuCore { id, capacity: read_capacity(id)? }))
+        .collect()
+}
+
+/// Pin the calling thread. New threads (rayon pool, compile, playback) inherit.
+fn apply_affinity(cpus: &[usize]) -> std::io::Result<()> {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        unsafe {
+            let mut set = std::mem::zeroed::<libc::cpu_set_t>();
+            for &cpu in cpus {
+                libc::CPU_SET(cpu, &mut set);
+            }
+            let rc = libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &set);
+            if rc == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    {
+        let _ = cpus;
+        Ok(())
+    }
+}
+
+fn nproc() -> usize {
+    std::thread::available_parallelism().map(|p| p.get()).unwrap_or(1)
+}
+
+/// Build the tract thread pool (`KOKORO_TRACT_THREADS`, else available cores).
+///
+/// On Android heterogeneous SoCs the default is the mid cluster (this S10e:
+/// 3 threads on cpu4–6), pinned so EAS cannot park a worker on the prime core.
+/// Desktop keeps all-cores unless `KOKORO_TRACT_CPUSET` is set. Affinity is
+/// applied on this thread *before* the rayon pool is created so workers inherit
+/// it. The pool is scoped to stage 2 only; stage 1 stays single-threaded.
 fn build_executor() -> tract_linalg::multithread::Executor {
     use tract_linalg::multithread::Executor;
-    let threads = std::env::var("KOKORO_TRACT_THREADS")
+    let spec = cpuset_from_env();
+    let topo = read_topology();
+    let cpuset = pick_cpuset(&spec, &topo, cfg!(target_os = "android"));
+    let env_threads = std::env::var("KOKORO_TRACT_THREADS")
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
-        .filter(|&t| t > 0)
-        .or_else(|| std::thread::available_parallelism().ok().map(|p| p.get()))
-        .unwrap_or(1);
+        .filter(|&t| t > 0);
+    let mut threads = env_threads.unwrap_or_else(|| cpuset.as_ref().map(|c| c.len()).unwrap_or_else(nproc));
+    if let Some(cs) = cpuset.as_ref() {
+        threads = threads.min(cs.len()).max(1);
+    }
+    if let Some(cs) = cpuset.as_ref() {
+        if let Err(e) = apply_affinity(cs) {
+            eprintln!(
+                "[kokoro] sched_setaffinity({}) failed: {e}; continuing unpinned",
+                format_cpu_list(cs)
+            );
+        }
+    }
     if threads > 1 {
-        info!("[kokoro] tract executor: {threads} threads");
+        match cpuset.as_ref() {
+            Some(cs) => info!(
+                "[kokoro] tract executor: {threads} threads, cpuset {}",
+                format_cpu_list(cs)
+            ),
+            None => info!("[kokoro] tract executor: {threads} threads"),
+        }
         Executor::multithread(threads)
     } else {
+        if let Some(cs) = cpuset.as_ref() {
+            info!(
+                "[kokoro] tract executor: 1 thread, cpuset {}",
+                format_cpu_list(cs)
+            );
+        }
         Executor::SingleThread
     }
 }
@@ -524,5 +771,103 @@ impl Pipeline {
         }
         let wav = s2[0].cast_to::<f32>()?;
         Ok(wav.to_array_view::<f32>()?.iter().copied().collect())
+    }
+}
+
+#[cfg(test)]
+mod cpuset_tests {
+    use super::*;
+
+    fn s10e() -> Vec<CpuCore> {
+        // Snapdragon 855: 4×A55 + 3×A76 + prime A76
+        let mut v = Vec::new();
+        v.extend((0..4).map(|id| CpuCore { id, capacity: 378 }));
+        v.extend((4..7).map(|id| CpuCore { id, capacity: 871 }));
+        v.push(CpuCore { id: 7, capacity: 1024 });
+        v
+    }
+
+    fn big_little_4_4() -> Vec<CpuCore> {
+        let mut v = Vec::new();
+        v.extend((0..4).map(|id| CpuCore { id, capacity: 378 }));
+        v.extend((4..8).map(|id| CpuCore { id, capacity: 1024 }));
+        v
+    }
+
+    fn homogeneous() -> Vec<CpuCore> {
+        (0..8).map(|id| CpuCore { id, capacity: 1024 }).collect()
+    }
+
+    #[test]
+    fn parse_lists() {
+        assert_eq!(parse_cpu_list("4-6"), Some(vec![4, 5, 6]));
+        assert_eq!(parse_cpu_list("0-3,7"), Some(vec![0, 1, 2, 3, 7]));
+        assert_eq!(parse_cpu_list(" 0-3, 4-6 "), Some((0..=6).collect()));
+        assert_eq!(parse_cpu_list("7"), Some(vec![7]));
+        assert_eq!(parse_cpu_list(""), None);
+        assert_eq!(parse_cpu_list("foo"), None);
+        assert_eq!(parse_cpu_list("3-1"), None);
+        assert_eq!(format_cpu_list(&[4, 5, 6]), "4-6");
+        assert_eq!(format_cpu_list(&[0, 1, 2, 3, 7]), "0-3,7");
+        assert_eq!(format_cpu_list(&[7]), "7");
+    }
+
+    #[test]
+    fn s10e_auto_is_three_golds() {
+        let topo = s10e();
+        assert_eq!(auto_android_cpuset(&topo), Some(vec![4, 5, 6]));
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::Auto, &topo, true),
+            Some(vec![4, 5, 6])
+        );
+        assert_eq!(pick_cpuset(&CpusetSpec::Auto, &topo, false), None);
+        assert_eq!(pick_cpuset(&CpusetSpec::Mid, &topo, true), Some(vec![4, 5, 6]));
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::Little, &topo, true),
+            Some(vec![0, 1, 2, 3])
+        );
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::OffPrime, &topo, true),
+            Some(vec![0, 1, 2, 3, 4, 5, 6])
+        );
+        assert_eq!(pick_cpuset(&CpusetSpec::All, &topo, true), None);
+    }
+
+    #[test]
+    fn four_plus_four_auto_keeps_bigs() {
+        let topo = big_little_4_4();
+        // Max cluster is not a singleton, so auto does not drop it.
+        assert_eq!(auto_android_cpuset(&topo), Some(vec![4, 5, 6, 7]));
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::Auto, &topo, true),
+            Some(vec![4, 5, 6, 7])
+        );
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::Mid, &topo, true),
+            Some(vec![0, 1, 2, 3])
+        );
+        assert_eq!(pick_cpuset(&CpusetSpec::OffPrime, &topo, true), None);
+    }
+
+    #[test]
+    fn homogeneous_does_not_pin() {
+        let topo = homogeneous();
+        assert_eq!(auto_android_cpuset(&topo), None);
+        assert_eq!(pick_cpuset(&CpusetSpec::Auto, &topo, true), None);
+        assert_eq!(pick_cpuset(&CpusetSpec::Mid, &topo, true), None);
+        assert_eq!(pick_cpuset(&CpusetSpec::Little, &topo, true), None);
+    }
+
+    #[test]
+    fn explicit_filters_to_online() {
+        let topo = s10e();
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::Explicit(vec![4, 5, 6, 99]), &topo, true),
+            Some(vec![4, 5, 6])
+        );
+        assert_eq!(
+            pick_cpuset(&CpusetSpec::Explicit(vec![99]), &topo, true),
+            None
+        );
     }
 }

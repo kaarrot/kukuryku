@@ -1414,6 +1414,7 @@ dependencies = [
  "candle-transformers",
  "dirs 5.0.1",
  "hf-hub",
+ "libc",
  "mimalloc",
  "ort",
  "serde_json",
