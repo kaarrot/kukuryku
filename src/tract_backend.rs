@@ -522,6 +522,24 @@ fn nproc() -> usize {
     std::thread::available_parallelism().map(|p| p.get()).unwrap_or(1)
 }
 
+/// Thread count: env wins, else cpuset size, else nproc.
+/// Always at least 1; never more workers than CPUs in the pin set.
+///
+/// Android auto is the full mid cluster (3 golds on this S10e). A 2-thread cap
+/// was measured at RTF ~1.45 vs ~1.22 on 3 golds — too slow to keep the ~1.2
+/// rate. `KOKORO_TRACT_THREADS=2` is still the cooler override.
+fn resolve_threads(
+    env_threads: Option<usize>,
+    cpuset: Option<&[usize]>,
+    nproc: usize,
+) -> usize {
+    let mut threads = env_threads.unwrap_or_else(|| cpuset.map(|c| c.len()).unwrap_or(nproc));
+    if let Some(cs) = cpuset {
+        threads = threads.min(cs.len());
+    }
+    threads.max(1)
+}
+
 /// Build the tract thread pool (`KOKORO_TRACT_THREADS`, else available cores).
 ///
 /// On Android heterogeneous SoCs the default is the mid cluster (this S10e:
@@ -538,10 +556,7 @@ fn build_executor() -> tract_linalg::multithread::Executor {
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
         .filter(|&t| t > 0);
-    let mut threads = env_threads.unwrap_or_else(|| cpuset.as_ref().map(|c| c.len()).unwrap_or_else(nproc));
-    if let Some(cs) = cpuset.as_ref() {
-        threads = threads.min(cs.len()).max(1);
-    }
+    let threads = resolve_threads(env_threads, cpuset.as_deref(), nproc());
     if let Some(cs) = cpuset.as_ref() {
         if let Err(e) = apply_affinity(cs) {
             eprintln!(
@@ -856,6 +871,16 @@ mod cpuset_tests {
         assert_eq!(pick_cpuset(&CpusetSpec::Auto, &topo, true), None);
         assert_eq!(pick_cpuset(&CpusetSpec::Mid, &topo, true), None);
         assert_eq!(pick_cpuset(&CpusetSpec::Little, &topo, true), None);
+    }
+
+    #[test]
+    fn android_auto_threads_use_full_mid_cluster() {
+        let golds = [4, 5, 6];
+        assert_eq!(resolve_threads(None, Some(&golds), 8), 3);
+        assert_eq!(resolve_threads(Some(2), Some(&golds), 8), 2);
+        assert_eq!(resolve_threads(Some(8), Some(&golds), 8), 3);
+        assert_eq!(resolve_threads(Some(1), Some(&golds), 8), 1);
+        assert_eq!(resolve_threads(None, None, 8), 8);
     }
 
     #[test]

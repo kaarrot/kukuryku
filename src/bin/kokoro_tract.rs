@@ -72,7 +72,8 @@ ENV:
     KOKORO_RAW     set to disable the markdown cleanup (same as --raw)
     KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
     KOKORO_TRACT_THREADS  stage-2 thread count (default: all cores; on Android
-                      heterogeneous SoCs, the mid cluster size — 3 on 1+3+4)
+                      heterogeneous SoCs, the mid cluster size — 3 on 1+3+4.
+                      2 is cooler but RTF ~1.45; 3 keeps ~1.2)
     KOKORO_TRACT_CPUSET  auto|mid|little|all|off-prime or a list (4-6, 0-3,7).
                       Android auto pins off the unique prime core onto the
                       remaining highest cluster. Desktop auto does not pin.
