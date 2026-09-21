@@ -127,7 +127,7 @@ A non-`ryk` client speaking this socket directly gets no cleanup and should stri
 Speak must go through `--send` so the editor is not blocked in one-shot `ryk` until
 `finish()`. Rewind is a poke into that same `--serve` process (`ryk-rewind` on the
 existing Unix socket), not a `ryk --rewind` flag. Full control-plane plan:
-[rewind.md](rewind.md).
+[rewind-plan.md](rewind-plan.md).
 
 - **Helix** (this machine's `~/.config/helix/config.toml`; not in this git repo).
   `space+. d` used to pipe the selection to one-shot `ryk`, which held Helix until
@@ -176,7 +176,7 @@ a new `src/serve.rs` can use it. The bin slims to flag dispatch + the existing o
 
 ## Open questions / follow-ups
 
-- **Rewind 10s of already-played audio** — planned in [rewind.md](rewind.md). Not a
+- **Rewind 10s of already-played audio** — planned in [rewind-plan.md](rewind-plan.md). Not a
   `ryk --rewind` flag: Helix `A-r` and Grok/Claude `/rr` poke `--serve` via `ryk-rewind`.
   Shares the future barge-in `kill_sink` path but keeps PCM history.
 - **Barge-in** (stop current, speak new) — nicer for rapid re-selection, but needs a

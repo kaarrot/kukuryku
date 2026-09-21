@@ -348,7 +348,7 @@ one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
 
 See [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md) for the design and open follow-ups.
 Live rewind of already-played audio (Helix `A-r`, Grok/Claude `/rr`, no re-inference) is
-planned in [`docs/rewind.md`](docs/rewind.md).
+planned in [`docs/rewind-plan.md`](docs/rewind-plan.md).
 
 ### Helix
 
