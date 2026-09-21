@@ -124,6 +124,36 @@ A non-`ryk` client speaking this socket directly gets no cleanup and should stri
 
 ## Editor integration
 
+Speak must go through `--send` so the editor is not blocked in one-shot `ryk` until
+`finish()`. Rewind is a poke into that same `--serve` process (`ryk-rewind` on the
+existing Unix socket), not a `ryk --rewind` flag. Full control-plane plan:
+[rewind.md](rewind.md).
+
+- **Helix** (this machine's `~/.config/helix/config.toml`; not in this git repo).
+  `space+. d` used to pipe the selection to one-shot `ryk`, which held Helix until
+  playback ended. It now `--send`s. `A-r` runs the same `ryk-rewind` poke Grok/Claude
+  `/rr` will use:
+
+  ```toml
+  [keys.normal]
+  # Rewind ~10s of currently playing ryk audio. Same script as Grok/Claude /rr.
+  # Needs ~/.local/bin/ryk-rewind and a live ryk --serve (auto-started by --send).
+  A-r = ":sh ryk-rewind"
+
+  [keys.normal.space."."]
+  # Selection → warm daemon. Helix returns immediately; --serve owns pacat.
+  d = "@:: /data/data/com.termux/files/home/PRJ/kukuryku/target/release/ryk --send<ret>"
+  ```
+
+  Because `/spk` already `--send`s into the same daemon, Helix `A-r` also rewinds
+  Grok/Claude speech if Helix can receive the key (split pane, or Helix focused).
+
+- **Grok / Claude Code:** `/spk` → `speak-last-reply` → `ryk --send` (unchanged).
+  Optional `/rr` skill runs **the same** `~/.local/bin/ryk-rewind` via Bash
+  (`disable-model-invocation: true`, like `/spk`). Slash dispatch is the slow path
+  (harness turn, seconds). Fast path is Helix `A-r`, a Termux widget, or SIGUSR1.
+  Grok pager keys are not remappable.
+
 - **vim** (visual selection, buffer unmodified): `xnoremap <leader>s :w !ryk --send<CR>` —
   writes the selection to the client's stdin.
 - **emacs**: `(call-process-region (region-beginning) (region-end) "ryk" nil 0 nil "--send")`
@@ -146,9 +176,12 @@ a new `src/serve.rs` can use it. The bin slims to flag dispatch + the existing o
 
 ## Open questions / follow-ups
 
+- **Rewind 10s of already-played audio** — planned in [rewind.md](rewind.md). Not a
+  `ryk --rewind` flag: Helix `A-r` and Grok/Claude `/rr` poke `--serve` via `ryk-rewind`.
+  Shares the future barge-in `kill_sink` path but keeps PCM history.
 - **Barge-in** (stop current, speak new) — nicer for rapid re-selection, but needs a
   `StreamPlayer` kill path (kill the ffplay/pacat child + abort remaining sentences between
-  utterances). Deferred in favor of queue.
+  utterances). Deferred in favor of queue. Rewind will land `kill_sink` first.
 - **Idle auto-shutdown** (`RYK_IDLE_TIMEOUT`, default 1800s) so a forgotten daemon doesn't
   linger. Implemented: the accept loop sleeps in `poll(2)` (on the little cores) and exits
   once no jobs are pending and the audio sink has closed. While a job or the sink is live

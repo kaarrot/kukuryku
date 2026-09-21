@@ -347,6 +347,25 @@ an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; el
 one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
 
 See [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md) for the design and open follow-ups.
+Live rewind of already-played audio (Helix `A-r`, Grok/Claude `/rr`, no re-inference) is
+planned in [`docs/rewind.md`](docs/rewind.md).
+
+### Helix
+
+Do **not** pipe the selection to one-shot `ryk`: that blocks Helix until playback ends, so a
+rewind key cannot fire. Use `--send` and a separate poke for rewind (same script as `/rr`):
+
+```toml
+[keys.normal]
+A-r = ":sh ryk-rewind"
+
+[keys.normal.space."."]
+d = "@:: /path/to/ryk --send<ret>"
+```
+
+`ryk-rewind` talks to the live `--serve` socket; it is not a `ryk --rewind` flag. On this
+phone the Helix bindings live in `~/.config/helix/config.toml` (outside this repo); the
+canonical copy is in [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md#editor-integration).
 
 ## Termux / Android (aarch64)
 
