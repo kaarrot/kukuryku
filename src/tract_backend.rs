@@ -39,6 +39,9 @@ const S2_ALIGNMENT: &str = "/encoder/Cast_4_output_0";
 struct Stage {
     runnable: TypedRunnableModel<TypedModel>,
     input_names: Vec<String>,
+    /// When set, Rust feeds f16 inputs. The f32 ONNX files are not rewritten;
+    /// weights are cast inside the compiled plan (see [`apply_fp16`]).
+    fp16_inputs: bool,
 }
 
 impl Stage {
@@ -46,7 +49,12 @@ impl Stage {
     /// (matched by name so input order is robust), and optimize. Symbolic dims
     /// with a shared name are the same `Symbol`, so tract keeps the length axis
     /// free and one plan serves all lengths; fixed dims specialize as before.
-    fn build(path: &Path, spec: &[(&str, &[Dim])]) -> Result<Stage> {
+    ///
+    /// `fp16` does not write a new weight file. `stage1.onnx` / `stage2.onnx`
+    /// stay f32 on disk. When it is set, Snake is fused on the f32 graph first
+    /// (declutter), then [`apply_fp16`] casts matching GEMM weights to f16
+    /// inside this plan. The default path is one `into_optimized`, unchanged.
+    fn build(path: &Path, spec: &[(&str, &[Dim])], fp16: bool) -> Result<Stage> {
         let mut model = tract_onnx::onnx()
             .model_for_path(path)
             .with_context(|| format!("loading {}", path.display()))?;
@@ -71,11 +79,20 @@ impl Stage {
             model.set_input_fact(ix, InferenceFact::dt_shape(dt, ShapeFactoid::from(shape)))?;
         }
 
-        let runnable = model
+        let mut typed = model
+            .into_typed()
+            .with_context(|| format!("typing {}", path.display()))?;
+        if fp16 {
+            // Fuse Snake while the graph is still f32. A second declutter inside
+            // `into_optimized` then runs on the translated graph.
+            typed.declutter().with_context(|| format!("declutter {}", path.display()))?;
+            apply_fp16(&mut typed)?;
+        }
+        let runnable = typed
             .into_optimized()
             .with_context(|| format!("optimizing {}", path.display()))?
             .into_runnable()?;
-        Ok(Stage { runnable, input_names })
+        Ok(Stage { runnable, input_names, fp16_inputs: fp16 })
     }
 
     /// Run the cached plan; tensors are matched to declared inputs by name.
@@ -86,7 +103,16 @@ impl Stage {
                 .iter()
                 .find(|(n, _)| n == name)
                 .with_context(|| format!("{stage}: no tensor supplied for input '{name}'"))?;
-            ordered.push(t.clone().into());
+            // The translator rewrites sources to f16 even when the node filter
+            // says no, so Rust-built f32 inputs have to be cast at run time.
+            let owned = if self.fp16_inputs {
+                t.cast_to::<f16>()
+                    .with_context(|| format!("{stage}: casting input '{name}' to f16"))?
+                    .into_owned()
+            } else {
+                t.clone()
+            };
+            ordered.push(owned.into());
         }
         if std::env::var_os("KOKORO_TRACT_NAN_TRACE").is_some() {
             nan_trace_run(&self.runnable, ordered, stage)
@@ -290,6 +316,45 @@ fn dump(name: &str, v: &TValue) -> Result<()> {
             bytemuck::cast_slice::<f32, u8>(&data),
         )?;
     }
+    Ok(())
+}
+
+/// `KOKORO_TRACT_FP16=1`. Opt-in; the default graph stays f32.
+fn fp16_enabled() -> bool {
+    std::env::var("KOKORO_TRACT_FP16").ok().as_deref() == Some("1")
+}
+
+/// Translate a node only when it is a GEMM-like op and not on the f32 keep
+/// list (Snake, STFT, norms, elementwise trig, the harmonic source).
+fn fp16_translate_name(name: &str) -> bool {
+    const DENY: &[&str] = &[
+        "m_source", "stft", "STFT", "istft", "iSTFT", "Greater", "Atan", "Exp", "InstanceNorm",
+        "SinSq", "Snake", "Sin",
+    ];
+    if DENY.iter().any(|d| name.contains(d)) {
+        return false;
+    }
+    name.contains("Conv") || name.contains("MatMul") || name.contains("Gemm")
+}
+
+/// Cast matching f32 weights to f16 inside `model`. Does not touch the ONNX
+/// files. No-op (with an error) when the CPU has no fp16 SIMD.
+fn apply_fp16(model: &mut TypedModel) -> Result<()> {
+    use std::sync::OnceLock;
+    if !tract_linalg::has_fp16() {
+        bail!("KOKORO_TRACT_FP16=1 but this CPU has no fp16 SIMD (asimdhp)");
+    }
+    static ONCE: OnceLock<()> = OnceLock::new();
+    if ONCE.set(()).is_ok() {
+        eprintln!(
+            "[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten"
+        );
+    }
+    let translator =
+        tract_onnx::tract_core::floats::FloatPrecisionTranslator::<f32, f16>::with_filter(|node| {
+            fp16_translate_name(&node.name)
+        });
+    model.transform(&translator)?;
     Ok(())
 }
 
@@ -540,15 +605,216 @@ fn resolve_threads(
     threads.max(1)
 }
 
-/// Build the tract thread pool (`KOKORO_TRACT_THREADS`, else available cores).
+/// Where espeak + stage 1 run. Android `auto` is the little cluster, not the
+/// golds the vocoder is pinned to. Desktop `auto` does not pin.
+fn pick_s1(spec: &CpusetSpec, topo: &[CpuCore], android: bool) -> Option<Vec<usize>> {
+    match spec {
+        CpusetSpec::Auto if android => pick_cpuset(&CpusetSpec::Little, topo, true),
+        CpusetSpec::Auto => None,
+        other => pick_cpuset(other, topo, android),
+    }
+}
+
+fn s1_spec_from_env() -> CpusetSpec {
+    match std::env::var("KOKORO_TRACT_S1_CPUSET") {
+        Err(_) => CpusetSpec::Auto,
+        Ok(s) => parse_cpuset_spec(&s).unwrap_or_else(|| {
+            eprintln!("[kokoro] ignoring invalid KOKORO_TRACT_S1_CPUSET={s:?}");
+            CpusetSpec::Auto
+        }),
+    }
+}
+
+/// Pin the calling thread to the stage-1 set. Called from the lookahead thread
+/// so it does not keep the gold mask inherited from main.
+pub fn pin_stage1_thread() {
+    let topo = read_topology();
+    let Some(cs) = pick_s1(&s1_spec_from_env(), &topo, cfg!(target_os = "android")) else {
+        return;
+    };
+    if let Err(e) = apply_affinity(&cs) {
+        eprintln!(
+            "[kokoro] stage1 sched_setaffinity({}) failed: {e}",
+            format_cpu_list(&cs)
+        );
+    } else {
+        info!("[kokoro] stage1 lookahead on cpus {}", format_cpu_list(&cs));
+    }
+}
+
+/// Pin playback (and any pacat / pulseaudio it spawns) to the little cores.
+/// No-op off Android. Does not touch the calling thread when it is not the
+/// playback thread — callers invoke it from that thread only.
+pub fn pin_playback_thread() {
+    if !cfg!(target_os = "android") {
+        return;
+    }
+    use std::sync::OnceLock;
+    static ONCE: OnceLock<()> = OnceLock::new();
+    let topo = read_topology();
+    let Some(cs) = pick_cpuset(&CpusetSpec::Little, &topo, true) else {
+        return;
+    };
+    if let Err(e) = apply_affinity(&cs) {
+        if ONCE.set(()).is_ok() {
+            eprintln!(
+                "[kokoro] playback sched_setaffinity({}) failed: {e}",
+                format_cpu_list(&cs)
+            );
+        }
+    } else if ONCE.set(()).is_ok() {
+        info!("[kokoro] playback pinned to cpus {}", format_cpu_list(&cs));
+    }
+}
+
+/// Stage-2 pool the governor may pick. `Full` is the whole pin set (3 golds
+/// on this phone). `Cool` is the first two of that set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PoolKind {
+    Full,
+    Cool,
+}
+
+/// `KOKORO_GOVERNOR`. Default is thermal (pace + heat). `off` is today's
+/// always-full behaviour. `pace` uses the buffer thresholds only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GovernorMode {
+    Off,
+    Pace,
+    Thermal,
+}
+
+const GOV_HI: f64 = 6.0;
+const GOV_LO: f64 = 2.0;
+const GOV_MAX_AHEAD: f64 = 20.0;
+/// lmh-dcvs trips at 85°C. Start shedding a gold before that slam.
+const THERM_HOT: i32 = 75;
+/// Release the hold only after the sensor has come back down.
+const THERM_COOL: i32 = 68;
+
+fn governor_mode() -> GovernorMode {
+    match std::env::var("KOKORO_GOVERNOR") {
+        Err(_) => GovernorMode::Thermal,
+        Ok(s) => match s.trim().to_ascii_lowercase().as_str() {
+            "" | "thermal" => GovernorMode::Thermal,
+            "off" => GovernorMode::Off,
+            "pace" => GovernorMode::Pace,
+            other => {
+                eprintln!("[kokoro] ignoring invalid KOKORO_GOVERNOR={other:?}; using thermal");
+                GovernorMode::Thermal
+            }
+        },
+    }
+}
+
+/// Pure pool choice. Does not read sysfs.
 ///
-/// On Android heterogeneous SoCs the default is the mid cluster (this S10e:
-/// 3 threads on cpu4–6), pinned so EAS cannot park a worker on the prime core.
-/// Desktop keeps all-cores unless `KOKORO_TRACT_CPUSET` is set. Affinity is
-/// applied on this thread *before* the rayon pool is created so workers inherit
-/// it. The pool is scoped to stage 2 only; stage 1 stays single-threaded.
-fn build_executor() -> tract_linalg::multithread::Executor {
+/// `Off` stays on the full pool. A thermal hold forces cool. Otherwise ≥6 s
+/// of queued audio drops to cool, <2 s goes back to full, and the band in
+/// between keeps the previous choice.
+fn choose_pool(mode: GovernorMode, buffered: f64, thermal_hold: bool, prev: PoolKind) -> PoolKind {
+    if mode == GovernorMode::Off {
+        return PoolKind::Full;
+    }
+    if mode == GovernorMode::Thermal && thermal_hold {
+        return PoolKind::Cool;
+    }
+    if buffered >= GOV_HI {
+        PoolKind::Cool
+    } else if buffered < GOV_LO {
+        PoolKind::Full
+    } else {
+        prev
+    }
+}
+
+/// Pure hysteresis. Missing sensor reads pass `lmh_c == 0` and do not trip
+/// the hold by themselves. `gold_capped` means the kernel already lowered
+/// cpu4's ceiling, which is treated as hot.
+fn update_thermal_hold(hold: bool, lmh_c: i32, gold_capped: bool) -> bool {
+    if hold {
+        !(lmh_c < THERM_COOL && !gold_capped)
+    } else {
+        lmh_c >= THERM_HOT || gold_capped
+    }
+}
+
+/// Hottest `lmh-dcvs*` thermal zone, in °C. 0 when the zones are unreadable.
+fn read_lmh_max_c() -> i32 {
+    let Ok(rd) = std::fs::read_dir("/sys/class/thermal") else {
+        return 0;
+    };
+    let mut max_c = 0i32;
+    let mut found = false;
+    for ent in rd.flatten() {
+        let p = ent.path();
+        let Ok(typ) = std::fs::read_to_string(p.join("type")) else {
+            continue;
+        };
+        if !typ.trim().starts_with("lmh-dcvs") {
+            continue;
+        }
+        let Ok(raw) = std::fs::read_to_string(p.join("temp")) else {
+            continue;
+        };
+        let Ok(milli) = raw.trim().parse::<i32>() else {
+            continue;
+        };
+        found = true;
+        max_c = max_c.max(milli / 1000);
+    }
+    if found { max_c } else { 0 }
+}
+
+/// True when cpu4's scaling ceiling is already below its hardware max.
+/// Reads only — writing `scaling_max_freq` is EPERM from Termux.
+fn gold_freq_capped() -> bool {
+    let base = "/sys/devices/system/cpu/cpu4/cpufreq";
+    let max = std::fs::read_to_string(format!("{base}/scaling_max_freq"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok());
+    let info = std::fs::read_to_string(format!("{base}/cpuinfo_max_freq"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok());
+    match (max, info) {
+        (Some(m), Some(i)) => m + 1000 < i,
+        _ => false,
+    }
+}
+
+fn pin_or_warn(cpus: &[usize]) {
+    if let Err(e) = apply_affinity(cpus) {
+        eprintln!(
+            "[kokoro] sched_setaffinity({}) failed: {e}; continuing unpinned",
+            format_cpu_list(cpus)
+        );
+    }
+}
+
+fn make_pool(threads: usize) -> tract_linalg::multithread::Executor {
     use tract_linalg::multithread::Executor;
+    if threads > 1 { Executor::multithread(threads) } else { Executor::SingleThread }
+}
+
+struct Executors {
+    full: tract_linalg::multithread::Executor,
+    cool: Option<tract_linalg::multithread::Executor>,
+    /// False when the env picked a thread count, the governor is off, or the
+    /// pin set is smaller than 3. Speak then always uses `full`.
+    switch: bool,
+    mode: GovernorMode,
+}
+
+/// Build the stage-2 pools.
+///
+/// Android auto pins main to the mid cluster (this S10e: cpu4–6) and never
+/// puts it back on all cores — a later unpinned spawn would let EAS park
+/// stage 1 on the prime. When the governor is allowed to switch, the cool
+/// pool is spawned *while* main is pinned to the first two of those cpus, then
+/// main is re-pinned to the full set and the full pool is spawned. Rayon
+/// workers keep the mask they inherited. `KOKORO_TRACT_THREADS` forces one
+/// pool and disables the switch.
+fn build_executors() -> Executors {
     let spec = cpuset_from_env();
     let topo = read_topology();
     let cpuset = pick_cpuset(&spec, &topo, cfg!(target_os = "android"));
@@ -556,33 +822,54 @@ fn build_executor() -> tract_linalg::multithread::Executor {
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
         .filter(|&t| t > 0);
-    let threads = resolve_threads(env_threads, cpuset.as_deref(), nproc());
-    if let Some(cs) = cpuset.as_ref() {
-        if let Err(e) = apply_affinity(cs) {
-            eprintln!(
-                "[kokoro] sched_setaffinity({}) failed: {e}; continuing unpinned",
-                format_cpu_list(cs)
-            );
-        }
-    }
-    if threads > 1 {
-        match cpuset.as_ref() {
-            Some(cs) => info!(
-                "[kokoro] tract executor: {threads} threads, cpuset {}",
-                format_cpu_list(cs)
-            ),
-            None => info!("[kokoro] tract executor: {threads} threads"),
-        }
-        Executor::multithread(threads)
-    } else {
+    let mode = governor_mode();
+
+    if let Some(req) = env_threads {
+        let threads = resolve_threads(Some(req), cpuset.as_deref(), nproc());
         if let Some(cs) = cpuset.as_ref() {
-            info!(
-                "[kokoro] tract executor: 1 thread, cpuset {}",
+            pin_or_warn(cs);
+            eprintln!(
+                "[kokoro] KOKORO_TRACT_THREADS={threads}; governor pool switch disabled (cpuset {})",
                 format_cpu_list(cs)
             );
+        } else {
+            eprintln!(
+                "[kokoro] KOKORO_TRACT_THREADS={threads}; governor pool switch disabled"
+            );
         }
-        Executor::SingleThread
+        return Executors { full: make_pool(threads), cool: None, switch: false, mode };
     }
+
+    if let Some(cs) = cpuset.as_ref() {
+        if cs.len() >= 3 && mode != GovernorMode::Off {
+            let cool_cpus = &cs[..2];
+            pin_or_warn(cool_cpus);
+            let cool = tract_linalg::multithread::Executor::multithread(2);
+            pin_or_warn(cs);
+            let full = tract_linalg::multithread::Executor::multithread(cs.len());
+            info!(
+                "[kokoro] tract executor: {} threads on {} (governor {:?}), cool 2 threads on {}",
+                cs.len(),
+                format_cpu_list(cs),
+                mode,
+                format_cpu_list(cool_cpus),
+            );
+            return Executors { full, cool: Some(cool), switch: true, mode };
+        }
+        pin_or_warn(cs);
+        let threads = resolve_threads(None, Some(cs), nproc());
+        info!(
+            "[kokoro] tract executor: {threads} threads, cpuset {}",
+            format_cpu_list(cs)
+        );
+        return Executors { full: make_pool(threads), cool: None, switch: false, mode };
+    }
+
+    let threads = resolve_threads(None, None, nproc());
+    if threads > 1 {
+        info!("[kokoro] tract executor: {threads} threads");
+    }
+    Executors { full: make_pool(threads), cool: None, switch: false, mode }
 }
 
 /// A compiled stage: either a single *symbolic* plan that serves every length,
@@ -600,20 +887,20 @@ fn build_executor() -> tract_linalg::multithread::Executor {
 /// never pads; it resolves N/F from each run's real input shapes.
 enum StagePlan {
     Symbolic(Stage),
-    PerShape(HashMap<Vec<usize>, Stage>),
+    PerShape { cache: HashMap<Vec<usize>, Stage>, fp16: bool },
 }
 
 impl StagePlan {
     /// Build a single symbolic plan; on optimize failure, degrade to per-shape.
-    fn build(path: &Path, spec: &[(&str, &[Dim])], name: &str) -> StagePlan {
+    fn build(path: &Path, spec: &[(&str, &[Dim])], name: &str, fp16: bool) -> StagePlan {
         // Debug lever: force the concrete per-shape path (which enables tract's
         // concrete-shape-gated conv fast paths — lazy im2col + depthwise) so we
         // can bench conv run-speed symbolic-vs-concrete. See docs conv section.
         if std::env::var_os("KOKORO_TRACT_FORCE_PERSHAPE").is_some() {
             eprintln!("[kokoro] {name}: FORCE_PERSHAPE — using per-exact-shape plans");
-            return StagePlan::PerShape(HashMap::new());
+            return StagePlan::PerShape { cache: HashMap::new(), fp16 };
         }
-        match Stage::build(path, spec) {
+        match Stage::build(path, spec, fp16) {
             Ok(st) => {
                 info!("[kokoro] {name}: compiled one symbolic plan (length-independent)");
                 StagePlan::Symbolic(st)
@@ -626,7 +913,7 @@ impl StagePlan {
                     "[kokoro] {name}: symbolic optimize failed ({e:#}); \
                      falling back to per-exact-shape plans"
                 );
-                StagePlan::PerShape(HashMap::new())
+                StagePlan::PerShape { cache: HashMap::new(), fp16 }
             }
         }
     }
@@ -636,7 +923,8 @@ impl StagePlan {
     fn get(&mut self, path: &Path, concrete: &[(&str, &[usize])]) -> Result<&Stage> {
         match self {
             StagePlan::Symbolic(st) => Ok(st),
-            StagePlan::PerShape(cache) => {
+            StagePlan::PerShape { cache, fp16 } => {
+                let fp16 = *fp16;
                 let key: Vec<usize> =
                     concrete.iter().flat_map(|(_, d)| d.iter().copied()).collect();
                 if !cache.contains_key(&key) {
@@ -646,7 +934,7 @@ impl StagePlan {
                         .collect();
                     let spec: Vec<(&str, &[Dim])> =
                         owned.iter().map(|(nm, d)| (*nm, d.as_slice())).collect();
-                    cache.insert(key.clone(), Stage::build(path, &spec)?);
+                    cache.insert(key.clone(), Stage::build(path, &spec, fp16)?);
                 }
                 Ok(&cache[&key])
             }
@@ -654,71 +942,67 @@ impl StagePlan {
     }
 }
 
-/// The two-stage tract pipeline: one symbolic plan per stage (see [`StagePlan`]),
-/// with a Rust length regulator between them.
-pub struct Pipeline {
-    stage1_path: PathBuf,
-    stage2_path: PathBuf,
-    executor: tract_linalg::multithread::Executor,
-    stage1: StagePlan,
-    stage2: StagePlan,
+/// Stage 1 plus the Rust length regulator. Owned by the lookahead thread so
+/// espeak and the encoder overlap the previous sentence's vocoder.
+struct Stage1Runner {
+    path: PathBuf,
+    plan: StagePlan,
 }
 
-impl Pipeline {
-    pub fn new(dir: &Path) -> Result<Pipeline> {
-        let stage1_path = dir.join("stage1.onnx");
-        let stage2_path = dir.join("stage2.onnx");
-        let executor = build_executor();
-        // Compile each stage once with shared symbolic length dims: N (phoneme
-        // count) across stage 1 + the two stage-2 feature tensors, and F (frame
-        // count) on the alignment's frame axis.
-        //
-        // The two compiles are independent, so run them concurrently: stage 2's
-        // `into_optimized()` (~3.9s) is the long pole, and building it on a
-        // background thread while stage 1 (~1.4s) compiles here drops startup
-        // compile wall-time to ~max(the two) instead of the sum. tract's
-        // optimizer holds no shared mutable state across models, and the result
-        // is bit-identical to sequential compilation — only wall-time changes.
-        let stage2_path_bg = stage2_path.clone();
-        let stage2_handle = std::thread::spawn(move || {
-            StagePlan::build(
-                &stage2_path_bg,
-                &[
-                    (S1_FEAT_640, &[Fixed(1), Fixed(640), Sym("N")]),
-                    (S1_FEAT_512, &[Fixed(1), Fixed(512), Sym("N")]),
-                    (S2_ALIGNMENT, &[Sym("N"), Sym("F")]),
-                    ("style", &[Fixed(1), Fixed(256)]),
-                ],
-                "stage2",
-            )
-        });
-        let stage1 = StagePlan::build(
-            &stage1_path,
-            &[
-                ("input_ids", &[Fixed(1), Sym("N")]),
-                ("style", &[Fixed(1), Fixed(256)]),
-                ("speed", &[Fixed(1)]),
-            ],
-            "stage1",
-        );
-        let stage2 = stage2_handle
-            .join()
-            .map_err(|_| anyhow::anyhow!("stage2 compile thread panicked"))?;
-        Ok(Pipeline { stage1_path, stage2_path, executor, stage1, stage2 })
-    }
+/// What stage 2 needs, plus the clocks `speak` reports. `prep_secs` is espeak
+/// and is not part of infer RTF. `s1_secs` is.
+struct S1Out {
+    feat640: Tensor,
+    feat512: Tensor,
+    alignment: Tensor,
+    style: Tensor,
+    n: usize,
+    frames: usize,
+    token_len: usize,
+    prep_secs: f64,
+    s1_secs: f64,
+}
 
-    pub fn synthesize(&mut self, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
+enum AheadOut {
+    Ready(S1Out),
+    Unspeakable,
+    Failed,
+}
+
+enum S1Job {
+    Text {
+        sentence: String,
+        lang: String,
+        voice: PathBuf,
+        speed: f32,
+        reply: std::sync::mpsc::SyncSender<Result<AheadOut>>,
+    },
+    Ids {
+        ids: Vec<i64>,
+        style: Vec<f32>,
+        speed: f32,
+        reply: std::sync::mpsc::SyncSender<Result<AheadOut>>,
+    },
+}
+
+impl Stage1Runner {
+    /// Single-threaded on purpose. Putting stage 1 on the stage-2 pool was
+    /// measured at +31% (the serial LSTM predictor costs more than the encoder
+    /// saves). The lookahead thread is a different core, not that pool.
+    fn infer(
+        &mut self,
+        ids: &[i64],
+        style: &[f32],
+        speed: f32,
+        token_len: usize,
+        prep_secs: f64,
+    ) -> Result<S1Out> {
         let n = ids.len();
         let style_t = Tensor::from_shape(&[1, style.len()], style)?;
-
-        // ---- Stage 1: encoder + duration predictor (single-threaded) ----
-        // Tier 7 Lever 2 A/B'd wrapping this in the stage-2 thread pool: it
-        // regressed +31% (8.97s -> 11.75s). The serial LSTM predictor and the
-        // small per-op GEMMs pay more in thread-dispatch overhead than the BERT
-        // encoder saves, so stage 1 stays single-threaded by design.
+        let t0 = std::time::Instant::now();
         let s1 = self
-            .stage1
-            .get(&self.stage1_path, &[("input_ids", &[1, n]), ("style", &[1, 256]), ("speed", &[1])])?
+            .plan
+            .get(&self.path, &[("input_ids", &[1, n]), ("style", &[1, 256]), ("speed", &[1])])?
             .run(
                 &[
                     ("input_ids", Tensor::from_shape(&[1, n], ids)?),
@@ -727,8 +1011,6 @@ impl Pipeline {
                 ],
                 "stage1",
             )?;
-        // Outputs (split_kokoro.py order): [0] 640-ch [1,640,N] [1] 512-ch
-        // [1,512,N] [2] durations [1,N].
         dump("s1_feat640", &s1[0])?;
         dump("s1_feat512", &s1[1])?;
         dump("s1_dur", &s1[2])?;
@@ -739,10 +1021,8 @@ impl Pipeline {
         }
         let dur_t = s1[2].cast_to::<f32>()?;
         let durations = dur_t.to_array_view::<f32>()?;
-
-        // ---- Rust length regulator: durations -> alignment matrix -------
-        // Round per-phoneme durations to frame counts and build A[N, total_frames]
-        // with A[i,t] = 1 iff frame t belongs to phoneme i (block expansion).
+        // Round per-phoneme durations and build A[N, total_frames] with
+        // A[i, t] = 1 iff frame t belongs to phoneme i.
         let durs: Vec<usize> = durations.iter().map(|&d| d.round().max(0.0) as usize).collect();
         let total_frames: usize = durs.iter().sum();
         if total_frames == 0 {
@@ -757,26 +1037,375 @@ impl Pipeline {
             }
         }
         let alignment = Tensor::from_shape(&[n, total_frames], &align)?;
+        Ok(S1Out {
+            feat640,
+            feat512,
+            alignment,
+            style: style_t,
+            n,
+            frames: total_frames,
+            token_len,
+            prep_secs,
+            s1_secs: t0.elapsed().as_secs_f64(),
+        })
+    }
+}
 
-        // ---- Stage 2: decoder + iSTFTNet vocoder (multithreaded) --------
-        let executor = self.executor.clone();
+/// One in-flight stage-1 job. The reply channel holds one message; submitting
+/// a second job before that reply is received deadlocks, so callers recv first.
+struct Lookahead {
+    tx: Option<std::sync::mpsc::SyncSender<S1Job>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Lookahead {
+    fn spawn(runner: Stage1Runner) -> Self {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let thread = std::thread::spawn(move || stage1_thread(rx, runner));
+        Self { tx: Some(tx), thread: Some(thread) }
+    }
+
+    fn submit_text(
+        &self,
+        sentence: &str,
+        lang: &str,
+        voice: &Path,
+        speed: f32,
+    ) -> Result<std::sync::mpsc::Receiver<Result<AheadOut>>> {
+        let (reply, rx) = std::sync::mpsc::sync_channel(1);
+        self.send(S1Job::Text {
+            sentence: sentence.to_string(),
+            lang: lang.to_string(),
+            voice: voice.to_path_buf(),
+            speed,
+            reply,
+        })?;
+        Ok(rx)
+    }
+
+    fn submit_ids(
+        &self,
+        ids: &[i64],
+        style: &[f32],
+        speed: f32,
+    ) -> Result<std::sync::mpsc::Receiver<Result<AheadOut>>> {
+        let (reply, rx) = std::sync::mpsc::sync_channel(1);
+        self.send(S1Job::Ids {
+            ids: ids.to_vec(),
+            style: style.to_vec(),
+            speed,
+            reply,
+        })?;
+        Ok(rx)
+    }
+
+    fn send(&self, job: S1Job) -> Result<()> {
+        self.tx
+            .as_ref()
+            .context("stage1 lookahead stopped")?
+            .send(job)
+            .map_err(|_| anyhow::anyhow!("stage1 lookahead stopped"))
+    }
+}
+
+impl Drop for Lookahead {
+    fn drop(&mut self) {
+        // Drop the sender before joining, or the worker blocks forever in recv.
+        self.tx.take();
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
+
+fn stage1_thread(rx: std::sync::mpsc::Receiver<S1Job>, mut runner: Stage1Runner) {
+    pin_stage1_thread();
+    while let Ok(job) = rx.recv() {
+        let (reply, out) = match job {
+            S1Job::Text { sentence, lang, voice, speed, reply } => {
+                let t = std::time::Instant::now();
+                let prepared = crate::kokoro::prepare_or_skip(&sentence, &lang, &voice);
+                let prep_secs = t.elapsed().as_secs_f64();
+                let out = match prepared {
+                    Ok(crate::kokoro::ChunkPrep::Ready(p)) => {
+                        runner.infer(&p.ids, &p.style, speed, p.token_len, prep_secs).map(AheadOut::Ready)
+                    }
+                    Ok(crate::kokoro::ChunkPrep::Unspeakable) => Ok(AheadOut::Unspeakable),
+                    Ok(crate::kokoro::ChunkPrep::Failed) => Ok(AheadOut::Failed),
+                    Err(e) => Err(e),
+                };
+                (reply, out)
+            }
+            S1Job::Ids { ids, style, speed, reply } => {
+                let out = runner.infer(&ids, &style, speed, ids.len(), 0.0).map(AheadOut::Ready);
+                (reply, out)
+            }
+        };
+        if reply.send(out).is_err() {
+            break;
+        }
+    }
+}
+
+/// One utterance, after [`Pipeline::speak`]. `infer_secs` is stage 1 + stage 2
+/// and does not include espeak. `wall_secs` does: it runs from the start of
+/// `speak` to the moment the last chunk was ready.
+pub struct SpeakReport {
+    pub audio_samples: usize,
+    pub infer_secs: f64,
+    pub wall_secs: f64,
+    pub gap_secs: f64,
+    pub spoken: usize,
+    pub failed: usize,
+}
+
+/// The two-stage tract pipeline. Stage 1 lives on a lookahead thread (little
+/// cores on Android). Stage 2 uses the gold pool, optionally dropping from 3
+/// threads to 2 when audio is buffered or the SoC is hot.
+pub struct Pipeline {
+    stage2_path: PathBuf,
+    execs: Executors,
+    stage2: StagePlan,
+    ahead: Lookahead,
+    thermal_hold: bool,
+    pool: PoolKind,
+}
+
+impl Pipeline {
+    pub fn new(dir: &Path) -> Result<Pipeline> {
+        let stage1_path = dir.join("stage1.onnx");
+        let stage2_path = dir.join("stage2.onnx");
+        // Pins main to the golds before either compile thread or the lookahead
+        // thread is spawned, so they inherit that mask (the lookahead then
+        // re-pins itself to the littles).
+        let execs = build_executors();
+        let stage2_path_bg = stage2_path.clone();
+        let stage2_fp16 = fp16_enabled();
+        // The two compiles are independent. Stage 2 is the long pole; building
+        // it on a background thread while stage 1 compiles here drops startup
+        // to about max(the two) instead of the sum.
+        let stage2_handle = std::thread::spawn(move || {
+            StagePlan::build(
+                &stage2_path_bg,
+                &[
+                    (S1_FEAT_640, &[Fixed(1), Fixed(640), Sym("N")]),
+                    (S1_FEAT_512, &[Fixed(1), Fixed(512), Sym("N")]),
+                    (S2_ALIGNMENT, &[Sym("N"), Sym("F")]),
+                    ("style", &[Fixed(1), Fixed(256)]),
+                ],
+                "stage2",
+                stage2_fp16,
+            )
+        });
+        // Stage 1 stays f32. The fp16 experiment is the vocoder GEMMs.
+        let stage1 = StagePlan::build(
+            &stage1_path,
+            &[
+                ("input_ids", &[Fixed(1), Sym("N")]),
+                ("style", &[Fixed(1), Fixed(256)]),
+                ("speed", &[Fixed(1)]),
+            ],
+            "stage1",
+            false,
+        );
+        let stage2 = stage2_handle
+            .join()
+            .map_err(|_| anyhow::anyhow!("stage2 compile thread panicked"))?;
+        let ahead = Lookahead::spawn(Stage1Runner { path: stage1_path, plan: stage1 });
+        Ok(Pipeline {
+            stage2_path,
+            execs,
+            stage2,
+            ahead,
+            thermal_hold: false,
+            pool: PoolKind::Full,
+        })
+    }
+
+    /// One sentence, no overlap. Stage 2 still honours a thermal hold when the
+    /// governor is active. Prefer [`speak`](Self::speak) for a paragraph.
+    pub fn synthesize(&mut self, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
+        let rx = self.ahead.submit_ids(ids, style, speed)?;
+        let ahead = rx.recv().map_err(|_| anyhow::anyhow!("stage1 lookahead stopped"))??;
+        let pool = self.select_pool_buffered(0.0);
+        match ahead {
+            AheadOut::Ready(s1) => self.run_stage2(s1, pool),
+            AheadOut::Unspeakable | AheadOut::Failed => bail!("nothing to synthesize"),
+        }
+    }
+
+    /// Speak `sentences` in order. Espeak and stage 1 of sentence N+1 run on the
+    /// lookahead thread while stage 2 of sentence N runs here. One sentence of
+    /// lookahead, never two (a second submit before the reply is taken deadlocks).
+    ///
+    /// `wav`, when set, receives every sample in utterance order.
+    pub fn speak(
+        &mut self,
+        sentences: &[String],
+        lang: &str,
+        voice: &Path,
+        speed: f32,
+        player: &crate::kokoro::StreamPlayer,
+        mut wav: Option<&mut Vec<f32>>,
+    ) -> Result<SpeakReport> {
+        let t0 = std::time::Instant::now();
+        let mut clock = crate::kokoro::GapClock::new();
+        let mut audio_samples = 0usize;
+        let mut infer_secs = 0f64;
+        let mut spoken = 0usize;
+        let mut failed = 0usize;
+        let mut wall_secs = 0f64;
+        if sentences.is_empty() {
+            crate::kokoro::warn_nothing_spoken(0);
+            return Ok(SpeakReport {
+                audio_samples,
+                infer_secs,
+                wall_secs,
+                gap_secs: 0.0,
+                spoken,
+                failed,
+            });
+        }
+
+        let mut pending = Some(self.ahead.submit_text(&sentences[0], lang, voice, speed)?);
+        for i in 0..sentences.len() {
+            let msg = pending
+                .take()
+                .context("internal: missing stage1 reply")?
+                .recv()
+                .map_err(|_| anyhow::anyhow!("stage1 lookahead stopped"))??;
+            // Start the next sentence before this vocoder so the two overlap,
+            // unless we are already far enough ahead that another sentence
+            // would only heat the phone. In that case the vocoder runs first
+            // and the next sentence waits until the queue drains.
+            let start_next = i + 1 < sentences.len()
+                && (self.execs.mode == GovernorMode::Off
+                    || player.buffered_secs() < GOV_MAX_AHEAD);
+            let mut next_rx = if start_next {
+                Some(self.ahead.submit_text(&sentences[i + 1], lang, voice, speed)?)
+            } else {
+                None
+            };
+            match msg {
+                AheadOut::Ready(s1) => {
+                    let prep_secs = s1.prep_secs;
+                    let token_len = s1.token_len;
+                    let s1_secs = s1.s1_secs;
+                    let pool = self.select_pool_buffered(player.buffered_secs());
+                    let t_s2 = std::time::Instant::now();
+                    let audio = self.run_stage2(s1, pool)?;
+                    let s2_secs = t_s2.elapsed().as_secs_f64();
+                    let arrival = t0.elapsed().as_secs_f64();
+                    let gap = clock.observe(
+                        arrival,
+                        audio.len() as f64 / crate::kokoro::SAMPLE_RATE as f64,
+                    );
+                    let chunk_infer = s1_secs + s2_secs;
+                    infer_secs += chunk_infer;
+                    audio_samples += audio.len();
+                    wall_secs = arrival;
+                    crate::kokoro::report_chunk(
+                        i,
+                        sentences.len(),
+                        token_len,
+                        audio.len(),
+                        chunk_infer,
+                        prep_secs,
+                        gap,
+                    );
+                    if let Some(buf) = wav.as_mut() {
+                        buf.extend_from_slice(&audio);
+                    }
+                    player.push(audio)?;
+                    spoken += 1;
+                    if spoken == 1 {
+                        info!("[kokoro] first audio at {:.2}s", t0.elapsed().as_secs_f64());
+                    }
+                }
+                AheadOut::Failed => failed += 1,
+                AheadOut::Unspeakable => {}
+            }
+            if i + 1 < sentences.len() && next_rx.is_none() {
+                if self.execs.mode != GovernorMode::Off {
+                    player.wait_until_buffered_below(GOV_MAX_AHEAD);
+                }
+                next_rx = Some(self.ahead.submit_text(&sentences[i + 1], lang, voice, speed)?);
+            }
+            pending = next_rx;
+        }
+        if spoken == 0 {
+            crate::kokoro::warn_nothing_spoken(failed);
+        }
+        Ok(SpeakReport {
+            audio_samples,
+            infer_secs,
+            wall_secs,
+            gap_secs: clock.gap(),
+            spoken,
+            failed,
+        })
+    }
+
+    fn select_pool_buffered(&mut self, buffered: f64) -> PoolKind {
+        if !self.execs.switch {
+            return PoolKind::Full;
+        }
+        if self.execs.mode == GovernorMode::Thermal {
+            let lmh = read_lmh_max_c();
+            let capped = gold_freq_capped();
+            let next_hold = update_thermal_hold(self.thermal_hold, lmh, capped);
+            if next_hold != self.thermal_hold {
+                info!(
+                    "[kokoro] thermal hold {} (lmh {lmh}°C, gold capped {capped})",
+                    if next_hold { "on" } else { "off" }
+                );
+                self.thermal_hold = next_hold;
+            }
+        }
+        let next = choose_pool(self.execs.mode, buffered, self.thermal_hold, self.pool);
+        if next != self.pool {
+            info!(
+                "[kokoro] governor {:?} -> {:?} (buffered {buffered:.2}s)",
+                self.pool, next
+            );
+            self.pool = next;
+        }
+        self.pool
+    }
+
+    fn executor_for(&self, pool: PoolKind) -> tract_linalg::multithread::Executor {
+        if pool == PoolKind::Cool {
+            if let Some(cool) = &self.execs.cool {
+                return cool.clone();
+            }
+        }
+        self.execs.full.clone()
+    }
+
+    fn run_stage2(&mut self, s1: S1Out, pool: PoolKind) -> Result<Vec<f32>> {
+        let n = s1.n;
+        let frames = s1.frames;
+        let executor = self.executor_for(pool);
         let stage2 = self.stage2.get(
             &self.stage2_path,
             &[
                 (S1_FEAT_640, &[1, 640, n]),
                 (S1_FEAT_512, &[1, 512, n]),
-                (S2_ALIGNMENT, &[n, total_frames]),
+                (S2_ALIGNMENT, &[n, frames]),
                 ("style", &[1, 256]),
             ],
         )?;
-        // Scope the thread pool to this run; stage 1 above stays single-threaded.
+        let feat640 = s1.feat640;
+        let feat512 = s1.feat512;
+        let alignment = s1.alignment;
+        let style = s1.style;
         let s2 = tract_linalg::multithread::multithread_tract_scope(executor, || {
             stage2.run(
                 &[
                     (S1_FEAT_640, feat640),
                     (S1_FEAT_512, feat512),
                     (S2_ALIGNMENT, alignment),
-                    ("style", style_t),
+                    ("style", style),
                 ],
                 "stage2",
             )
@@ -894,5 +1523,58 @@ mod cpuset_tests {
             pick_cpuset(&CpusetSpec::Explicit(vec![99]), &topo, true),
             None
         );
+    }
+
+    #[test]
+    fn s1_auto_is_little_on_android_only() {
+        let topo = s10e();
+        assert_eq!(pick_s1(&CpusetSpec::Auto, &topo, true), Some(vec![0, 1, 2, 3]));
+        assert_eq!(pick_s1(&CpusetSpec::Auto, &topo, false), None);
+        assert_eq!(pick_s1(&CpusetSpec::Mid, &topo, true), Some(vec![4, 5, 6]));
+    }
+
+    #[test]
+    fn governor_choose_pool() {
+        use GovernorMode::*;
+        use PoolKind::*;
+        assert_eq!(choose_pool(Off, 100.0, true, Cool), Full);
+        assert_eq!(choose_pool(Thermal, 0.0, true, Full), Cool);
+        // Pace ignores a thermal hold and follows the buffer.
+        assert_eq!(choose_pool(Pace, 0.0, true, Full), Full);
+        assert_eq!(choose_pool(Thermal, 6.0, false, Full), Cool);
+        // 2.0 s is inside the band: keep the previous pool.
+        assert_eq!(choose_pool(Thermal, 2.0, false, Full), Full);
+        assert_eq!(choose_pool(Thermal, 3.0, false, Cool), Cool);
+        assert_eq!(choose_pool(Thermal, 1.9, false, Cool), Full);
+        assert_eq!(choose_pool(Pace, 6.0, false, Full), Cool);
+    }
+
+    #[test]
+    fn thermal_hold_hysteresis() {
+        assert!(update_thermal_hold(false, 80, false));
+        assert!(update_thermal_hold(true, 70, false));
+        assert!(!update_thermal_hold(true, 60, false));
+        assert!(update_thermal_hold(true, 60, true));
+        assert!(!update_thermal_hold(false, 70, false));
+        assert!(update_thermal_hold(false, 0, true));
+        assert!(!update_thermal_hold(false, 0, false));
+    }
+
+    #[test]
+    fn fp16_filter_is_gemm_only() {
+        assert!(fp16_translate_name("/decoder/Conv"));
+        assert!(fp16_translate_name("MatMul"));
+        assert!(fp16_translate_name("Gemm_1"));
+        assert!(!fp16_translate_name("/decoder/Sin"));
+        assert!(!fp16_translate_name("Snake"));
+        assert!(!fp16_translate_name("SinSq"));
+        assert!(!fp16_translate_name("InstanceNorm"));
+        assert!(!fp16_translate_name("stft"));
+        assert!(!fp16_translate_name("iSTFT"));
+        assert!(!fp16_translate_name("Greater"));
+        assert!(!fp16_translate_name("Atan"));
+        assert!(!fp16_translate_name("Exp"));
+        assert!(!fp16_translate_name("m_source"));
+        assert!(!fp16_translate_name("Add"));
     }
 }
