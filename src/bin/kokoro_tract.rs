@@ -79,8 +79,8 @@ ENV:
                       remaining highest cluster. Desktop auto does not pin.
     KOKORO_TRACT_S1_CPUSET  where espeak + stage 1 run. Same syntax. Default
                       is the little cores on Android, unpinned on desktop.
-    KOKORO_TRACT_FP16  set to 1 to cast stage-2 GEMMs to f16 in memory. Does
-                      not write a new weight file; the onnx files stay f32.
+    KOKORO_TRACT_FP16  set to 0 to disable casting stage-2 GEMMs to f16 in memory.
+                      Does not write a new weight file; the onnx files stay f32.
     KOKORO_GOVERNOR  off|pace|thermal (default thermal). thermal drops to 2
                       golds when lmh-dcvs is hot or golds are already
                       frequency-capped, and also paces when audio is buffered.

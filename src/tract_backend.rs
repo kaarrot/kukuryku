@@ -319,9 +319,9 @@ fn dump(name: &str, v: &TValue) -> Result<()> {
     Ok(())
 }
 
-/// `KOKORO_TRACT_FP16=1`. Opt-in; the default graph stays f32.
+/// `KOKORO_TRACT_FP16=0` to disable. Opt-out; the default graph uses f16 for GEMMs if supported.
 fn fp16_enabled() -> bool {
-    std::env::var("KOKORO_TRACT_FP16").ok().as_deref() == Some("1")
+    std::env::var("KOKORO_TRACT_FP16").ok().as_deref() != Some("0")
 }
 
 /// Translate a node only when it is a GEMM-like op and not on the f32 keep
@@ -338,11 +338,19 @@ fn fp16_translate_name(name: &str) -> bool {
 }
 
 /// Cast matching f32 weights to f16 inside `model`. Does not touch the ONNX
-/// files. No-op (with an error) when the CPU has no fp16 SIMD.
+/// files. Gracefully falls back to f32 (with a warning) when the CPU has no
+/// fp16 SIMD, unless explicitly forced with `KOKORO_TRACT_FP16=1`.
 fn apply_fp16(model: &mut TypedModel) -> Result<()> {
     use std::sync::OnceLock;
     if !tract_linalg::has_fp16() {
-        bail!("KOKORO_TRACT_FP16=1 but this CPU has no fp16 SIMD (asimdhp)");
+        if std::env::var("KOKORO_TRACT_FP16").ok().as_deref() == Some("1") {
+            bail!("KOKORO_TRACT_FP16=1 but this CPU has no fp16 SIMD (asimdhp)");
+        }
+        static ONCE_FALLBACK: OnceLock<()> = OnceLock::new();
+        if ONCE_FALLBACK.set(()).is_ok() {
+            eprintln!("[kokoro] FP16 default on, but CPU lacks fp16 SIMD (asimdhp); staying in f32");
+        }
+        return Ok(());
     }
     static ONCE: OnceLock<()> = OnceLock::new();
     if ONCE.set(()).is_ok() {
