@@ -71,12 +71,19 @@ ENV:
     KOKORO_WAV     also write synthesized audio to this WAV path
     KOKORO_RAW     set to disable the markdown cleanup (same as --raw)
     KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
-    KOKORO_TRACT_THREADS  stage-2 thread count (default: all cores; on Android
-                      heterogeneous SoCs, the mid cluster size — 3 on 1+3+4.
-                      2 is cooler but RTF ~1.45; 3 keeps ~1.2)
+    KOKORO_TRACT_THREADS  stage-2 thread count. When set, disables the 2/3-gold
+                      governor and uses one pool. Default on Android is the
+                      mid cluster (3). 2 is cooler but was ~1.45 RTF.
     KOKORO_TRACT_CPUSET  auto|mid|little|all|off-prime or a list (4-6, 0-3,7).
                       Android auto pins off the unique prime core onto the
                       remaining highest cluster. Desktop auto does not pin.
+    KOKORO_TRACT_S1_CPUSET  where espeak + stage 1 run. Same syntax. Default
+                      is the little cores on Android, unpinned on desktop.
+    KOKORO_TRACT_FP16  set to 1 to cast stage-2 GEMMs to f16 in memory. Does
+                      not write a new weight file; the onnx files stay f32.
+    KOKORO_GOVERNOR  off|pace|thermal (default thermal). thermal drops to 2
+                      golds when lmh-dcvs is hot or golds are already
+                      frequency-capped, and also paces when audio is buffered.
     KUKURYKU_ASSET_DIR  override the --install-assets target (absolute path, or
                         the literal `exe` for the exe-adjacent dir)
     RYK_SOCKET     daemon socket path (default $XDG_RUNTIME_DIR/ryk.sock)
@@ -190,51 +197,24 @@ fn main() -> Result<()> {
     let player = kokoro::StreamPlayer::new()?;
     let want_wav = std::env::var("KOKORO_WAV").ok();
     let mut all: Vec<f32> = Vec::new();
-    let (mut total_audio, mut total_infer) = (0usize, 0f64);
-    // Chunks that yielded no utterance are skipped, not fatal; `failed` separates a
-    // broken espeak-ng from text that simply has nothing to say (see warn_nothing_spoken).
-    let (mut spoken, mut failed) = (0usize, 0usize);
-
-    for (i, sentence) in sentences.iter().enumerate() {
-        let prep = match kokoro::prepare_or_skip(sentence, &lang, &assets.voice_path)? {
-            kokoro::ChunkPrep::Ready(prep) => prep,
-            kokoro::ChunkPrep::Unspeakable => continue,
-            kokoro::ChunkPrep::Failed => {
-                failed += 1;
-                continue;
-            }
-        };
-        let infer_start = std::time::Instant::now();
-        let audio = pipeline.synthesize(&prep.ids, &prep.style, speed)?;
-        let infer_secs = infer_start.elapsed().as_secs_f64();
-
-        kokoro::report_chunk(i, sentences.len(), prep.token_len, audio.len(), infer_secs);
-        total_audio += audio.len();
-        total_infer += infer_secs;
-        if want_wav.is_some() {
-            all.extend_from_slice(&audio);
-        }
-        player.push(audio)?;
-        spoken += 1;
-        // Keyed off `spoken`, not `i`: chunk 0 may have been skipped.
-        if spoken == 1 {
-            info!("[kokoro] first audio at {:.2}s", t0.elapsed().as_secs_f64());
-        }
-    }
+    let wav = if want_wav.is_some() { Some(&mut all) } else { None };
+    let report = pipeline.speak(&sentences, &lang, &assets.voice_path, speed, &player, wav)?;
 
     player.finish()?;
-    if spoken == 0 {
-        kokoro::warn_nothing_spoken(failed);
+    if report.spoken == 0 {
         return Ok(());
     }
     if let Some(path) = want_wav {
         kokoro::write_wav(&path, &all)?;
         info!("[kokoro] wrote {path}");
     }
-    let audio_secs = total_audio as f64 / kokoro::SAMPLE_RATE as f64;
-    info!(
-        "[kokoro] done: {audio_secs:.2}s audio | infer {total_infer:.2}s | RTF {:.3} | total {:.2}s",
-        total_infer / audio_secs.max(1e-9),
+    // `total` includes asset load, compile, and playback drain. `wall` is the
+    // utterance clock from speak() (espeak included, drain not included).
+    kokoro::report_done(
+        report.audio_samples,
+        report.infer_secs,
+        report.wall_secs,
+        report.gap_secs,
         t0.elapsed().as_secs_f64(),
     );
     Ok(())

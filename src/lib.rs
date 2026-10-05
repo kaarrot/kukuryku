@@ -39,7 +39,7 @@ pub mod kokoro {
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::mpsc::{RecvTimeoutError, SyncSender};
     use std::sync::{Arc, OnceLock};
     use std::time::Duration;
@@ -467,22 +467,91 @@ pub mod kokoro {
         }
     }
 
-    /// Per-chunk metrics line (audio seconds, synth time, realtime factor). Verbose
-    /// only; the default mode stays quiet — these are stats, not user output.
-    pub fn report_chunk(idx: usize, total: usize, token_len: usize, audio_len: usize, infer_secs: f64) {
+    /// Per-chunk metrics line. `infer_secs` is stage-1 + stage-2 compute only
+    /// (not espeak). `prep_secs` is the espeak/tokenize time that ran ahead of
+    /// it. `gap_secs` is how long playback had already run out when this chunk
+    /// became ready (0 when the previous audio was still covering the wait).
+    /// Verbose only; the default mode stays quiet.
+    pub fn report_chunk(
+        idx: usize,
+        total: usize,
+        token_len: usize,
+        audio_len: usize,
+        infer_secs: f64,
+        prep_secs: f64,
+        gap_secs: f64,
+    ) {
         if !verbose() {
             return;
         }
         let audio_secs = audio_len as f64 / SAMPLE_RATE as f64;
         let rtf = infer_secs / audio_secs.max(1e-9);
         eprintln!(
-            "[kokoro] [{n}/{total}] {tok} tokens | {audio:.2}s audio | infer {inf:.2}s | RTF {rtf:.3}",
+            "[kokoro] [{n}/{total}] {tok} tokens | {audio:.2}s audio | prep {prep:.2}s | infer {inf:.2}s | RTF {rtf:.3} | gap {gap:.2}s",
             n = idx + 1,
             tok = token_len,
             audio = audio_secs,
+            prep = prep_secs,
             inf = infer_secs,
             rtf = rtf,
+            gap = gap_secs,
         );
+    }
+
+    /// Utterance summary. `wall_secs` is speak-start through the last chunk
+    /// becoming ready (espeak included, playback drain not included). `total_secs`
+    /// is the caller's clock, so a one-shot run can still show startup + drain.
+    /// `infer_secs` stays stage-1 + stage-2, comparable with older RTF lines.
+    pub fn report_done(
+        audio_samples: usize,
+        infer_secs: f64,
+        wall_secs: f64,
+        gap_secs: f64,
+        total_secs: f64,
+    ) {
+        if !verbose() {
+            return;
+        }
+        let audio_secs = audio_samples as f64 / SAMPLE_RATE as f64;
+        let denom = audio_secs.max(1e-9);
+        eprintln!(
+            "[kokoro] done: {audio_secs:.2}s audio | infer {infer_secs:.2}s | RTF {:.3} | wall {wall_secs:.2}s | wall RTF {:.3} | gap {gap_secs:.2}s | total {total_secs:.2}s",
+            infer_secs / denom,
+            wall_secs / denom,
+        );
+    }
+
+    /// Wall-clock gaps between synthesized chunks. The first chunk anchors the
+    /// clock (startup is not an inter-sentence gap). Time is seconds.
+    #[derive(Clone, Debug)]
+    pub struct GapClock {
+        prev_end: Option<f64>,
+        gap: f64,
+    }
+
+    impl GapClock {
+        pub fn new() -> Self {
+            Self { prev_end: None, gap: 0.0 }
+        }
+
+        pub fn gap(&self) -> f64 {
+            self.gap
+        }
+
+        /// `arrival` is when the chunk became ready. Returns this chunk's gap.
+        pub fn observe(&mut self, arrival: f64, audio_secs: f64) -> f64 {
+            let gap = match self.prev_end {
+                None => 0.0,
+                Some(end) => (arrival - end).max(0.0),
+            };
+            let start = match self.prev_end {
+                Some(end) => arrival.max(end),
+                None => arrival,
+            };
+            self.prev_end = Some(start + audio_secs);
+            self.gap += gap;
+            gap
+        }
     }
 
     /// Streaming audio sink: a background thread feeding `ffplay`/`pacat` over a
@@ -505,6 +574,10 @@ pub mod kokoro {
         thread: Option<std::thread::JoinHandle<Result<()>>>,
         sink_live: Arc<AtomicBool>,
         hold: Arc<AtomicBool>,
+        /// Samples accepted by [`push`](Self::push).
+        queued: Arc<AtomicU64>,
+        /// Samples successfully written to the sink.
+        written: Arc<AtomicU64>,
     }
 
     /// Max sentences of synthesized audio buffered ahead of playback.
@@ -633,10 +706,15 @@ pub mod kokoro {
             let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(STREAM_BUFFER);
             let sink_live = Arc::new(AtomicBool::new(false));
             let hold = Arc::new(AtomicBool::new(false));
+            let queued = Arc::new(AtomicU64::new(0));
+            let written = Arc::new(AtomicU64::new(0));
             let sink_live_t = Arc::clone(&sink_live);
             let hold_t = Arc::clone(&hold);
-            let thread = std::thread::spawn(move || playback_thread(rx, sink_live_t, hold_t, idle));
-            Ok(StreamPlayer { tx: Some(tx), thread: Some(thread), sink_live, hold })
+            let written_t = Arc::clone(&written);
+            let thread = std::thread::spawn(move || {
+                playback_thread(rx, sink_live_t, hold_t, written_t, idle)
+            });
+            Ok(StreamPlayer { tx: Some(tx), thread: Some(thread), sink_live, hold, queued, written })
         }
 
         /// Keep the sink process open even while the sample queue is empty.
@@ -661,11 +739,45 @@ pub mod kokoro {
 
         /// Queue a finished chunk. Blocks if the buffer is full (backpressure).
         pub fn push(&self, chunk: Vec<f32>) -> Result<()> {
-            self.tx
-                .as_ref()
-                .context("player already finished")?
-                .send(chunk)
-                .map_err(|_| anyhow::anyhow!("playback thread stopped early"))
+            let n = chunk.len() as u64;
+            self.queued.fetch_add(n, Ordering::Release);
+            match self.tx.as_ref().context("player already finished")?.send(chunk) {
+                Ok(()) => Ok(()),
+                Err(_) => {
+                    self.queued.fetch_sub(n, Ordering::Release);
+                    Err(anyhow::anyhow!("playback thread stopped early"))
+                }
+            }
+        }
+
+        /// Seconds of audio queued but not yet written to the sink. This is not
+        /// speaker-audible time — pacat's own latency is about 100 ms on top.
+        pub fn buffered_secs(&self) -> f64 {
+            let q = self.queued.load(Ordering::Acquire);
+            let w = self.written.load(Ordering::Acquire);
+            q.saturating_sub(w) as f64 / SAMPLE_RATE as f64
+        }
+
+        /// Block while at least `secs` of audio is still queued. Used so a
+        /// faster-than-realtime run does not synthesize an unbounded lead.
+        /// Logs once. Returns immediately when playback has already exited.
+        pub fn wait_until_buffered_below(&self, secs: f64) {
+            if self.buffered_secs() < secs {
+                return;
+            }
+            static ANNOUNCED: AtomicBool = AtomicBool::new(false);
+            if !ANNOUNCED.swap(true, Ordering::Relaxed) {
+                info!(
+                    "[kokoro] {:.1}s of audio queued; waiting until under {secs:.0}s",
+                    self.buffered_secs()
+                );
+            }
+            while self.buffered_secs() >= secs {
+                if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
         }
 
         /// Close the queue and wait for playback to finish draining.
@@ -712,17 +824,24 @@ pub mod kokoro {
         rx: std::sync::mpsc::Receiver<Vec<f32>>,
         sink_live: Arc<AtomicBool>,
         hold: Arc<AtomicBool>,
+        written: Arc<AtomicU64>,
         idle: Option<Duration>,
     ) -> Result<()> {
+        // Re-pin here. The tract pool pins the main thread before this one is
+        // spawned, and affinity is inherited — playback, pacat, and a Pulse
+        // start from this thread must not sit on the gold cores.
+        #[cfg(feature = "tract")]
+        crate::tract_backend::pin_playback_thread();
         match idle {
             None => {
                 let (child, mut stdin) = spawn_sink(&sink_live)?;
                 for chunk in rx.iter() {
                     write_pcm(&mut stdin, &chunk).context("writing pcm to audio sink")?;
+                    written.fetch_add(chunk.len() as u64, Ordering::Release);
                 }
                 close_sink(Some(stdin), child, &sink_live)
             }
-            Some(idle) => playback_sessions(rx, sink_live, hold, idle),
+            Some(idle) => playback_sessions(rx, sink_live, hold, written, idle),
         }
     }
 
@@ -734,6 +853,7 @@ pub mod kokoro {
         rx: std::sync::mpsc::Receiver<Vec<f32>>,
         sink_live: Arc<AtomicBool>,
         hold: Arc<AtomicBool>,
+        written: Arc<AtomicU64>,
         idle: Duration,
     ) -> Result<()> {
         const HOLD_POLL: Duration = Duration::from_millis(200);
@@ -754,6 +874,7 @@ pub mod kokoro {
                 let _ = close_sink(Some(stdin), child, &sink_live);
                 continue;
             }
+            written.fetch_add(first.len() as u64, Ordering::Release);
             let mut disconnected = false;
             loop {
                 let wait = if hold.load(Ordering::Acquire) { HOLD_POLL } else { idle };
@@ -765,6 +886,7 @@ pub mod kokoro {
                             );
                             break;
                         }
+                        written.fetch_add(chunk.len() as u64, Ordering::Release);
                     }
                     Err(RecvTimeoutError::Timeout) => {
                         if hold.load(Ordering::Acquire) {
@@ -914,6 +1036,25 @@ mod tests {
     #[test]
     fn voice_errors_are_not_swallowed() {
         assert!(matches!(prepare_or_skip("hello there", "en-us", Path::new("/nope.bin")), Err(_)));
+    }
+
+    /// First chunk anchors. A chunk that arrives while the previous audio is
+    /// still covering it adds no gap. A late chunk adds the hole.
+    #[test]
+    fn gap_clock_counts_only_underruns() {
+        let mut g = GapClock::new();
+        assert!((g.observe(2.0, 10.0) - 0.0).abs() < 1e-9);
+        assert!((g.observe(11.0, 10.0) - 0.0).abs() < 1e-9);
+        assert!((g.observe(23.0, 10.0) - 1.0).abs() < 1e-9);
+        assert!((g.gap() - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn gap_clock_one_second_hole() {
+        let mut g = GapClock::new();
+        assert!((g.observe(1.0, 2.0) - 0.0).abs() < 1e-9);
+        assert!((g.observe(4.0, 2.0) - 1.0).abs() < 1e-9);
+        assert!((g.gap() - 1.0).abs() < 1e-9);
     }
 
     /// PulseAudio must be allowed to idle-exit once pacat disconnects. `--exit-idle-time=-1`

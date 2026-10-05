@@ -21,6 +21,7 @@ mod complex;
 pub use complex::{ComplexToInnerDim, InnerDimToComplex};
 
 bin_to_super_type!(add, Add,
+                   declutter: try_fuse_snake,
                    linalg: Add,
                    neutral_element: 0,
                    validation: Validation::Rounding,
@@ -754,6 +755,157 @@ element_wise!(sin_sq, SinSq,
     [f16, f64] => |_, xs| { par_elementwise(xs, |x| *x = x.sin().powi(2)); Ok(()) }
 );
 
+/// `x + (1/α) · sin(α · x)²` in one pass over `[1, C, F]`.
+///
+/// α is per channel (the Snake const of shape `[1, C, 1]`). Fusing deletes the
+/// four memory passes `Mul → SinSq → Mul → Add` that otherwise stream the
+/// vocoder activation. f16 is intentionally unsupported: f16 `Sin` is scalar
+/// libm, and the fp16 experiment keeps Snake in f32.
+#[derive(Debug, Clone)]
+struct Snake {
+    alpha: Vec<f32>,
+    inv_alpha: Vec<f32>,
+}
+
+impl ElementWiseMiniOp for Snake {
+    fn name(&self) -> String {
+        "Snake".to_string()
+    }
+
+    fn same_as(&self, other: &dyn ElementWiseMiniOp) -> bool {
+        other.downcast_ref::<Snake>().is_some_and(|o| o.alpha == self.alpha && o.inv_alpha == self.inv_alpha)
+    }
+
+    fn eval_in_place(&self, t: &mut Tensor, out_dt: Option<DatumType>) -> TractResult<()> {
+        if t.datum_type() != f32::datum_type() || out_dt.is_some_and(|d| d != f32::datum_type()) {
+            bail!("Snake only runs on f32");
+        }
+        let shape = t.shape().to_vec();
+        let xs = t.as_slice_mut::<f32>()?;
+        let alpha = &self.alpha;
+        let inv = &self.inv_alpha;
+        if alpha.len() == 1 && inv.len() == 1 {
+            let (a, inv_a) = (alpha[0], inv[0]);
+            par_elementwise(xs, |x| {
+                let s = ssin_f32(a * *x);
+                *x += inv_a * s * s;
+            });
+            return Ok(());
+        }
+        if shape.len() == 3 && shape[1] == alpha.len() && alpha.len() == inv.len() && shape[2] > 0 {
+            let (n, c, f) = (shape[0], shape[1], shape[2]);
+            for ni in 0..n {
+                let start = ni * c * f;
+                let block = &mut xs[start..start + c * f];
+                tract_linalg::multithread::par_chunks_mut(block, f, |ci, row| {
+                    if ci >= c || row.len() != f {
+                        return;
+                    }
+                    let (a, inv_a) = (alpha[ci], inv[ci]);
+                    for x in row.iter_mut() {
+                        let s = ssin_f32(a * *x);
+                        *x += inv_a * s * s;
+                    }
+                });
+            }
+            return Ok(());
+        }
+        bail!("Snake shape {:?} does not match {} channels", shape, alpha.len());
+    }
+}
+
+/// Fold `Add(x, Mul(SinSq(Mul(x, α)), 1/α))` when α and 1/α are finite consts
+/// and each intermediate has a single consumer. Runs from `Add`'s declutter,
+/// after `Square(Sin)` has already become `SinSq` (the pass repeats).
+fn try_fuse_snake(
+    _op: &Add,
+    model: &TypedModel,
+    node: &TypedNode,
+) -> TractResult<Option<TypedModelPatch>> {
+    if node.inputs.len() != 2 {
+        return Ok(None);
+    }
+    let dt = node.outputs.first().map(|o| o.fact.datum_type);
+    if dt != Some(f32::datum_type()) {
+        return Ok(None);
+    }
+    let fused = match_snake(model, node.inputs[0], node.inputs[1])
+        .or_else(|| match_snake(model, node.inputs[1], node.inputs[0]));
+    let Some((x, alpha, inv_alpha)) = fused else {
+        return Ok(None);
+    };
+    let mut patch = TypedModelPatch::default();
+    let tap = patch.tap_model(model, x)?;
+    let op = crate::ops::element_wise::ElementWiseOp(Box::new(Snake { alpha, inv_alpha }), None);
+    let wire = patch.wire_node(&node.name, op, &[tap])?[0];
+    patch.shunt_outside(model, node.id.into(), wire)?;
+    Ok(Some(patch))
+}
+
+fn match_snake(
+    model: &TypedModel,
+    tail: OutletId,
+    x_expected: OutletId,
+) -> Option<(OutletId, Vec<f32>, Vec<f32>)> {
+    let outer = model.node(tail.node);
+    if !sole_consumer(model, outer.id) {
+        return None;
+    }
+    let (inv_t, sq_out) = mul_const_and_var(model, outer)?;
+    let sq = model.node(sq_out.node);
+    if sq_out.slot != 0 || !sole_consumer(model, sq.id) {
+        return None;
+    }
+    let ew = sq.op_as::<crate::ops::element_wise::ElementWiseOp>()?;
+    ew.0.downcast_ref::<SinSq>()?;
+    let inner_out = *sq.inputs.first()?;
+    let inner = model.node(inner_out.node);
+    if inner_out.slot != 0 || !sole_consumer(model, inner.id) {
+        return None;
+    }
+    let (alpha_t, x) = mul_const_and_var(model, inner)?;
+    if x != x_expected {
+        return None;
+    }
+    let alpha = const_f32s(&alpha_t)?;
+    let inv = const_f32s(&inv_t)?;
+    if alpha.len() != inv.len() || alpha.is_empty() {
+        return None;
+    }
+    let reciprocal = alpha.iter().zip(&inv).all(|(a, i)| {
+        a.is_finite() && i.is_finite() && *a != 0.0 && (*a * *i - 1.0).abs() <= 1e-2
+    });
+    if !reciprocal {
+        return None;
+    }
+    Some((x, alpha, inv))
+}
+
+fn sole_consumer(model: &TypedModel, id: usize) -> bool {
+    let n = model.node(id).outputs.iter().map(|o| o.successors.len()).sum::<usize>();
+    n == 1
+}
+
+fn mul_const_and_var(model: &TypedModel, node: &TypedNode) -> Option<(Arc<Tensor>, OutletId)> {
+    let bin = node.op_as::<TypedBinOp>()?;
+    if !bin.0.is::<Mul>() {
+        return None;
+    }
+    let c0 = model.outlet_fact(node.inputs[0]).ok()?.konst.clone();
+    let c1 = model.outlet_fact(node.inputs[1]).ok()?.konst.clone();
+    match (c0, c1) {
+        (Some(c), None) => Some((c, node.inputs[1])),
+        (None, Some(c)) => Some((c, node.inputs[0])),
+        _ => None,
+    }
+}
+
+fn const_f32s(t: &Tensor) -> Option<Vec<f32>> {
+    let cast = t.cast_to::<f32>().ok()?;
+    let s = cast.as_slice::<f32>().ok()?;
+    Some(s.to_vec())
+}
+
 element_wise!(tan, Tan, [f16, f32, f64] => |_, xs| {
     xs.iter_mut().for_each(|x| *x = x.tan());
     Ok(())
@@ -899,6 +1051,64 @@ mod tests {
             .downcast_ref::<TypedBinOp>()
             .unwrap();
         assert!(op.0.downcast_ref::<ShiftRight>().is_some());
+        Ok(())
+    }
+
+    /// `Add(x, Mul(SinSq(Mul(x, α)), 1/α))` becomes one Snake pass, and the
+    /// values match the f32 formula (not a looser fast-math sin).
+    #[test]
+    fn snake_fuses_and_matches_ssin() -> TractResult<()> {
+        let mut model = TypedModel::default();
+        let x = model.add_source("x", f32::fact([1, 2, 4]))?;
+        let alpha = model.add_const("alpha", Tensor::from_shape(&[1, 2, 1], &[0.5f32, 2.0])?)?;
+        let inv = model.add_const("inv", Tensor::from_shape(&[1, 2, 1], &[2.0f32, 0.5])?)?;
+        let scaled = model.wire_node("scaled", mul(), &[x, alpha])?[0];
+        let sq = model.wire_node("sq", sin_sq(), &[scaled])?[0];
+        let scaled_sq = model.wire_node("scaled_sq", mul(), &[sq, inv])?[0];
+        let y = model.wire_node("y", add(), &[x, scaled_sq])?[0];
+        model.set_output_outlets(&[y])?;
+
+        let decluttered = model.clone().into_decluttered()?;
+        let names: Vec<String> = decluttered.nodes.iter().map(|n| n.op().name().to_string()).collect();
+        assert!(names.iter().any(|n| n.contains("Snake")), "not fused: {names:?}");
+
+        let input = Tensor::from_shape(
+            &[1, 2, 4],
+            &[0.1f32, 0.2, -0.3, 0.4, 1.0, -1.0, 0.5, 0.25],
+        )?;
+        let out = SimplePlan::new(&decluttered)?.run(tvec!(input.into()))?;
+        let got = out[0].as_slice::<f32>()?;
+        let xs = [0.1f32, 0.2, -0.3, 0.4, 1.0, -1.0, 0.5, 0.25];
+        let alphas = [0.5f32, 2.0];
+        let invs = [2.0f32, 0.5];
+        for c in 0..2 {
+            for f in 0..4 {
+                let x = xs[c * 4 + f];
+                let s = super::ssin_f32(alphas[c] * x);
+                let expect = x + invs[c] * s * s;
+                let g = got[c * 4 + f];
+                assert!((g - expect).abs() < 1e-5, "c={c} f={f} got {g} expect {expect}");
+            }
+        }
+        Ok(())
+    }
+
+    /// A mul that is not actually 1/α must stay a plain add. Snake is not a
+    /// general mul-sin-add fold.
+    #[test]
+    fn snake_skips_non_reciprocal_scale() -> TractResult<()> {
+        let mut model = TypedModel::default();
+        let x = model.add_source("x", f32::fact([1, 2, 4]))?;
+        let alpha = model.add_const("alpha", Tensor::from_shape(&[1, 2, 1], &[0.5f32, 2.0])?)?;
+        let inv = model.add_const("inv", Tensor::from_shape(&[1, 2, 1], &[0.5f32, 0.5])?)?;
+        let scaled = model.wire_node("scaled", mul(), &[x, alpha])?[0];
+        let sq = model.wire_node("sq", sin_sq(), &[scaled])?[0];
+        let scaled_sq = model.wire_node("scaled_sq", mul(), &[sq, inv])?[0];
+        let y = model.wire_node("y", add(), &[x, scaled_sq])?[0];
+        model.set_output_outlets(&[y])?;
+        let decluttered = model.into_decluttered()?;
+        let names: Vec<String> = decluttered.nodes.iter().map(|n| n.op().name().to_string()).collect();
+        assert!(!names.iter().any(|n| n.contains("Snake")), "fused unexpectedly: {names:?}");
         Ok(())
     }
 }
