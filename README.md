@@ -330,3 +330,16 @@ run-speed arc (RTF 1.73 → ~0.50: lazy im2col, SIMD binary fusion, single-pass 
 a mimalloc global allocator, `Square(Sin)`→`SinSq` fusion, and a vectorized `sin`) — is in
 [`docs/tract-support-plan.md`](docs/tract-support-plan.md).
 
+## Testing
+
+Smoke-test RTF against the already-built binary (no `cargo run`, no rebuild) with a two-sentence
+prompt so the pipeline reports a `[1/2]` and `[2/2]` line plus the `done:` summary:
+
+```bash
+target/release/ryk -v "The old lighthouse keeper climbed the winding staircase every single evening at dusk. Carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night."
+```
+
+Read **`infer RTF`** for pure synthesis speed and **`wall RTF`** for synthesis + sink startup +
+first-sample latency. Prefix with `KOKORO_GOVERNOR=off` to isolate full-pool speed from the
+governor's thermal/pacing decisions.
+
