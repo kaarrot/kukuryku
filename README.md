@@ -206,6 +206,7 @@ network fallback for them. Only a missing **voice** is fetched from the HF cache
 | `KOKORO_WAV` | _(unset)_ | If set, write a 16-bit PCM WAV here instead of / in addition to playing |
 | `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/` |
 | `KOKORO_TRACT_THREADS` | _(all cores)_ | Thread-pool size for the stage-2 vocoder |
+| `KOKORO_TRACT_FP16` | on for aarch64 with fp16 SIMD, off elsewhere | `1` forces the f16 stage-2 GEMMs on (errors if the CPU lacks `asimdhp`); `0` forces f32. Weights are cast in memory; the ONNX files stay f32. |
 | `RYK_SOCKET` | `$XDG_RUNTIME_DIR/ryk.sock` | Daemon socket for `--serve`/`--send` (see below) |
 | `RYK_IDLE_TIMEOUT` | `1800` (seconds) | `--serve` exits after this long with no jobs and no live audio sink. `0`/`off`/`none`/`-1` disables. `--send` auto-starts a replacement. |
 | `RYK_SINK_IDLE_MS` | `600000` (10 minutes) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe (no OpenSL restart click). Then the sink closes and PulseAudio can idle-exit. |
@@ -321,6 +322,19 @@ an editor session can send again without restarting OpenSL, then closes the sink
 can idle-exit. The next utterance after that grace respawns both. Or just use `KOKORO_WAV`.
 (The `ffplay` path, used on desktop, instead relies on the audio server your session already
 runs — PulseAudio, PipeWire, or ALSA via SDL.)
+
+**FP16 stage 2.** On aarch64, `ryk` casts the stage-2 vocoder GEMMs to f16 by default when the
+CPU has fp16 SIMD (`asimdhp`), and stays in f32 if it doesn't. Set `KOKORO_TRACT_FP16=1` to
+require the optimized path, so `ryk` errors out instead of quietly falling back to f32:
+
+```bash
+KOKORO_TRACT_FP16=1 ryk -v "Hello from Termux."
+```
+
+`-v` should print `FP16 GEMM is on`. On the test phone this took wall RTF from 1.46 to 1.11 and
+peak CPU temperature from 82 °C to 75 °C. Desktop builds leave it off, because x86 has no f16 GEMM
+kernels and f32 already runs well under 1.0 RTF there. Use `KOKORO_TRACT_FP16=0` to compare
+against f32.
 
 ## How it works, fidelity, and performance
 

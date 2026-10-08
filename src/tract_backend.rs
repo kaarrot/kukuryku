@@ -319,9 +319,33 @@ fn dump(name: &str, v: &TValue) -> Result<()> {
     Ok(())
 }
 
-/// `KOKORO_TRACT_FP16=0` to disable. Opt-out; the default graph uses f16 for GEMMs if supported.
-fn fp16_enabled() -> bool {
-    std::env::var("KOKORO_TRACT_FP16").ok().as_deref() != Some("0")
+/// Whether stage 2 casts its GEMMs to f16. Decided once, up front, so the
+/// compiled graph and the input dtype `Stage::run` feeds always agree.
+///
+/// Default on only for aarch64 builds with fp16 SIMD (asimdhp): that is where
+/// it was measured to win (Termux). On x86 there are no f16 GEMM kernels and
+/// f32 already runs well under 1.0 RTF, so the default there is off.
+/// `KOKORO_TRACT_FP16=0` forces it off; `=1` forces it on and errors if the
+/// CPU cannot run it.
+fn fp16_enabled() -> Result<bool> {
+    let env = std::env::var("KOKORO_TRACT_FP16").ok();
+    match env.as_deref() {
+        Some("0") => Ok(false),
+        Some("1") => {
+            if !tract_linalg::has_fp16() {
+                bail!("KOKORO_TRACT_FP16=1 but this CPU has no fp16 SIMD (asimdhp)");
+            }
+            Ok(true)
+        }
+        _ if !cfg!(target_arch = "aarch64") => Ok(false),
+        _ => {
+            if !tract_linalg::has_fp16() {
+                eprintln!("[kokoro] CPU lacks fp16 SIMD (asimdhp); stage 2 stays in f32");
+                return Ok(false);
+            }
+            Ok(true)
+        }
+    }
 }
 
 /// Translate a node to f16 only when it is a GEMM-like op (MatMul/Gemm/Conv).
@@ -367,20 +391,9 @@ fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
 }
 
 /// Cast matching f32 weights to f16 inside `model`. Does not touch the ONNX
-/// files. Gracefully falls back to f32 (with a warning) when the CPU has no
-/// fp16 SIMD, unless explicitly forced with `KOKORO_TRACT_FP16=1`.
+/// files. Only called once [`fp16_enabled`] has confirmed fp16 SIMD.
 fn apply_fp16(model: &mut TypedModel) -> Result<()> {
     use std::sync::OnceLock;
-    if !tract_linalg::has_fp16() {
-        if std::env::var("KOKORO_TRACT_FP16").ok().as_deref() == Some("1") {
-            bail!("KOKORO_TRACT_FP16=1 but this CPU has no fp16 SIMD (asimdhp)");
-        }
-        static ONCE_FALLBACK: OnceLock<()> = OnceLock::new();
-        if ONCE_FALLBACK.set(()).is_ok() {
-            eprintln!("[kokoro] FP16 default on, but CPU lacks fp16 SIMD (asimdhp); staying in f32");
-        }
-        return Ok(());
-    }
     static ONCE: OnceLock<()> = OnceLock::new();
     if ONCE.set(()).is_ok() {
         eprintln!(
@@ -1220,7 +1233,7 @@ impl Pipeline {
         // re-pins itself to the littles).
         let execs = build_executors();
         let stage2_path_bg = stage2_path.clone();
-        let stage2_fp16 = fp16_enabled();
+        let stage2_fp16 = fp16_enabled()?;
         // The two compiles are independent. Stage 2 is the long pole; building
         // it on a background thread while stage 1 compiles here drops startup
         // to about max(the two) instead of the sum.
