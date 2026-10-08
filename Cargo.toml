@@ -106,6 +106,12 @@ required-features = ["tract-probe"]
 
 [profile.release]
 opt-level = 3
+# Cross-crate inlining across the vendored tract-core / tract-linalg boundary is
+# the win here. `fat` triples build time for a marginal extra gain, so stay with
+# `thin`. `panic = "unwind"` (default) is kept intentionally: the vendored tract
+# is actively patched and backtraces still matter.
+lto = "thin"
+codegen-units = 1
 
 # Local, editable copies of the tract crates (vendored from crates.io 0.22.3).
 # We expect to patch tract's shape inference / op support for Kokoro

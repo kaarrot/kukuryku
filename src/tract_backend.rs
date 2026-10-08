@@ -324,17 +324,46 @@ fn fp16_enabled() -> bool {
     std::env::var("KOKORO_TRACT_FP16").ok().as_deref() != Some("0")
 }
 
-/// Translate a node only when it is a GEMM-like op and not on the f32 keep
-/// list (Snake, STFT, norms, elementwise trig, the harmonic source).
-fn fp16_translate_name(name: &str) -> bool {
-    const DENY: &[&str] = &[
-        "m_source", "stft", "STFT", "istft", "iSTFT", "Greater", "Atan", "Exp", "InstanceNorm",
-        "SinSq", "Snake", "Sin",
+/// Translate a node to f16 only when it is a GEMM-like op (MatMul/Gemm/Conv).
+///
+/// `op_type` is the *actual* op kind (`node.op().name()`); filtering by op
+/// type matters because an earlier declutter pass can fuse e.g. Add+Snake
+/// into a single Snake-typed node whose user-visible name still contains
+/// `Add`. A name-only filter would wrongly accept it and Snake's f16 input
+/// would then crash at runtime.
+///
+/// `node_name` is also checked for `m_source`, which is a whole harmonic
+/// subgraph that needs end-to-end f32 even on otherwise acceptable op types.
+///
+/// Widening the accept list to scalar fusions (`OptMulByScalar`,
+/// `OptAddByScalar`, `OptSubByScalar`, `OptAddUnicast`) was tried and
+/// *doubled* the Cast count (335 → 748) and silenced the output — translating
+/// isolated scalar ops creates new f16↔f32 boundaries instead of merging
+/// existing ones. A neighborhood-aware translator would be needed to realise
+/// the 16% Cast share theoretically available.
+fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
+    const DENY_OPS: &[&str] = &[
+        "Snake",
+        "SinSq",
+        "InstanceNorm",
+        "LayerNorm",
+        "Stft",
+        "STFT",
+        "Istft",
+        "ISTFT",
+        "Greater",
+        "Atan",
+        "Exp",
+        "Sin",
     ];
-    if DENY.iter().any(|d| name.contains(d)) {
+    if DENY_OPS.iter().any(|d| op_type.contains(d)) {
         return false;
     }
-    name.contains("Conv") || name.contains("MatMul") || name.contains("Gemm")
+    if node_name.contains("m_source") {
+        return false;
+    }
+    const ACCEPT_OPS: &[&str] = &["MatMul", "Gemm", "Conv"];
+    ACCEPT_OPS.iter().any(|a| op_type.contains(a))
 }
 
 /// Cast matching f32 weights to f16 inside `model`. Does not touch the ONNX
@@ -360,7 +389,8 @@ fn apply_fp16(model: &mut TypedModel) -> Result<()> {
     }
     let translator =
         tract_onnx::tract_core::floats::FloatPrecisionTranslator::<f32, f16>::with_filter(|node| {
-            fp16_translate_name(&node.name)
+            let op_type = node.op().name();
+            fp16_translate_node(op_type.as_ref(), &node.name)
         });
     model.transform(&translator)?;
     Ok(())
@@ -695,10 +725,15 @@ enum GovernorMode {
 const GOV_HI: f64 = 6.0;
 const GOV_LO: f64 = 2.0;
 const GOV_MAX_AHEAD: f64 = 20.0;
-/// lmh-dcvs trips at 85°C. Start shedding a gold before that slam.
-const THERM_HOT: i32 = 75;
-/// Release the hold only after the sensor has come back down.
-const THERM_COOL: i32 = 68;
+/// Trip the hold when the hottest gold core zone reaches this °C.
+/// Reading the live `cpu-1-*-usr` zones: these sit at 40–50 °C idle,
+/// 55–65 °C under sustained load, so 78 is a real "running hot" signal
+/// without being so high the gold cluster is already throttled by DVFS.
+const THERM_HOT: i32 = 78;
+/// Release the hold only after the sensor has come back down below this.
+/// Keep ≥ 6 °C of hysteresis so a chunk straddling the threshold doesn't
+/// flap the pool choice.
+const THERM_COOL: i32 = 72;
 
 fn governor_mode() -> GovernorMode {
     match std::env::var("KOKORO_GOVERNOR") {
@@ -736,58 +771,55 @@ fn choose_pool(mode: GovernorMode, buffered: f64, thermal_hold: bool, prev: Pool
     }
 }
 
-/// Pure hysteresis. Missing sensor reads pass `lmh_c == 0` and do not trip
-/// the hold by themselves. `gold_capped` means the kernel already lowered
-/// cpu4's ceiling, which is treated as hot.
-fn update_thermal_hold(hold: bool, lmh_c: i32, gold_capped: bool) -> bool {
+/// Pure hysteresis. Missing sensor reads pass `temp_c == 0` and do not trip
+/// the hold by themselves.
+fn update_thermal_hold(hold: bool, temp_c: i32) -> bool {
     if hold {
-        !(lmh_c < THERM_COOL && !gold_capped)
+        temp_c >= THERM_COOL
     } else {
-        lmh_c >= THERM_HOT || gold_capped
+        temp_c >= THERM_HOT
     }
 }
 
-/// Hottest `lmh-dcvs*` thermal zone, in °C. 0 when the zones are unreadable.
-fn read_lmh_max_c() -> i32 {
-    let Ok(rd) = std::fs::read_dir("/sys/class/thermal") else {
-        return 0;
-    };
-    let mut max_c = 0i32;
-    let mut found = false;
-    for ent in rd.flatten() {
-        let p = ent.path();
-        let Ok(typ) = std::fs::read_to_string(p.join("type")) else {
-            continue;
-        };
-        if !typ.trim().starts_with("lmh-dcvs") {
-            continue;
+/// Hottest live per-core thermal zone on the gold cluster, in °C.
+///
+/// Reads `cpu-1-*-usr` first (the gold cluster — where stage-2 actually
+/// heats the silicon). Falls back to `cpu-*-usr` if the per-cluster
+/// naming isn't present (non-Qualcomm SoCs). Returns 0 if nothing is
+/// readable, which `update_thermal_hold` treats as "no signal, do not
+/// trip by itself".
+///
+/// Deliberately avoids `lmh-dcvs-*` on SD855 Samsung firmware: that
+/// zone reports a static 75 °C sentinel (the limits-management setpoint
+/// exposed through a temp file, not a live reading) and would peg the
+/// hold on at idle.
+fn read_hot_core_c() -> i32 {
+    fn max_matching(prefix: &str) -> Option<i32> {
+        let rd = std::fs::read_dir("/sys/class/thermal").ok()?;
+        let mut max_c = i32::MIN;
+        let mut found = false;
+        for ent in rd.flatten() {
+            let p = ent.path();
+            let Ok(typ) = std::fs::read_to_string(p.join("type")) else {
+                continue;
+            };
+            if !typ.trim().starts_with(prefix) {
+                continue;
+            }
+            let Ok(raw) = std::fs::read_to_string(p.join("temp")) else {
+                continue;
+            };
+            let Ok(milli) = raw.trim().parse::<i32>() else {
+                continue;
+            };
+            found = true;
+            max_c = max_c.max(milli / 1000);
         }
-        let Ok(raw) = std::fs::read_to_string(p.join("temp")) else {
-            continue;
-        };
-        let Ok(milli) = raw.trim().parse::<i32>() else {
-            continue;
-        };
-        found = true;
-        max_c = max_c.max(milli / 1000);
+        if found { Some(max_c) } else { None }
     }
-    if found { max_c } else { 0 }
-}
-
-/// True when cpu4's scaling ceiling is already below its hardware max.
-/// Reads only — writing `scaling_max_freq` is EPERM from Termux.
-fn gold_freq_capped() -> bool {
-    let base = "/sys/devices/system/cpu/cpu4/cpufreq";
-    let max = std::fs::read_to_string(format!("{base}/scaling_max_freq"))
-        .ok()
-        .and_then(|s| s.trim().parse::<u64>().ok());
-    let info = std::fs::read_to_string(format!("{base}/cpuinfo_max_freq"))
-        .ok()
-        .and_then(|s| s.trim().parse::<u64>().ok());
-    match (max, info) {
-        (Some(m), Some(i)) => m + 1000 < i,
-        _ => false,
-    }
+    max_matching("cpu-1-")
+        .or_else(|| max_matching("cpu-"))
+        .unwrap_or(0)
 }
 
 fn pin_or_warn(cpus: &[usize]) {
@@ -1359,12 +1391,11 @@ impl Pipeline {
             return PoolKind::Full;
         }
         if self.execs.mode == GovernorMode::Thermal {
-            let lmh = read_lmh_max_c();
-            let capped = gold_freq_capped();
-            let next_hold = update_thermal_hold(self.thermal_hold, lmh, capped);
+            let core_c = read_hot_core_c();
+            let next_hold = update_thermal_hold(self.thermal_hold, core_c);
             if next_hold != self.thermal_hold {
                 info!(
-                    "[kokoro] thermal hold {} (lmh {lmh}°C, gold capped {capped})",
+                    "[kokoro] thermal hold {} (hottest gold core {core_c}°C)",
                     if next_hold { "on" } else { "off" }
                 );
                 self.thermal_hold = next_hold;
@@ -1559,30 +1590,39 @@ mod cpuset_tests {
 
     #[test]
     fn thermal_hold_hysteresis() {
-        assert!(update_thermal_hold(false, 80, false));
-        assert!(update_thermal_hold(true, 70, false));
-        assert!(!update_thermal_hold(true, 60, false));
-        assert!(update_thermal_hold(true, 60, true));
-        assert!(!update_thermal_hold(false, 70, false));
-        assert!(update_thermal_hold(false, 0, true));
-        assert!(!update_thermal_hold(false, 0, false));
+        // Above THERM_HOT (78): trip.
+        assert!(update_thermal_hold(false, 80));
+        // Inside the band [THERM_COOL, THERM_HOT): stay held if held.
+        assert!(update_thermal_hold(true, 75));
+        // Below THERM_COOL (72): release.
+        assert!(!update_thermal_hold(true, 70));
+        // Inside the band and not held: do not trip.
+        assert!(!update_thermal_hold(false, 75));
+        // No signal (0): never trips by itself.
+        assert!(!update_thermal_hold(false, 0));
     }
 
     #[test]
     fn fp16_filter_is_gemm_only() {
-        assert!(fp16_translate_name("/decoder/Conv"));
-        assert!(fp16_translate_name("MatMul"));
-        assert!(fp16_translate_name("Gemm_1"));
-        assert!(!fp16_translate_name("/decoder/Sin"));
-        assert!(!fp16_translate_name("Snake"));
-        assert!(!fp16_translate_name("SinSq"));
-        assert!(!fp16_translate_name("InstanceNorm"));
-        assert!(!fp16_translate_name("stft"));
-        assert!(!fp16_translate_name("iSTFT"));
-        assert!(!fp16_translate_name("Greater"));
-        assert!(!fp16_translate_name("Atan"));
-        assert!(!fp16_translate_name("Exp"));
-        assert!(!fp16_translate_name("m_source"));
-        assert!(!fp16_translate_name("Add"));
+        // Core GEMM-like ops: always translated.
+        assert!(fp16_translate_node("Conv", "/decoder/Conv"));
+        assert!(fp16_translate_node("MatMul", "MatMul"));
+        assert!(fp16_translate_node("Gemm", "Gemm_1"));
+        // DENY list protects numerically sensitive paths — op type is what matters.
+        assert!(!fp16_translate_node("Sin", "/decoder/Sin"));
+        assert!(!fp16_translate_node("Snake", "Snake"));
+        assert!(!fp16_translate_node("SinSq", "SinSq"));
+        assert!(!fp16_translate_node("InstanceNorm", "InstanceNorm"));
+        assert!(!fp16_translate_node("Stft", "stft"));
+        assert!(!fp16_translate_node("Istft", "iSTFT"));
+        assert!(!fp16_translate_node("Greater", "Greater"));
+        assert!(!fp16_translate_node("Atan", "Atan"));
+        assert!(!fp16_translate_node("Exp", "Exp"));
+        // Scalar ops stay in f32: translating them creates new f16↔f32 boundaries.
+        assert!(!fp16_translate_node("OptMulByScalar", "mul"));
+        assert!(!fp16_translate_node("OptAddByScalar", "add"));
+        // The m_source harmonic subgraph is f32 end-to-end even on otherwise
+        // acceptable op types.
+        assert!(!fp16_translate_node("Conv", "/m_source/conv"));
     }
 }
