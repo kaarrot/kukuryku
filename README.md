@@ -357,3 +357,10 @@ Read **`infer RTF`** for pure synthesis speed and **`wall RTF`** for synthesis +
 first-sample latency. Prefix with `KOKORO_GOVERNOR=off` to isolate full-pool speed from the
 governor's thermal/pacing decisions.
 
+Fastest on Android: override the 3-gold default to use all four gold cores (adds the prime core
+`cpu7`, hotter but ~4% faster on SD855):
+
+```bash
+KOKORO_TRACT_CPUSET=4-7 KOKORO_TRACT_THREADS=4 target/release/ryk -v "The old lighthouse keeper climbed the winding staircase every single evening at dusk. Carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night."
+```
+
