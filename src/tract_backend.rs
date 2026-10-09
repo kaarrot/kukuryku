@@ -39,9 +39,12 @@ const S2_ALIGNMENT: &str = "/encoder/Cast_4_output_0";
 struct Stage {
     runnable: TypedRunnableModel<TypedModel>,
     input_names: Vec<String>,
-    /// When set, Rust feeds f16 inputs. The f32 ONNX files are not rewritten;
-    /// weights are cast inside the compiled plan (see [`apply_fp16`]).
-    fp16_inputs: bool,
+    /// Expected dtype per input, read from the compiled plan. Rust-built
+    /// tensors are cast to match before `run()`. With FP16 on, the translator
+    /// rewrites float sources to f16 but leaves integer sources (e.g. stage
+    /// 1's `input_ids`) alone, so a blanket cast is wrong — we have to key
+    /// off the per-input dtype.
+    input_dtypes: Vec<DatumType>,
 }
 
 impl Stage {
@@ -86,31 +89,43 @@ impl Stage {
             // Fuse Snake while the graph is still f32. A second declutter inside
             // `into_optimized` then runs on the translated graph.
             typed.declutter().with_context(|| format!("declutter {}", path.display()))?;
-            apply_fp16(&mut typed)?;
+            apply_fp16(&mut typed, path)?;
         }
         let runnable = typed
             .into_optimized()
             .with_context(|| format!("optimizing {}", path.display()))?
             .into_runnable()?;
-        Ok(Stage { runnable, input_names, fp16_inputs: fp16 })
+        let mut input_dtypes = Vec::with_capacity(input_names.len());
+        {
+            let m = runnable.model();
+            for outlet in m.input_outlets()? {
+                input_dtypes.push(m.outlet_fact(*outlet)?.datum_type);
+            }
+        }
+        Ok(Stage { runnable, input_names, input_dtypes })
     }
 
     /// Run the cached plan; tensors are matched to declared inputs by name.
     fn run(&self, inputs: &[(&str, Tensor)], stage: &str) -> Result<TVec<TValue>> {
         let mut ordered: TVec<TValue> = TVec::with_capacity(self.input_names.len());
-        for name in &self.input_names {
+        for (ix, name) in self.input_names.iter().enumerate() {
             let (_, t) = inputs
                 .iter()
                 .find(|(n, _)| n == name)
                 .with_context(|| format!("{stage}: no tensor supplied for input '{name}'"))?;
-            // The translator rewrites sources to f16 even when the node filter
-            // says no, so Rust-built f32 inputs have to be cast at run time.
-            let owned = if self.fp16_inputs {
-                t.cast_to::<f16>()
-                    .with_context(|| format!("{stage}: casting input '{name}' to f16"))?
-                    .into_owned()
-            } else {
+            let expected = self.input_dtypes[ix];
+            let owned = if t.datum_type() == expected {
                 t.clone()
+            } else {
+                t.cast_to_dt(expected)
+                    .with_context(|| {
+                        format!(
+                            "{stage}: casting input '{name}' from {:?} to {:?}",
+                            t.datum_type(),
+                            expected
+                        )
+                    })?
+                    .into_owned()
             };
             ordered.push(owned.into());
         }
@@ -386,13 +401,17 @@ fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
     if node_name.contains("m_source") {
         return false;
     }
-    const ACCEPT_OPS: &[&str] = &["MatMul", "Gemm", "Conv"];
+    // EinSum covers both stages' transformer/attention matmuls after tract's
+    // declutter rewrites MatMul → EinSum. Without it, stage 1 has 3 of ~181
+    // matmul-like nodes translated instead of ~180, and stage 2 catches only
+    // its 74 Conv nodes.
+    const ACCEPT_OPS: &[&str] = &["MatMul", "Gemm", "Conv", "EinSum"];
     ACCEPT_OPS.iter().any(|a| op_type.contains(a))
 }
 
 /// Cast matching f32 weights to f16 inside `model`. Does not touch the ONNX
 /// files. Only called once [`fp16_enabled`] has confirmed fp16 SIMD.
-fn apply_fp16(model: &mut TypedModel) -> Result<()> {
+fn apply_fp16(model: &mut TypedModel, path: &Path) -> Result<()> {
     use std::sync::OnceLock;
     static ONCE: OnceLock<()> = OnceLock::new();
     if ONCE.set(()).is_ok() {
@@ -400,6 +419,14 @@ fn apply_fp16(model: &mut TypedModel) -> Result<()> {
             "[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten"
         );
     }
+    let translated = model
+        .nodes()
+        .iter()
+        .filter(|n| fp16_translate_node(n.op().name().as_ref(), &n.name))
+        .count();
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("?");
+    eprintln!("[kokoro] fp16 {stem}: {translated} of {} nodes translated", model.nodes().len());
+
     let translator =
         tract_onnx::tract_core::floats::FloatPrecisionTranslator::<f32, f16>::with_filter(|node| {
             let op_type = node.op().name();
@@ -1250,7 +1277,11 @@ impl Pipeline {
                 stage2_fp16,
             )
         });
-        // Stage 1 stays f32. The fp16 experiment is the vocoder GEMMs.
+        // Stage 1 FP16: the encoder is 80% OptMatMul (KOKORO_TRACT_PROFILE) and
+        // was never FP16-translated before this experiment. Integer input_ids
+        // stay int64 because Stage::run keys casts off the per-input dtype
+        // reported by the compiled plan (Gather's indices aren't translated).
+        let stage1_fp16 = stage2_fp16;
         let stage1 = StagePlan::build(
             &stage1_path,
             &[
@@ -1259,7 +1290,7 @@ impl Pipeline {
                 ("speed", &[Fixed(1)]),
             ],
             "stage1",
-            false,
+            stage1_fp16,
         );
         let stage2 = stage2_handle
             .join()
