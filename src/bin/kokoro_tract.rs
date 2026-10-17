@@ -188,6 +188,11 @@ fn main() -> Result<()> {
     let dir = assets.dir.clone();
     info!("[kokoro] loading split model (stage1.onnx + stage2.onnx) from {}", dir.display());
 
+    // Before the compile: errors early if there is no audio sink, and its
+    // playback thread opens the sink (starting PulseAudio, on the little
+    // cores) while the stages compile, instead of in front of sentence 1.
+    let player = kokoro::StreamPlayer::new()?;
+
     // Compile both subgraphs once (symbolic length dims) and reuse the plans for
     // every sentence — so per-sentence cost is just `run`, not re-optimization.
     let mut pipeline = tract_backend::Pipeline::new(&dir)?;
@@ -195,7 +200,6 @@ fn main() -> Result<()> {
     let sentences = kokoro::split_sentences(&text);
     info!("[kokoro] {} sentence chunk(s)", sentences.len());
 
-    let player = kokoro::StreamPlayer::new()?;
     let want_wav = std::env::var("KOKORO_WAV").ok();
     let mut all: Vec<f32> = Vec::new();
     let wav = if want_wav.is_some() { Some(&mut all) } else { None };

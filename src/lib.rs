@@ -565,65 +565,105 @@ pub mod kokoro {
     ///
     /// One-shot use ([`Self::new`]) keeps a single sink process until [`Self::finish`].
     /// The `--serve` daemon ([`Self::with_sink_idle`]) closes the sink after a
-    /// grace period (default 10 minutes) so PulseAudio can exit and Android can
+    /// grace period (default 30 seconds) so PulseAudio can exit and Android can
     /// suspend OpenSL; the next `push` respawns it. [`hold_sink`](Self::hold_sink)
     /// covers the gap while the next sentence of an utterance is still synthesizing
     /// (which can exceed the idle).
+    ///
+    /// The playback thread pins itself to the little cores on Android and is
+    /// the only place PulseAudio is started from, so the daemon inherits that
+    /// mask rather than the gold mask of the thread that runs stage 2.
     pub struct StreamPlayer {
-        tx: Option<SyncSender<Vec<f32>>>,
+        tx: Option<SyncSender<PlayerMsg>>,
         thread: Option<std::thread::JoinHandle<Result<()>>>,
         sink_live: Arc<AtomicBool>,
         hold: Arc<AtomicBool>,
         /// Samples accepted by [`push`](Self::push).
         queued: Arc<AtomicU64>,
-        /// Samples successfully written to the sink.
+        /// Samples written to the sink (or dropped by a failed write).
         written: Arc<AtomicU64>,
+    }
+
+    /// What the playback thread receives.
+    enum PlayerMsg {
+        /// A job is starting: open the sink now (see [`StreamPlayer::warm`]).
+        Warm,
+        Chunk(Vec<f32>),
     }
 
     /// Max sentences of synthesized audio buffered ahead of playback.
     const STREAM_BUFFER: usize = 32;
 
-    /// Default `--serve` grace after the last sample (and with the sink not held)
-    /// before closing `pacat`/`ffplay`. Ten minutes covers a typical editor session
-    /// (select → hear, pause, select again) without pinning OpenSL all day.
-    /// Override with `$RYK_SINK_IDLE_MS`.
-    pub const DEFAULT_SINK_IDLE: Duration = Duration::from_secs(10 * 60);
+    /// Samples per pipe write (100 ms). `written` advances after each one, so
+    /// [`StreamPlayer::buffered_secs`] is off by at most this plus what the
+    /// pipe and sink hold (~0.8 s), not by the whole sentence being played.
+    const WRITE_SLICE: usize = SAMPLE_RATE as usize / 10;
 
-    /// Pick a raw-PCM sink command. Prefer `ffplay` (portable, needs ffmpeg+SDL);
-    /// fall back to `pacat` (PulseAudio, standard on Linux incl. Termux).
-    fn build_sink_command() -> Result<Command> {
+    /// Default `--serve` grace after the last sample (and with the sink not held)
+    /// before closing `pacat`/`ffplay`. A connected `pacat` keeps the PulseAudio
+    /// and OpenSL sink RUNNING even when idle (~1.5% of a core plus the Android
+    /// audio path), so this stays short. A `--send` after it pays a sink respawn,
+    /// and PulseAudio's restart is overlapped with synthesis by
+    /// [`StreamPlayer::warm`]. Override with `$RYK_SINK_IDLE_MS`.
+    pub const DEFAULT_SINK_IDLE: Duration = Duration::from_secs(30);
+
+    /// The raw-PCM sink on `PATH`, probed once per process.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum SinkKind {
+        Ffplay,
+        Pacat,
+    }
+
+    /// Prefer `ffplay` (portable, needs ffmpeg+SDL); fall back to `pacat`
+    /// (PulseAudio, standard on Linux incl. Termux). Does not start anything.
+    fn sink_kind() -> Result<SinkKind> {
+        static KIND: OnceLock<Option<SinkKind>> = OnceLock::new();
+        let kind = *KIND.get_or_init(|| {
+            if which("ffplay") {
+                Some(SinkKind::Ffplay)
+            } else if which("pacat") {
+                Some(SinkKind::Pacat)
+            } else {
+                None
+            }
+        });
+        kind.context("no audio sink found: install ffmpeg (for ffplay) or pulseaudio (for pacat)")
+    }
+
+    fn build_sink_command(kind: SinkKind) -> Command {
         let sr = SAMPLE_RATE.to_string();
-        if which("ffplay") {
-            let mut c = Command::new("ffplay");
-            c.args([
-                "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
-                // Start playback the instant the first samples arrive. Without these,
-                // ffmpeg buffers ~analyzeduration (~5s) of input before starting, so a
-                // single short sentence into the persistent `--serve` pipe never plays
-                // until more data (the next sentence) arrives — one-shot only worked
-                // because EOF flushed the buffer. probesize's minimum is 32 bytes.
-                "-probesize", "32", "-analyzeduration", "0", "-fflags", "nobuffer",
-                "-f", "f32le", "-ar", &sr, "-ac", "1", "-i", "pipe:0",
-            ]);
-            return Ok(c);
+        match kind {
+            SinkKind::Ffplay => {
+                let mut c = Command::new("ffplay");
+                c.args([
+                    "-hide_banner", "-loglevel", "error", "-nodisp", "-autoexit",
+                    // Start playback the instant the first samples arrive. Without these,
+                    // ffmpeg buffers ~analyzeduration (~5s) of input before starting, so a
+                    // single short sentence into the persistent `--serve` pipe never plays
+                    // until more data (the next sentence) arrives — one-shot only worked
+                    // because EOF flushed the buffer. probesize's minimum is 32 bytes.
+                    "-probesize", "32", "-analyzeduration", "0", "-fflags", "nobuffer",
+                    "-f", "f32le", "-ar", &sr, "-ac", "1", "-i", "pipe:0",
+                ]);
+                c
+            }
+            SinkKind::Pacat => {
+                // pacat needs a running PulseAudio server. Start one if none is up —
+                // the `--serve` daemon is launched detached, so there's no interactive
+                // shell to run `pulseaudio --start` first. Called on every sink spawn
+                // so PulseAudio can idle-exit between utterances and come back.
+                ensure_pulseaudio();
+                // --latency-msec keeps the buffer small: default prebuf is ~2s, which
+                // means clips shorter than that never trigger auto-start and only play
+                // via drain-on-EOF — a race that can drop samples on Android/OpenSL.
+                let mut c = Command::new("pacat");
+                c.args([
+                    "--raw", "--format=float32le", "--rate", &sr, "--channels=1",
+                    "--latency-msec=100",
+                ]);
+                c
+            }
         }
-        if which("pacat") {
-            // pacat needs a running PulseAudio server. Start one if none is up —
-            // the `--serve` daemon is launched detached, so there's no interactive
-            // shell to run `pulseaudio --start` first. Called on every sink spawn
-            // so PulseAudio can idle-exit between utterances and come back.
-            ensure_pulseaudio();
-            // --latency-msec keeps the buffer small: default prebuf is ~2s, which
-            // means clips shorter than that never trigger auto-start and only play
-            // via drain-on-EOF — a race that can drop samples on Android/OpenSL.
-            let mut c = Command::new("pacat");
-            c.args([
-                "--raw", "--format=float32le", "--rate", &sr, "--channels=1",
-                "--latency-msec=100",
-            ]);
-            return Ok(c);
-        }
-        bail!("no audio sink found: install ffmpeg (for ffplay) or pulseaudio (for pacat)");
     }
 
     fn which(cmd: &str) -> bool {
@@ -650,7 +690,8 @@ pub mod kokoro {
     /// long as PulseAudio lives. Pulse's default ~20s idle-exit is what we want once
     /// `pacat` disconnects; `RYK_PULSE_ARGS=--exit-idle-time=-1` restores the old pin.
     fn ensure_pulseaudio() {
-        if !which("pulseaudio") {
+        static HAVE_PULSE: OnceLock<bool> = OnceLock::new();
+        if !*HAVE_PULSE.get_or_init(|| which("pulseaudio")) {
             return;
         }
         let running = Command::new("pulseaudio")
@@ -678,8 +719,10 @@ pub mod kokoro {
     /// the "no immortal idle" contract without spawning a daemon.
     pub(crate) fn pulseaudio_start_args() -> Vec<String> {
         let mut args = vec!["--start".to_string()];
-        // Termux/Android has no default sink; load the OpenSL ES output.
-        if cfg!(target_os = "android") {
+        // Android has no default sink. Termux's stock default.pa already loads
+        // module-sles-sink; loading it again here made a second OpenSL sink
+        // (OpenSL_ES_sink.2), so only add it when the config does not.
+        if cfg!(target_os = "android") && !default_pa_loads_android_sink() {
             args.push("--load=module-sles-sink".to_string());
         }
         if let Ok(extra) = std::env::var("RYK_PULSE_ARGS") {
@@ -688,8 +731,41 @@ pub mod kokoro {
         args
     }
 
+    /// Whether the default.pa PulseAudio will read loads an Android output.
+    /// A user `~/.config/pulse/default.pa` replaces the system one, so the
+    /// first file that exists decides.
+    fn default_pa_loads_android_sink() -> bool {
+        let mut candidates = Vec::new();
+        if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME") {
+            candidates.push(PathBuf::from(dir).join("pulse/default.pa"));
+        }
+        if let Some(home) = std::env::var_os("HOME") {
+            candidates.push(PathBuf::from(home).join(".config/pulse/default.pa"));
+        }
+        if let Some(prefix) = std::env::var_os("PREFIX") {
+            candidates.push(PathBuf::from(prefix).join("etc/pulse/default.pa"));
+        }
+        candidates
+            .iter()
+            .find_map(|p| std::fs::read_to_string(p).ok())
+            .is_some_and(|script| pa_script_loads_android_sink(&script))
+    }
+
+    /// True if a PulseAudio script has an uncommented `load-module` line for
+    /// the OpenSL ES or AAudio sink.
+    pub(crate) fn pa_script_loads_android_sink(script: &str) -> bool {
+        script.lines().any(|line| {
+            let mut words = line.split_whitespace();
+            words.next() == Some("load-module")
+                && matches!(words.next(), Some("module-sles-sink" | "module-aaudio-sink"))
+        })
+    }
+
     impl StreamPlayer {
         /// One-shot player: a single sink process lives until [`finish`](Self::finish).
+        /// The playback thread opens the sink (starting PulseAudio for `pacat`)
+        /// right away, off the caller's thread, so create this before compiling
+        /// the model.
         pub fn new() -> Result<Self> {
             Self::create(None)
         }
@@ -701,9 +777,11 @@ pub mod kokoro {
         }
 
         fn create(idle: Option<Duration>) -> Result<Self> {
-            // Fail fast if neither sink exists, so the caller errors before synth work.
-            let _ = build_sink_command()?;
-            let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(STREAM_BUFFER);
+            // Fail fast if neither sink exists, so the caller errors before synth
+            // work. Only probes PATH: starting PulseAudio is the playback thread's
+            // job, so it never runs on (or inherits the mask of) this thread.
+            let kind = sink_kind()?;
+            let (tx, rx) = std::sync::mpsc::sync_channel::<PlayerMsg>(STREAM_BUFFER);
             let sink_live = Arc::new(AtomicBool::new(false));
             let hold = Arc::new(AtomicBool::new(false));
             let queued = Arc::new(AtomicU64::new(0));
@@ -712,9 +790,21 @@ pub mod kokoro {
             let hold_t = Arc::clone(&hold);
             let written_t = Arc::clone(&written);
             let thread = std::thread::spawn(move || {
-                playback_thread(rx, sink_live_t, hold_t, written_t, idle)
+                playback_thread(rx, kind, sink_live_t, hold_t, written_t, idle)
             });
             Ok(StreamPlayer { tx: Some(tx), thread: Some(thread), sink_live, hold, queued, written })
+        }
+
+        /// Open the sink now, on the playback thread, PulseAudio start
+        /// included, so the first chunk of the next utterance does not wait
+        /// ~0.7 s for it and the open stream keeps the phone from suspending
+        /// while it synthesizes. Call when synthesis starts, with the sink held
+        /// ([`hold_sink`](Self::hold_sink)). Never blocks; does nothing while
+        /// audio is already queued (the sink is up then).
+        pub fn warm(&self) {
+            if let Some(tx) = self.tx.as_ref() {
+                let _ = tx.try_send(PlayerMsg::Warm);
+            }
         }
 
         /// Keep the sink process open even while the sample queue is empty.
@@ -741,7 +831,7 @@ pub mod kokoro {
         pub fn push(&self, chunk: Vec<f32>) -> Result<()> {
             let n = chunk.len() as u64;
             self.queued.fetch_add(n, Ordering::Release);
-            match self.tx.as_ref().context("player already finished")?.send(chunk) {
+            match self.tx.as_ref().context("player already finished")?.send(PlayerMsg::Chunk(chunk)) {
                 Ok(()) => Ok(()),
                 Err(_) => {
                     self.queued.fetch_sub(n, Ordering::Release);
@@ -750,8 +840,9 @@ pub mod kokoro {
             }
         }
 
-        /// Seconds of audio queued but not yet written to the sink. This is not
-        /// speaker-audible time — pacat's own latency is about 100 ms on top.
+        /// Seconds of audio queued but not yet written to the sink, to within
+        /// one 100 ms write. This is not speaker-audible time: the pipe and
+        /// pacat's own latency hold up to ~0.8 s more.
         pub fn buffered_secs(&self) -> f64 {
             let q = self.queued.load(Ordering::Acquire);
             let w = self.written.load(Ordering::Acquire);
@@ -772,11 +863,18 @@ pub mod kokoro {
                     self.buffered_secs()
                 );
             }
-            while self.buffered_secs() >= secs {
+            loop {
+                let excess = self.buffered_secs() - secs;
+                if excess < 0.0 {
+                    break;
+                }
                 if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
                     break;
                 }
-                std::thread::sleep(Duration::from_millis(50));
+                // The queue drains at realtime, so sleeping for the excess is
+                // one wakeup instead of a 50 ms poll on a gold core. Capped so
+                // a stalled sink is noticed.
+                std::thread::sleep(Duration::from_secs_f64(excess.clamp(0.05, 1.0)));
             }
         }
 
@@ -791,8 +889,24 @@ pub mod kokoro {
         }
     }
 
-    fn write_pcm(stdin: &mut impl Write, chunk: &[f32]) -> std::io::Result<()> {
-        stdin.write_all(bytemuck::cast_slice::<f32, u8>(chunk))
+    /// Write `chunk` in [`WRITE_SLICE`] pieces, advancing `written` after each
+    /// so [`StreamPlayer::buffered_secs`] follows playback. On error the
+    /// unwritten rest is counted too: it is dropped, and leaving it out would
+    /// keep `buffered_secs` high for the rest of the session.
+    fn write_counted(
+        stdin: &mut impl Write,
+        chunk: &[f32],
+        written: &AtomicU64,
+    ) -> std::io::Result<()> {
+        for (i, slice) in chunk.chunks(WRITE_SLICE).enumerate() {
+            if let Err(e) = stdin.write_all(bytemuck::cast_slice::<f32, u8>(slice)) {
+                let rest = chunk.len() - i * WRITE_SLICE;
+                written.fetch_add(rest as u64, Ordering::Release);
+                return Err(e);
+            }
+            written.fetch_add(slice.len() as u64, Ordering::Release);
+        }
+        Ok(())
     }
 
     fn close_sink(
@@ -809,9 +923,11 @@ pub mod kokoro {
         Ok(())
     }
 
-    fn spawn_sink(sink_live: &AtomicBool) -> Result<(std::process::Child, std::process::ChildStdin)> {
-        let mut cmd = build_sink_command()?;
-        let mut child = cmd
+    fn spawn_sink(
+        kind: SinkKind,
+        sink_live: &AtomicBool,
+    ) -> Result<(std::process::Child, std::process::ChildStdin)> {
+        let mut child = build_sink_command(kind)
             .stdin(Stdio::piped())
             .spawn()
             .context("spawning audio sink (ffplay/pacat)")?;
@@ -821,36 +937,55 @@ pub mod kokoro {
     }
 
     fn playback_thread(
-        rx: std::sync::mpsc::Receiver<Vec<f32>>,
+        rx: std::sync::mpsc::Receiver<PlayerMsg>,
+        kind: SinkKind,
         sink_live: Arc<AtomicBool>,
         hold: Arc<AtomicBool>,
         written: Arc<AtomicU64>,
         idle: Option<Duration>,
     ) -> Result<()> {
-        // Re-pin here. The tract pool pins the main thread before this one is
-        // spawned, and affinity is inherited — playback, pacat, and a Pulse
-        // start from this thread must not sit on the gold cores.
+        // Re-pin here. The tract pool pins the main thread, and affinity is
+        // inherited — playback, pacat, and a Pulse start from this thread must
+        // not sit on the gold cores.
         #[cfg(feature = "tract")]
         crate::tract_backend::pin_playback_thread();
         match idle {
-            None => {
-                let (child, mut stdin) = spawn_sink(&sink_live)?;
-                for chunk in rx.iter() {
-                    write_pcm(&mut stdin, &chunk).context("writing pcm to audio sink")?;
-                    written.fetch_add(chunk.len() as u64, Ordering::Release);
-                }
-                close_sink(Some(stdin), child, &sink_live)
-            }
-            Some(idle) => playback_sessions(rx, sink_live, hold, written, idle),
+            None => playback_one_shot(rx, kind, sink_live, written),
+            Some(idle) => playback_sessions(rx, kind, sink_live, hold, written, idle),
         }
     }
 
-    /// `--serve` path: one sink process per burst of audio. Consecutive `push`es
-    /// (and a held sink while the next sentence synthesizes) share the pipe so
-    /// playback stays gapless; once the queue is empty, the hold is released, and
-    /// `idle` elapses, the sink exits and PulseAudio can idle-exit too.
+    /// One-shot path: a single sink for the whole run, opened at once so it
+    /// overlaps model compile and the first sentence (PulseAudio's start
+    /// included). The open stream is also what keeps Android from suspending
+    /// mid-synthesis with the screen off: a run that left `pacat` closed until
+    /// the first chunk lost ~12 s to a suspend during sentence 1. Its idle cost
+    /// (~1.5% of a little core plus the audio path for a few seconds) is noise
+    /// next to synthesis.
+    fn playback_one_shot(
+        rx: std::sync::mpsc::Receiver<PlayerMsg>,
+        kind: SinkKind,
+        sink_live: Arc<AtomicBool>,
+        written: Arc<AtomicU64>,
+    ) -> Result<()> {
+        let (child, mut stdin) = spawn_sink(kind, &sink_live)?;
+        for msg in rx.iter() {
+            let PlayerMsg::Chunk(chunk) = msg else { continue };
+            write_counted(&mut stdin, &chunk, &written).context("writing pcm to audio sink")?;
+        }
+        close_sink(Some(stdin), child, &sink_live)
+    }
+
+    /// `--serve` path: one sink process per burst of audio. A session opens on
+    /// [`PlayerMsg::Warm`] (a job starting) or on a chunk, so the stream is up
+    /// while the job's first sentence synthesizes, which also keeps the phone
+    /// from suspending then. Consecutive `push`es (and a held sink while the
+    /// next sentence synthesizes) share the pipe so playback stays gapless;
+    /// once the queue is empty, the hold is released, and `idle` elapses, the
+    /// sink exits and PulseAudio can idle-exit too.
     fn playback_sessions(
-        rx: std::sync::mpsc::Receiver<Vec<f32>>,
+        rx: std::sync::mpsc::Receiver<PlayerMsg>,
+        kind: SinkKind,
         sink_live: Arc<AtomicBool>,
         hold: Arc<AtomicBool>,
         written: Arc<AtomicU64>,
@@ -859,35 +994,40 @@ pub mod kokoro {
         const HOLD_POLL: Duration = Duration::from_millis(200);
         loop {
             let first = match rx.recv() {
-                Ok(chunk) => chunk,
+                Ok(PlayerMsg::Chunk(chunk)) => Some(chunk),
+                Ok(PlayerMsg::Warm) => None,
                 Err(_) => return Ok(()), // sender dropped, nothing playing
             };
-            let (child, mut stdin) = match spawn_sink(&sink_live) {
+            let (child, mut stdin) = match spawn_sink(kind, &sink_live) {
                 Ok(pair) => pair,
                 Err(e) => {
                     eprintln!("[kokoro] {e:#}; will retry on next chunk");
+                    if let Some(chunk) = first {
+                        written.fetch_add(chunk.len() as u64, Ordering::Release);
+                    }
                     continue;
                 }
             };
-            if let Err(e) = write_pcm(&mut stdin, &first) {
-                eprintln!("[kokoro] audio sink write failed: {e}; will respawn on next chunk");
-                let _ = close_sink(Some(stdin), child, &sink_live);
-                continue;
+            if let Some(chunk) = first {
+                if let Err(e) = write_counted(&mut stdin, &chunk, &written) {
+                    eprintln!("[kokoro] audio sink write failed: {e}; will respawn on next chunk");
+                    let _ = close_sink(Some(stdin), child, &sink_live);
+                    continue;
+                }
             }
-            written.fetch_add(first.len() as u64, Ordering::Release);
             let mut disconnected = false;
             loop {
                 let wait = if hold.load(Ordering::Acquire) { HOLD_POLL } else { idle };
                 match rx.recv_timeout(wait) {
-                    Ok(chunk) => {
-                        if let Err(e) = write_pcm(&mut stdin, &chunk) {
+                    Ok(PlayerMsg::Chunk(chunk)) => {
+                        if let Err(e) = write_counted(&mut stdin, &chunk, &written) {
                             eprintln!(
                                 "[kokoro] audio sink write failed: {e}; will respawn on next chunk"
                             );
                             break;
                         }
-                        written.fetch_add(chunk.len() as u64, Ordering::Release);
                     }
+                    Ok(PlayerMsg::Warm) => {} // the sink is already up
                     Err(RecvTimeoutError::Timeout) => {
                         if hold.load(Ordering::Acquire) {
                             continue;
@@ -1063,13 +1203,25 @@ mod tests {
     fn pulseaudio_start_does_not_pin_idle() {
         let args = pulseaudio_start_args();
         assert_eq!(args[0], "--start");
-        let hardcoded = if cfg!(target_os = "android") { 2 } else { 1 };
-        if cfg!(target_os = "android") {
-            assert_eq!(args[1], "--load=module-sles-sink");
+        let extra = std::env::var("RYK_PULSE_ARGS").map(|e| e.split_whitespace().count()).unwrap_or(0);
+        let hardcoded = &args[..args.len() - extra];
+        if !cfg!(target_os = "android") {
+            assert_eq!(hardcoded, ["--start"]);
         }
         assert!(
-            args.iter().take(hardcoded).all(|a| !a.contains("exit-idle-time")),
+            hardcoded.iter().all(|a| !a.contains("exit-idle-time")),
             "hardcoded pulseaudio args must not pin idle: {args:?}"
         );
+    }
+
+    /// Termux's stock default.pa loads module-sles-sink itself; a second
+    /// `--load=` made a duplicate OpenSL sink. Commented-out lines don't count.
+    #[test]
+    fn default_pa_android_sink_detection() {
+        let termux = "load-module module-null-sink\n.nofail\nload-module module-sles-sink\n#load-module module-aaudio-sink\n";
+        assert!(pa_script_loads_android_sink(termux));
+        assert!(pa_script_loads_android_sink("  load-module module-aaudio-sink\n"));
+        assert!(!pa_script_loads_android_sink("#load-module module-sles-sink\nload-module module-null-sink\n"));
+        assert!(!pa_script_loads_android_sink(""));
     }
 }

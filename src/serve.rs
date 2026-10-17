@@ -83,7 +83,7 @@ fn daemon_idle_timeout() -> Option<Duration> {
     parse_idle_timeout(std::env::var("RYK_IDLE_TIMEOUT").ok().as_deref())
 }
 
-/// Parse `$RYK_SINK_IDLE_MS`. Missing or unparseable values use the 10-minute default.
+/// Parse `$RYK_SINK_IDLE_MS`. Missing or unparseable values use the 30-second default.
 pub(crate) fn parse_sink_idle_ms(val: Option<&str>) -> Duration {
     match val {
         None => kokoro::DEFAULT_SINK_IDLE,
@@ -140,6 +140,9 @@ pub fn serve() -> Result<()> {
     let (tx, rx) = mpsc::channel::<Job>();
     let pending_w = Arc::clone(&pending);
     let worker = std::thread::spawn(move || worker_loop(pipeline, player, dir, rx, pending_w));
+    // The worker inherited the gold mask stage 2 needs. This thread only
+    // accepts connections from here on, so it moves to the little cores.
+    crate::tract_backend::pin_to_little_cores("accept loop");
 
     let listener =
         UnixListener::bind(&path).with_context(|| format!("binding {}", path.display()))?;
@@ -158,7 +161,7 @@ pub fn serve() -> Result<()> {
         listener.set_nonblocking(true).context("setting listener nonblocking")?;
         accept_loop(&listener, &tx, &pending, &sink_live, timeout)?;
     } else {
-        // Blocking accept: no 250ms poll when the user disabled idle-exit.
+        // Blocking accept: nothing to time out when the user disabled idle-exit.
         for conn in listener.incoming() {
             match conn {
                 Ok(conn) => {
@@ -176,6 +179,11 @@ pub fn serve() -> Result<()> {
     Ok(())
 }
 
+/// How often the accept loop re-checks for idleness while a job or the audio
+/// sink is live. While truly idle only a new connection can change that, so
+/// the loop sleeps in poll(2) until the idle deadline instead.
+const BUSY_RECHECK: Duration = Duration::from_secs(5);
+
 fn accept_loop(
     listener: &UnixListener,
     tx: &mpsc::Sender<Job>,
@@ -185,6 +193,23 @@ fn accept_loop(
 ) -> Result<()> {
     let mut idle_since: Option<Instant> = None;
     loop {
+        let truly_idle =
+            pending.load(Ordering::Acquire) == 0 && !sink_live.load(Ordering::Acquire);
+        let wait = if truly_idle {
+            let since = *idle_since.get_or_insert_with(Instant::now);
+            let left = idle_timeout.saturating_sub(since.elapsed());
+            if left.is_zero() {
+                eprintln!("[ryk-serve] idle for {}s; shutting down", idle_timeout.as_secs());
+                return Ok(());
+            }
+            left
+        } else {
+            idle_since = None;
+            BUSY_RECHECK
+        };
+        if !wait_for_client(listener, wait) {
+            continue;
+        }
         match listener.accept() {
             Ok((conn, _)) => {
                 idle_since = None;
@@ -192,26 +217,29 @@ fn accept_loop(
                     eprintln!("[ryk-serve] connection error: {e:#}");
                 }
             }
-            Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted => {
-                let truly_idle =
-                    pending.load(Ordering::Acquire) == 0 && !sink_live.load(Ordering::Acquire);
-                if truly_idle {
-                    let since = idle_since.get_or_insert_with(Instant::now);
-                    if since.elapsed() >= idle_timeout {
-                        eprintln!(
-                            "[ryk-serve] idle for {}s; shutting down",
-                            idle_timeout.as_secs()
-                        );
-                        return Ok(());
-                    }
-                } else {
-                    idle_since = None;
-                }
-                std::thread::sleep(Duration::from_millis(250));
-            }
+            Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted => {}
             Err(e) => eprintln!("[ryk-serve] accept error: {e}"),
         }
     }
+}
+
+/// Sleep until `listener` has a connection waiting or `timeout` passes.
+/// Returns whether to try accept(). A poll failure other than EINTR backs off
+/// 250 ms and says yes; the nonblocking accept then sorts it out.
+fn wait_for_client(listener: &UnixListener, timeout: Duration) -> bool {
+    use std::os::fd::AsRawFd;
+    let mut pfd = libc::pollfd { fd: listener.as_raw_fd(), events: libc::POLLIN, revents: 0 };
+    let ms = timeout.as_millis().min(libc::c_int::MAX as u128) as libc::c_int;
+    // SAFETY: one valid pollfd for the duration of the call.
+    let rc = unsafe { libc::poll(&mut pfd, 1, ms) };
+    if rc >= 0 {
+        return rc > 0;
+    }
+    if std::io::Error::last_os_error().kind() == ErrorKind::Interrupted {
+        return false;
+    }
+    std::thread::sleep(Duration::from_millis(250));
+    true
 }
 
 /// Read one utterance from a connection (header line + body to EOF), enqueue it,
@@ -306,6 +334,10 @@ fn speak_job(
 ) -> Result<()> {
     player.hold_sink();
     let _hold = SinkHold(player);
+    // Open the sink now (restarting PulseAudio if it idle-exited) so that
+    // happens while the first sentence synthesizes, not in front of its
+    // audio; the open stream also keeps the phone from suspending meanwhile.
+    player.warm();
     let voice_path = resolve_voice(dir, &job.voice, voices)?;
     let sentences = kokoro::split_sentences(&job.text);
     info!(
@@ -477,9 +509,9 @@ mod tests {
     }
 
     #[test]
-    fn sink_idle_default_is_ten_minutes() {
-        assert_eq!(parse_sink_idle_ms(None), Duration::from_secs(10 * 60));
-        assert_eq!(kokoro::DEFAULT_SINK_IDLE, Duration::from_secs(10 * 60));
+    fn sink_idle_default_is_thirty_seconds() {
+        assert_eq!(parse_sink_idle_ms(None), Duration::from_secs(30));
+        assert_eq!(kokoro::DEFAULT_SINK_IDLE, Duration::from_secs(30));
     }
 
     #[test]
@@ -489,6 +521,6 @@ mod tests {
 
     #[test]
     fn sink_idle_garbage_falls_back_to_default() {
-        assert_eq!(parse_sink_idle_ms(Some("nope")), Duration::from_secs(10 * 60));
+        assert_eq!(parse_sink_idle_ms(Some("nope")), Duration::from_secs(30));
     }
 }

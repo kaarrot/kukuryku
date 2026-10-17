@@ -724,24 +724,37 @@ pub fn pin_stage1_thread() {
 /// No-op off Android. Does not touch the calling thread when it is not the
 /// playback thread — callers invoke it from that thread only.
 pub fn pin_playback_thread() {
+    pin_to_little_cores("playback");
+}
+
+/// Pin the calling thread, and anything it spawns later, to the little
+/// cores. No-op off Android. For threads that only wait or do light work
+/// (playback, the `--serve` accept loop) and would otherwise keep the gold
+/// mask inherited from main. Logs once per `label`.
+pub fn pin_to_little_cores(label: &'static str) {
     if !cfg!(target_os = "android") {
         return;
     }
-    use std::sync::OnceLock;
-    static ONCE: OnceLock<()> = OnceLock::new();
+    use std::sync::Mutex;
+    static LOGGED: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+    let first = LOGGED.lock().map(|mut seen| {
+        let first = !seen.contains(&label);
+        if first {
+            seen.push(label);
+        }
+        first
+    });
+    let first = first.unwrap_or(false);
     let topo = read_topology();
     let Some(cs) = pick_cpuset(&CpusetSpec::Little, &topo, true) else {
         return;
     };
     if let Err(e) = apply_affinity(&cs) {
-        if ONCE.set(()).is_ok() {
-            eprintln!(
-                "[kokoro] playback sched_setaffinity({}) failed: {e}",
-                format_cpu_list(&cs)
-            );
+        if first {
+            eprintln!("[kokoro] {label} sched_setaffinity({}) failed: {e}", format_cpu_list(&cs));
         }
-    } else if ONCE.set(()).is_ok() {
-        info!("[kokoro] playback pinned to cpus {}", format_cpu_list(&cs));
+    } else if first {
+        info!("[kokoro] {label} pinned to cpus {}", format_cpu_list(&cs));
     }
 }
 
