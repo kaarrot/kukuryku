@@ -71,23 +71,29 @@ ENV:
     KOKORO_WAV     also write synthesized audio to this WAV path
     KOKORO_RAW     set to disable the markdown cleanup (same as --raw)
     KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
-    KOKORO_TRACT_THREADS  stage-2 thread count. When set, disables the 2/3-gold
-                      governor and uses one pool. Default on Android is the
-                      mid cluster (3). 2 is cooler but was ~1.45 RTF.
+    KOKORO_TRACT_THREADS  stage-2 thread count. When set, disables the thermal
+                      hold's 2-thread pool and uses one pool. Default on
+                      Android is the mid cluster (3). Fewer threads do not
+                      save battery: same CPU work at the same clock, slower.
     KOKORO_TRACT_CPUSET  auto|mid|little|all|off-prime or a list (4-6, 0-3,7).
                       Android auto pins off the unique prime core onto the
                       remaining highest cluster. Desktop auto does not pin.
     KOKORO_TRACT_S1_CPUSET  where espeak + stage 1 run. Same syntax. Default
                       is the little cores on Android, unpinned on desktop.
-    KOKORO_TRACT_FP16  0/1 to force casting stage-2 GEMMs to f16 in memory off/on.
-                      Default: on for aarch64 with fp16 SIMD, off elsewhere.
-                      Does not write a new weight file; the onnx files stay f32.
-    KOKORO_GOVERNOR  off|pace|thermal (default thermal). thermal drops to 2
-                      golds when lmh-dcvs is hot or golds are already
-                      frequency-capped, and also paces when audio is buffered.
+    KOKORO_TRACT_FP16  0/1 to force casting the GEMMs of both stages to f16 in
+                      memory off/on. Default: on for aarch64 with fp16 SIMD,
+                      off elsewhere. The onnx files stay f32.
+    KOKORO_GOVERNOR  off|pace|thermal (default thermal). pace stops working
+                      ahead once 20 s of audio is queued. thermal also drops
+                      stage 2 to 2 threads while the hottest gold core zone
+                      (cpu-1-*-usr) is at or above KOKORO_THERM_HOT_C.
+    KOKORO_THERM_HOT_C  thermal hold trip in °C (default 90, released 6 °C
+                      lower). Normal 3-gold load runs at 80-85 °C.
     KUKURYKU_ASSET_DIR  override the --install-assets target (absolute path, or
                         the literal `exe` for the exe-adjacent dir)
     RYK_SOCKET     daemon socket path (default $XDG_RUNTIME_DIR/ryk.sock)
+    RYK_SINK_IDLE_MS  --serve: close the audio sink this long after the last
+                      sample (default 30000)
 ",
         version = env!("CARGO_PKG_VERSION"),
     );

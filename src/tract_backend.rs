@@ -766,8 +766,15 @@ enum PoolKind {
     Cool,
 }
 
-/// `KOKORO_GOVERNOR`. Default is thermal (pace + heat). `off` is today's
-/// always-full behaviour. `pace` uses the buffer thresholds only.
+/// `KOKORO_GOVERNOR`. Default is thermal (lookahead cap + heat hold). `off`
+/// has neither. `pace` keeps only the lookahead cap.
+///
+/// Neither mode drops threads because audio is buffered. The gold cluster
+/// runs at its frequency cap whatever the thread count, so 2 threads do the
+/// same CPU work as 3, only slower: measured process CPU was equal within
+/// noise while sentences went from RTF ~1.15 to ~1.35. Fewer threads save
+/// no battery and, at realtime, no heat either (same joules per audio
+/// second). Only doing less work does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum GovernorMode {
     Off,
@@ -775,18 +782,49 @@ enum GovernorMode {
     Thermal,
 }
 
-const GOV_HI: f64 = 6.0;
-const GOV_LO: f64 = 2.0;
+/// Seconds of queued audio past which the next sentence is not started.
+/// Bounds memory and the work thrown away if playback is cut short.
 const GOV_MAX_AHEAD: f64 = 20.0;
 /// Trip the hold when the hottest gold core zone reaches this °C.
-/// Reading the live `cpu-1-*-usr` zones: these sit at 40–50 °C idle,
-/// 55–65 °C under sustained load, so 78 is a real "running hot" signal
-/// without being so high the gold cluster is already throttled by DVFS.
-const THERM_HOT: i32 = 78;
-/// Release the hold only after the sensor has come back down below this.
-/// Keep ≥ 6 °C of hysteresis so a chunk straddling the threshold doesn't
-/// flap the pool choice.
-const THERM_COOL: i32 = 72;
+/// The live `cpu-1-*-usr` zones sit at 40–50 °C idle and reach 80–85 °C
+/// within 25–45 s of normal 3-gold load (2-gold: ~82 °C), so the trip has
+/// to sit above that or it latches on for the rest of a long read. The
+/// kernel's own passive trips are at 110 °C (`cpu-1-*-step`), so this is
+/// an "abnormally hot" brake (hot room, charging, in a pocket), not the
+/// normal operating point. `KOKORO_THERM_HOT_C` overrides it.
+const THERM_HOT: i32 = 90;
+/// Hysteresis below [`THERM_HOT`]. The release point (84 °C by default)
+/// has to be reachable under load on the 2-thread pool, or the hold never
+/// lets go.
+const THERM_BAND: i32 = 6;
+
+/// Trip / release temperatures for the thermal hold, in °C.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ThermalLimits {
+    hot: i32,
+    cool: i32,
+}
+
+impl ThermalLimits {
+    fn from_hot(hot: i32) -> Self {
+        Self { hot, cool: hot - THERM_BAND }
+    }
+}
+
+/// `KOKORO_THERM_HOT_C`, else [`THERM_HOT`]. Values outside 50–120 °C are
+/// ignored.
+fn thermal_limits() -> ThermalLimits {
+    let Ok(s) = std::env::var("KOKORO_THERM_HOT_C") else {
+        return ThermalLimits::from_hot(THERM_HOT);
+    };
+    match s.trim().parse::<i32>() {
+        Ok(hot) if (50..=120).contains(&hot) => ThermalLimits::from_hot(hot),
+        _ => {
+            eprintln!("[kokoro] ignoring invalid KOKORO_THERM_HOT_C={s:?}; using {THERM_HOT}");
+            ThermalLimits::from_hot(THERM_HOT)
+        }
+    }
+}
 
 fn governor_mode() -> GovernorMode {
     match std::env::var("KOKORO_GOVERNOR") {
@@ -803,34 +841,24 @@ fn governor_mode() -> GovernorMode {
     }
 }
 
-/// Pure pool choice. Does not read sysfs.
-///
-/// `Off` stays on the full pool. A thermal hold forces cool. Otherwise ≥6 s
-/// of queued audio drops to cool, <2 s goes back to full, and the band in
-/// between keeps the previous choice.
-fn choose_pool(mode: GovernorMode, buffered: f64, thermal_hold: bool, prev: PoolKind) -> PoolKind {
-    if mode == GovernorMode::Off {
-        return PoolKind::Full;
-    }
+/// Pure pool choice. Does not read sysfs. Only a thermal hold in `Thermal`
+/// mode leaves the full pool; buffered audio never does (see
+/// [`GovernorMode`]).
+fn choose_pool(mode: GovernorMode, thermal_hold: bool) -> PoolKind {
     if mode == GovernorMode::Thermal && thermal_hold {
-        return PoolKind::Cool;
-    }
-    if buffered >= GOV_HI {
         PoolKind::Cool
-    } else if buffered < GOV_LO {
-        PoolKind::Full
     } else {
-        prev
+        PoolKind::Full
     }
 }
 
 /// Pure hysteresis. Missing sensor reads pass `temp_c == 0` and do not trip
 /// the hold by themselves.
-fn update_thermal_hold(hold: bool, temp_c: i32) -> bool {
+fn update_thermal_hold(hold: bool, temp_c: i32, limits: ThermalLimits) -> bool {
     if hold {
-        temp_c >= THERM_COOL
+        temp_c >= limits.cool
     } else {
-        temp_c >= THERM_HOT
+        temp_c >= limits.hot
     }
 }
 
@@ -892,8 +920,8 @@ fn make_pool(threads: usize) -> tract_linalg::multithread::Executor {
 struct Executors {
     full: tract_linalg::multithread::Executor,
     cool: Option<tract_linalg::multithread::Executor>,
-    /// False when the env picked a thread count, the governor is off, or the
-    /// pin set is smaller than 3. Speak then always uses `full`.
+    /// True only in `Thermal` mode with a pin set of 3+ and no
+    /// `KOKORO_TRACT_THREADS`. Otherwise speak always uses `full`.
     switch: bool,
     mode: GovernorMode,
 }
@@ -902,8 +930,8 @@ struct Executors {
 ///
 /// Android auto pins main to the mid cluster (this S10e: cpu4–6) and never
 /// puts it back on all cores — a later unpinned spawn would let EAS park
-/// stage 1 on the prime. When the governor is allowed to switch, the cool
-/// pool is spawned *while* main is pinned to the first two of those cpus, then
+/// stage 1 on the prime. In `Thermal` mode (the only one with a hold), the
+/// cool pool is spawned *while* main is pinned to the first two of those cpus, then
 /// main is re-pinned to the full set and the full pool is spawned. Rayon
 /// workers keep the mask they inherited. `KOKORO_TRACT_THREADS` forces one
 /// pool and disables the switch.
@@ -934,7 +962,7 @@ fn build_executors() -> Executors {
     }
 
     if let Some(cs) = cpuset.as_ref() {
-        if cs.len() >= 3 && mode != GovernorMode::Off {
+        if cs.len() >= 3 && mode == GovernorMode::Thermal {
             let cool_cpus = &cs[..2];
             pin_or_warn(cool_cpus);
             let cool = tract_linalg::multithread::Executor::multithread(2);
@@ -1253,13 +1281,14 @@ pub struct SpeakReport {
 }
 
 /// The two-stage tract pipeline. Stage 1 lives on a lookahead thread (little
-/// cores on Android). Stage 2 uses the gold pool, optionally dropping from 3
-/// threads to 2 when audio is buffered or the SoC is hot.
+/// cores on Android). Stage 2 uses the gold pool, dropping from 3 threads to
+/// 2 only while a thermal hold is on.
 pub struct Pipeline {
     stage2_path: PathBuf,
     execs: Executors,
     stage2: StagePlan,
     ahead: Lookahead,
+    thermal: ThermalLimits,
     thermal_hold: bool,
     pool: PoolKind,
 }
@@ -1314,6 +1343,7 @@ impl Pipeline {
             execs,
             stage2,
             ahead,
+            thermal: thermal_limits(),
             thermal_hold: false,
             pool: PoolKind::Full,
         })
@@ -1324,7 +1354,7 @@ impl Pipeline {
     pub fn synthesize(&mut self, ids: &[i64], style: &[f32], speed: f32) -> Result<Vec<f32>> {
         let rx = self.ahead.submit_ids(ids, style, speed)?;
         let ahead = rx.recv().map_err(|_| anyhow::anyhow!("stage1 lookahead stopped"))??;
-        let pool = self.select_pool_buffered(0.0);
+        let pool = self.select_pool();
         match ahead {
             AheadOut::Ready(s1) => self.run_stage2(s1, pool),
             AheadOut::Unspeakable | AheadOut::Failed => bail!("nothing to synthesize"),
@@ -1372,9 +1402,9 @@ impl Pipeline {
                 .recv()
                 .map_err(|_| anyhow::anyhow!("stage1 lookahead stopped"))??;
             // Start the next sentence before this vocoder so the two overlap,
-            // unless we are already far enough ahead that another sentence
-            // would only heat the phone. In that case the vocoder runs first
-            // and the next sentence waits until the queue drains.
+            // unless GOV_MAX_AHEAD of audio is already queued. Then the
+            // vocoder runs first and the next sentence waits until the queue
+            // drains, which caps memory and the work lost if playback stops.
             let start_next = i + 1 < sentences.len()
                 && (self.execs.mode == GovernorMode::Off
                     || player.buffered_secs() < GOV_MAX_AHEAD);
@@ -1388,7 +1418,7 @@ impl Pipeline {
                     let prep_secs = s1.prep_secs;
                     let token_len = s1.token_len;
                     let s1_secs = s1.s1_secs;
-                    let pool = self.select_pool_buffered(player.buffered_secs());
+                    let pool = self.select_pool();
                     let t_s2 = std::time::Instant::now();
                     let audio = self.run_stage2(s1, pool)?;
                     let s2_secs = t_s2.elapsed().as_secs_f64();
@@ -1443,27 +1473,24 @@ impl Pipeline {
         })
     }
 
-    fn select_pool_buffered(&mut self, buffered: f64) -> PoolKind {
+    fn select_pool(&mut self) -> PoolKind {
         if !self.execs.switch {
             return PoolKind::Full;
         }
-        if self.execs.mode == GovernorMode::Thermal {
-            let core_c = read_hot_core_c();
-            let next_hold = update_thermal_hold(self.thermal_hold, core_c);
-            if next_hold != self.thermal_hold {
-                info!(
-                    "[kokoro] thermal hold {} (hottest gold core {core_c}°C)",
-                    if next_hold { "on" } else { "off" }
-                );
-                self.thermal_hold = next_hold;
-            }
-        }
-        let next = choose_pool(self.execs.mode, buffered, self.thermal_hold, self.pool);
-        if next != self.pool {
+        let core_c = read_hot_core_c();
+        let next_hold = update_thermal_hold(self.thermal_hold, core_c, self.thermal);
+        if next_hold != self.thermal_hold {
             info!(
-                "[kokoro] governor {:?} -> {:?} (buffered {buffered:.2}s)",
-                self.pool, next
+                "[kokoro] thermal hold {} (hottest gold core {core_c}°C; on at {}, off below {})",
+                if next_hold { "on" } else { "off" },
+                self.thermal.hot,
+                self.thermal.cool,
             );
+            self.thermal_hold = next_hold;
+        }
+        let next = choose_pool(self.execs.mode, self.thermal_hold);
+        if next != self.pool {
+            info!("[kokoro] governor {:?} -> {:?}", self.pool, next);
             self.pool = next;
         }
         self.pool
@@ -1633,30 +1660,27 @@ mod cpuset_tests {
     fn governor_choose_pool() {
         use GovernorMode::*;
         use PoolKind::*;
-        assert_eq!(choose_pool(Off, 100.0, true, Cool), Full);
-        assert_eq!(choose_pool(Thermal, 0.0, true, Full), Cool);
-        // Pace ignores a thermal hold and follows the buffer.
-        assert_eq!(choose_pool(Pace, 0.0, true, Full), Full);
-        assert_eq!(choose_pool(Thermal, 6.0, false, Full), Cool);
-        // 2.0 s is inside the band: keep the previous pool.
-        assert_eq!(choose_pool(Thermal, 2.0, false, Full), Full);
-        assert_eq!(choose_pool(Thermal, 3.0, false, Cool), Cool);
-        assert_eq!(choose_pool(Thermal, 1.9, false, Cool), Full);
-        assert_eq!(choose_pool(Pace, 6.0, false, Full), Cool);
+        // Only a thermal hold in Thermal mode leaves the full pool.
+        assert_eq!(choose_pool(Thermal, true), Cool);
+        assert_eq!(choose_pool(Thermal, false), Full);
+        assert_eq!(choose_pool(Pace, true), Full);
+        assert_eq!(choose_pool(Off, true), Full);
     }
 
     #[test]
     fn thermal_hold_hysteresis() {
-        // Above THERM_HOT (78): trip.
-        assert!(update_thermal_hold(false, 80));
-        // Inside the band [THERM_COOL, THERM_HOT): stay held if held.
-        assert!(update_thermal_hold(true, 75));
-        // Below THERM_COOL (72): release.
-        assert!(!update_thermal_hold(true, 70));
-        // Inside the band and not held: do not trip.
-        assert!(!update_thermal_hold(false, 75));
+        let lim = ThermalLimits::from_hot(THERM_HOT);
+        assert_eq!(lim, ThermalLimits { hot: 90, cool: 84 });
+        // Normal 3-gold load (80-85 °C) must not trip the hold.
+        assert!(!update_thermal_hold(false, 85, lim));
+        // At THERM_HOT: trip.
+        assert!(update_thermal_hold(false, 90, lim));
+        // Inside the band [cool, hot): stay held if held.
+        assert!(update_thermal_hold(true, 86, lim));
+        // The 2-thread pool's ~82 °C under load is below cool: release.
+        assert!(!update_thermal_hold(true, 82, lim));
         // No signal (0): never trips by itself.
-        assert!(!update_thermal_hold(false, 0));
+        assert!(!update_thermal_hold(false, 0, lim));
     }
 
     #[test]
