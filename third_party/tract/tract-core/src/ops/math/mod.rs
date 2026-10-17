@@ -508,6 +508,22 @@ fn declutter_pow(
                 &[node.inputs[0]],
                 sqrt(),
             )?));
+        } else if b == 3.0
+            // Dropping the exponent input must not change the output shape.
+            && model.outlet_fact(node.inputs[0])?.shape == node.outputs[0].fact.shape
+        {
+            // x * Square(x): gelu_new's x³ (ALBERT, every stage-1 layer) was a
+            // generic powf per element, ~8% of stage 1.
+            return Ok(Some(TypedModelPatch::rewire(
+                model,
+                &[node.inputs[0]],
+                &[node.id.into()],
+                &|patch, taps| {
+                    let sq =
+                        patch.wire_node(format!("{}.square", node.name), square(), &[taps[0]])?[0];
+                    patch.wire_node(&node.name, mul(), &[taps[0], sq])
+                },
+            )?));
         }
     }
     Ok(None)
