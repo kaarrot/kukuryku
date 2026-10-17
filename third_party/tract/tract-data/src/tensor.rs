@@ -1202,6 +1202,22 @@ impl Tensor {
                     };
                 };
             }
+            // f16 <-> f32 fast path: half's slice conversion runs 4-wide NEON
+            // fcvtl/fcvtn (runtime-detected once per slice) instead of one
+            // detect+convert per element. Bit-identical (exact widen, RNE narrow).
+            if self.dt == DatumType::F16 && dst_dt == DatumType::F32 {
+                use half::slice::HalfFloatSliceExt;
+                self.as_slice_unchecked::<f16>()
+                    .convert_to_f32_slice(result.as_slice_mut_unchecked::<f32>());
+                return Ok(Cow::Owned(result));
+            }
+            if self.dt == DatumType::F32 && dst_dt == DatumType::F16 {
+                use half::slice::HalfFloatSliceExt;
+                result
+                    .as_slice_mut_unchecked::<f16>()
+                    .convert_from_f32_slice(self.as_slice_unchecked::<f32>());
+                return Ok(Cow::Owned(result));
+            }
             //If there is no quantization
             if !dst_dt.is_quantized() && !self.datum_type().is_quantized() {
                 n!(u8);
