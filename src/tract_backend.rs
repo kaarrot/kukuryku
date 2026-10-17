@@ -405,6 +405,12 @@ fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
     // declutter rewrites MatMul → EinSum. Without it, stage 1 has 3 of ~181
     // matmul-like nodes translated instead of ~180, and stage 2 catches only
     // its 74 Conv nodes.
+    //
+    // `Deconv` (ConvTranspose after declutter: the vocoder upsamplers and the
+    // F0/N pools) is left in f32 on purpose. `Conv` does not match it (capital
+    // C), and adding it was measured at -0.5% process CPU, within noise, while
+    // moving the waveform 6% (spectral convergence) from today's FP16 output
+    // and further from f32. See docs/fp16-einsum.md.
     const ACCEPT_OPS: &[&str] = &["MatMul", "Gemm", "Conv", "EinSum"];
     ACCEPT_OPS.iter().any(|a| op_type.contains(a))
 }
@@ -1689,6 +1695,10 @@ mod cpuset_tests {
         assert!(fp16_translate_node("Conv", "/decoder/Conv"));
         assert!(fp16_translate_node("MatMul", "MatMul"));
         assert!(fp16_translate_node("Gemm", "Gemm_1"));
+        assert!(fp16_translate_node("EinSum", "/encoder/MatMul"));
+        // ConvTranspose (`Deconv`) stays f32: no measurable win for a 6%
+        // spectral change to the vocoder output.
+        assert!(!fp16_translate_node("Deconv", "/decoder/generator/ups.0/ConvTranspose"));
         // DENY list protects numerically sensitive paths — op type is what matters.
         assert!(!fp16_translate_node("Sin", "/decoder/Sin"));
         assert!(!fp16_translate_node("Snake", "Snake"));
