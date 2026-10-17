@@ -89,13 +89,20 @@ Cast between them) and the remaining cost centres reorder. Everything
 below should be re-ranked after one `KOKORO_TRACT_PROFILE=1` run on the
 new binary.
 
-### 2. SIMD + threaded f16↔f32 Cast kernel in tract (audit #1)
+### 2. SIMD f16↔f32 Cast kernel in tract (audit #1) — done
 
-Whatever Cast remains after re-profiling. tract's current Cast is
-one-element-at-a-time single-threaded; the `half` crate ships
-SIMD slice conversions that are bit-identical. **Invasive** — requires
-a patch to `tract-linalg` or a crate-level override. Estimated ceiling
-depends on #1's result.
+Landed in `third_party/tract/tract-data/src/tensor.rs` (`cast_to_dt`):
+F16→F32 and F32→F16 go through `half`'s slice conversion
+(`convert_to_f32_slice` / `convert_from_f32_slice`, 4-wide NEON) instead
+of `natural_cast`, which ran a runtime fp16 check plus a scalar convert
+per element. Measured on the A76: 2.51 → 0.52 ns/element. Stage 2 makes
+353 Casts per run on `[1,128,~45k]`-class tensors, all on the main
+thread, so this was 16–17% of stage-2 time.
+
+- Stage-2 Cast per sentence: 1.17 s → 0.41–0.45 s (share 16.9% → 6.6–7.2%).
+- Output WAV bit-identical (same md5): exact widen, round-to-nearest-even
+  narrow, same as the scalar path.
+- Still single-threaded. What is left (6.6%) is mostly memory traffic.
 
 ### 3. Lift the Samsung clock cap (audit #2)
 
@@ -106,9 +113,16 @@ firmware; **never measured on this handset**. Trivial to test:
 `cat /sys/devices/system/cpu/cpu7/cpufreq/scaling_max_freq` under each
 mode.
 
-### 4. Make 4-gold the Android default (`KOKORO_TRACT_CPUSET=4-7`)
+### 4. Make 4-gold the Android default (`KOKORO_TRACT_CPUSET=4-7`) — rejected
 
-Measured on this S10: `KOKORO_TRACT_CPUSET=4-7 KOKORO_TRACT_THREADS=4`
+**Measured against battery and heat, not landing.** On the 3-sentence
+paragraph, `CPUSET=4-7` used 61.8 s of process CPU vs 57–58 s for the
+3-gold pool, peaked at 85 °C, and tripped the (then 78 °C) thermal hold
+at sentence 2, which put it back on the 2-thread pool. The prime core
+runs at the same 2016 MHz cap as the golds, so a fourth thread adds
+contention and core power for ~4% speed. See `battery-and-heat.md`.
+
+Original note: `KOKORO_TRACT_CPUSET=4-7 KOKORO_TRACT_THREADS=4`
 drives RTF ~1.0 vs. ~1.11 with the current 3-gold default. Pre-FP16
 coverage this override only bought ~5% ("the prime only buys ~5% — so
 this is a thermal win, not a realtime one", commit `4f9b955`); with the
@@ -180,6 +194,44 @@ A fixpoint pass that promoted `OptMulByScalar` etc. to f16 when it
 reduced boundary Casts was tried and gave zero measurable RTF
 improvement for ~75 lines of code. Reverted.
 
+### 11. ConvTranspose (`Deconv`) in f16 (tested, not landed)
+
+tract declutters ConvTranspose to `Deconv` (lowercase c), so the
+`Conv` accept entry misses the vocoder upsamplers (`generator/ups.*`)
+and the F0/N `pool` ops. `DeconvSum` already has an aarch64 fp16 path,
+and adding `"Deconv"` translates 6 more nodes (247 → 253). Measured
+with stage 1 held identical so the outputs align sample for sample:
+
+| Stage 2 | Process CPU (2 runs) | Spectral conv. vs f32 stage 2 | LSD vs f32 |
+|---|---|---|---|
+| FP16 today | 56.6 / 57.0 s | 0.0931 | 4.64 dB |
+| FP16 + Deconv | 56.3 / 56.7 s | 0.0958 | 4.97 dB |
+
+0.5% less CPU, inside run-to-run noise, for an output that differs from
+today's FP16 by 0.064 spectral convergence (3.8 dB LSD) and sits further
+from f32. Left in f32; `fp16_filter_is_gemm_only` pins that.
+
+Waveform SNR is useless for this kind of check: today's FP16 stage 2
+scores 1.8 dB SNR / 0.67 correlation against f32 stage 2 with identical
+durations, because the vocoder regenerates phase. And across runs whose
+stage 1 differs at all, durations shift by a frame here and there, so
+compare stage-1 tensors (`KOKORO_TRACT_DUMP`) or spectra, not samples.
+
+### 12. `Pow(x, 3)` → `x * Square(x)` (landed)
+
+ALBERT's `gelu_new` computes `x³` on every layer; tract's
+`declutter_pow` only rewrote exponents 2 and 0.5, so it ran generic
+`powf`: 12 calls, ~7.8% of stage 1 (0.27 s for 157 tokens, on the
+little cores and on the first-audio path). `declutter_pow` now rewrites
+exponent 3 to `x * Square(x)` when that does not change the output
+shape (`third_party/tract/tract-core/src/ops/math/mod.rs`).
+
+Checked on stage-1 dumps: in pure f32 the durations are identical and
+the 640-ch features agree to 111.7 dB SNR (ulp level). Under FP16 the
+change is no bigger than FP16's own noise: vs the f32 run, 2 of 88
+durations move by one frame (3 before) and the 640-ch features stay at
+34.1 dB (34.0 before).
+
 ### Low-value / dismissed
 
 - PGO: 1–4%, works in Termux.
@@ -188,8 +240,11 @@ improvement for ~75 lines of code. Reverted.
 - BOLT: not available in Termux.
 - mimalloc: already enabled (~8% from the original integration).
 
-## Immediate next step
+## Where stage 2 goes now (2026-10-16)
 
-Run `KOKORO_TRACT_PROFILE=1` on the new binary and update #1 above
-with the new per-op breakdown. Everything below #1 should be re-ranked
-against that data before more code is written.
+`KOKORO_TRACT_PROFILE=1`, 155-token sentence, after #2 and #12. Stage 2:
+OptMatMul 65.2%, Cast 7.2%, Snake 7.2%, OptMulByScalar 3.2%, Resize 2.6%,
+OptSubByScalar 2.3%, Scan 2.1%. The f16 GEMMs are two thirds of the
+vocoder and nothing else is above ~7%. Stage 1: OptMatMul 68.7%, Scan
+(LSTM) 16.4%, Softmax 4.3%, Cast 2.9%; `Pow` (0.27 s, 7.8%) is now
+`Square` (0.01 s) plus 12 cheap multiplies.

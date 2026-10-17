@@ -205,11 +205,13 @@ network fallback for them. Only a missing **voice** is fetched from the HF cache
 | `KOKORO_RAW` | _(unset)_ | If set, skip the markdown cleanup and speak input verbatim (same as `--raw`) |
 | `KOKORO_WAV` | _(unset)_ | If set, write a 16-bit PCM WAV here instead of / in addition to playing |
 | `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/` |
-| `KOKORO_TRACT_THREADS` | _(all cores)_ | Thread-pool size for the stage-2 vocoder |
-| `KOKORO_TRACT_FP16` | on for aarch64 with fp16 SIMD, off elsewhere | `1` forces the f16 stage-2 GEMMs on (errors if the CPU lacks `asimdhp`); `0` forces f32. Weights are cast in memory; the ONNX files stay f32. |
+| `KOKORO_TRACT_THREADS` | _(Android: the gold cluster minus the prime core; elsewhere all cores)_ | Thread-pool size for the stage-2 vocoder. Fewer threads do not save battery: the golds run at the same clock either way, so the same work just takes longer. |
+| `KOKORO_TRACT_FP16` | on for aarch64 with fp16 SIMD, off elsewhere | `1` forces the f16 GEMMs of both stages on (errors if the CPU lacks `asimdhp`); `0` forces f32. Weights are cast in memory; the ONNX files stay f32. |
+| `KOKORO_GOVERNOR` | `thermal` | `pace` stops synthesizing ahead once 20 s of audio is queued. `thermal` (default) also drops stage 2 to 2 threads while the hottest gold core zone is at or above `KOKORO_THERM_HOT_C`. `off` does neither. |
+| `KOKORO_THERM_HOT_C` | `90` | Thermal-hold trip in °C (released 6 °C lower). Normal 3-gold load sits at 80–85 °C, so this only fires when the phone is abnormally hot. |
 | `RYK_SOCKET` | `$XDG_RUNTIME_DIR/ryk.sock` | Daemon socket for `--serve`/`--send` (see below) |
 | `RYK_IDLE_TIMEOUT` | `1800` (seconds) | `--serve` exits after this long with no jobs and no live audio sink. `0`/`off`/`none`/`-1` disables. `--send` auto-starts a replacement. |
-| `RYK_SINK_IDLE_MS` | `600000` (10 minutes) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe (no OpenSL restart click). Then the sink closes and PulseAudio can idle-exit. |
+| `RYK_SINK_IDLE_MS` | `30000` (30 seconds) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe. Then the sink closes and PulseAudio can idle-exit. Kept short because a connected `pacat` holds the Android audio path awake even when silent. |
 | `RYK_PULSE_ARGS` | _(unset)_ | Extra args for `pulseaudio --start` (Termux). Do **not** pass `--exit-idle-time=-1` unless you want the daemon to pin the audio HAL awake. |
 
 (`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
@@ -287,12 +289,13 @@ order, gaplessly. Voice/lang/speed are read per request (from `KOKORO_VOICE` / `
 `ryk --serve` yourself if you'd rather manage the daemon explicitly (foreground, or as a service).
 
 The **compiled pipeline** stays hot between sends. The **audio sink** stays warm for a
-**10-minute grace period** after the last sample (`RYK_SINK_IDLE_MS`, default `600000`):
+**30-second grace period** after the last sample (`RYK_SINK_IDLE_MS`, default `30000`):
 consecutive sentences of one utterance, and `--send`s that overlap or arrive within those
-10 minutes, share one `pacat`/`ffplay` pipe so playback stays gapless. After the grace period
-the sink exits and PulseAudio can idle-exit (~20s more). After `RYK_IDLE_TIMEOUT` seconds of
-no jobs *and* no live sink (default 30 minutes, so ~40 minutes after the last send) the daemon
-itself exits; the next `--send` starts a fresh one (~4s compile).
+30 seconds, share one `pacat`/`ffplay` pipe so playback stays gapless. After the grace period
+the sink exits and PulseAudio can idle-exit (~20s more); a later `--send` restarts PulseAudio
+while its first sentence synthesizes. After `RYK_IDLE_TIMEOUT` seconds of no jobs *and* no
+live sink (default 30 minutes after the grace) the daemon itself exits; the next `--send`
+starts a fresh one (~4s compile).
 
 The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
 an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the
@@ -314,27 +317,41 @@ cargo build --release --bin ryk
 
 Provide the two split subgraphs (see [above](#obtaining-the-split-files)) in a directory and
 point `KOKORO_TRACT_DIR` at it. When it falls back to `pacat`, `ryk` **auto-starts PulseAudio**
-(`pulseaudio --start`, loading `module-sles-sink` on Android; extra args via `RYK_PULSE_ARGS`) if
-none is running — so playback works without a manual `pulseaudio --start`, which matters for the
-detached `--serve` daemon. It does **not** pin PulseAudio awake (`--exit-idle-time=-1`); `--serve`
-keeps `pacat` up for a **10-minute grace period** after the last sample (`RYK_SINK_IDLE_MS`) so
-an editor session can send again without restarting OpenSL, then closes the sink so PulseAudio
-can idle-exit. The next utterance after that grace respawns both. Or just use `KOKORO_WAV`.
+(`pulseaudio --start`; extra args via `RYK_PULSE_ARGS`) if none is running — so playback works
+without a manual `pulseaudio --start`, which matters for the detached `--serve` daemon. On Android
+it adds `--load=module-sles-sink` only when `default.pa` does not already load an OpenSL/AAudio
+sink (Termux's stock one does, and loading it twice made a second OpenSL sink). PulseAudio is
+started from the playback thread, which is pinned to the little cores, so the daemon does not
+inherit the gold-core mask of stage 2; a one-shot run starts it and opens `pacat` while the
+model compiles, and the open stream keeps the phone from suspending mid-synthesis with the screen
+off. It does **not** pin PulseAudio awake
+(`--exit-idle-time=-1`); `--serve` keeps `pacat` up for a **30-second grace period** after the
+last sample (`RYK_SINK_IDLE_MS`), then closes the sink so PulseAudio can idle-exit. The next
+utterance after that grace respawns both. Or just use `KOKORO_WAV`.
 (The `ffplay` path, used on desktop, instead relies on the audio server your session already
 runs — PulseAudio, PipeWire, or ALSA via SDL.)
 
-**FP16 stage 2.** On aarch64, `ryk` casts the stage-2 vocoder GEMMs to f16 by default when the
-CPU has fp16 SIMD (`asimdhp`), and stays in f32 if it doesn't. Set `KOKORO_TRACT_FP16=1` to
-require the optimized path, so `ryk` errors out instead of quietly falling back to f32:
+**FP16 GEMMs.** On aarch64, `ryk` casts the GEMMs of both stages to f16 by default when the
+CPU has fp16 SIMD (`asimdhp`): the encoder and predictor matmuls in stage 1, and the vocoder's
+convolutions and matmuls in stage 2 (its transposed convolutions stay f32). It stays in f32 if
+the CPU lacks it. Set `KOKORO_TRACT_FP16=1` to require the optimized path, so `ryk` errors out instead of
+quietly falling back to f32:
 
 ```bash
 KOKORO_TRACT_FP16=1 ryk -v "Hello from Termux."
 ```
 
 `-v` should print `FP16 GEMM is on`. On the test phone this took wall RTF from 1.46 to 1.11 and
-peak CPU temperature from 82 °C to 75 °C. Desktop builds leave it off, because x86 has no f16 GEMM
+peak CPU temperature from 82 °C to at most 75 °C (75 °C is the floor of the old bench script's
+peak column, which included the static `lmh-dcvs` sentinel). Desktop builds leave it off, because x86 has no f16 GEMM
 kernels and f32 already runs well under 1.0 RTF there. Use `KOKORO_TRACT_FP16=0` to compare
 against f32.
+
+**Battery and heat.** On this class of phone the gold cores run at a fixed 2016 MHz cap while
+`ryk` synthesizes, so fewer threads only make the same work slower; they save neither battery
+nor, at realtime playback, heat. What saves both is less work per audio second.
+[`docs/battery-and-heat.md`](docs/battery-and-heat.md) has the measurements, and
+`tools/power_bench.sh` (run unplugged) measures a change in joules per audio second.
 
 ## How it works, fidelity, and performance
 
@@ -358,7 +375,8 @@ first-sample latency. Prefix with `KOKORO_GOVERNOR=off` to isolate full-pool spe
 governor's thermal/pacing decisions.
 
 Fastest on Android: override the 3-gold default to use all four gold cores (adds the prime core
-`cpu7`, hotter but ~4% faster on SD855):
+`cpu7`, ~4% faster on SD855). It is not the default because it costs battery and heat: on a
+3-sentence paragraph it used ~7% more CPU time than the 3-gold pool and peaked at 85 °C.
 
 ```bash
 KOKORO_TRACT_CPUSET=4-7 KOKORO_TRACT_THREADS=4 target/release/ryk -v "The old lighthouse keeper climbed the winding staircase every single evening at dusk. Carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night."

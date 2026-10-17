@@ -89,6 +89,12 @@ Three ops account for **81%** of stage-2 time: GEMMs, Cast shuttles between f16 
 
 **A1. Remove `gold_freq_capped()` from the trip condition** (`src/tract_backend.rs:742-748, 779-791`). On Samsung firmware the scaling ceiling is below `cpuinfo_max` **permanently**, not just when thermally capped — so the current logic forces `thermal_hold` on at boot and never releases. Either: (a) drop the signal entirely, or (b) baseline it: record `scaling_max_freq` at startup and only treat **further** reductions as a hot signal. (a) is simpler and loses nothing on devices where the kernel never writes it (Termux can't write it anyway).
 
+> **Superseded (2026-10-16), see `battery-and-heat.md`.** Under real load the
+> live zones reach 80–85 °C within a minute, not 55–65 °C, so 78/72 latched the
+> hold on for the rest of a long read. The hold is now 90/84 °C
+> (`KOKORO_THERM_HOT_C`), and buffered audio no longer drops threads, because 2
+> threads do the same work as 3 at the same capped clock.
+
 **A2. Tune `THERM_HOT` / `THERM_COOL` for live core zones.** The current `75 / 68` numbers come from lmh-dcvs's trip semantics. For live `cpu-1-*-usr` reads, start with `THERM_HOT=78`, `THERM_COOL=72` and refine with power_bench runs. Rationale: this device's cores sit at 40–50°C under load, 55–65°C under sustained load; a 75°C trip would never fire from live zones (hiding real heat). The new hysteresis has to bracket the actual load range.
 
 **Expected result after A0+A1+A2:** default-run RTF on single sentences improves from ~1.55 (cool-pool floor) to ~1.36 (true full pool), **matching the measured governor-off case**. This is the single largest win on this device.

@@ -65,10 +65,15 @@ dependencies** (std `UnixListener`/`UnixStream`, `thread`, `mpsc`, `process`).
 - Resolve assets + `Pipeline::new()` once.
 - One `StreamPlayer` for the daemon's life. The sink process (`ffplay`/`pacat`) stays warm
   across overlapping or nearby requests (gapless playback, including while the next sentence
-  synthesizes). After a **10-minute grace period** (`RYK_SINK_IDLE_MS`, default `600000`)
+  synthesizes). After a **30-second grace period** (`RYK_SINK_IDLE_MS`, default `30000`)
   with an empty queue it closes, so PulseAudio can idle-exit instead of pinning the OpenSL
-  HAL all day. The next `push` respawns it. Ten minutes is long enough for a typical
-  "select → hear, pause, select again" editor session.
+  HAL. The next `push` respawns it. The grace used to be 10 minutes, but a connected
+  `pacat` keeps the PulseAudio/OpenSL sink RUNNING even with nothing to play (~1.5% of a
+  core plus the Android audio path), so every short `--send` cost 10 minutes of that.
+  Each job calls `StreamPlayer::warm` first, which opens the sink on the playback thread
+  (little cores), restarting PulseAudio if it idle-exited, while the first sentence
+  synthesizes. A respawn after the grace then adds no ~0.7 s Pulse start to first audio,
+  and the open stream keeps Android from suspending while the job synthesizes.
 - A **listener** accepts connections; a single **worker thread** owns the `Pipeline` and
   drains an `mpsc` job queue FIFO. Per job: `split_sentences` → per sentence `prepare` +
   `synthesize` → `player.push` (backpressure paces synthesis to playback).
@@ -139,11 +144,12 @@ a new `src/serve.rs` can use it. The bin slims to flag dispatch + the existing o
   `StreamPlayer` kill path (kill the ffplay/pacat child + abort remaining sentences between
   utterances). Deferred in favor of queue.
 - **Idle auto-shutdown** (`RYK_IDLE_TIMEOUT`, default 1800s) so a forgotten daemon doesn't
-  linger. Implemented: the accept loop is nonblocking and exits once no jobs are pending
-  and the audio sink has closed. The sink itself uses a **10-minute grace**
-  (`RYK_SINK_IDLE_MS`, default `600000`) after the last sample before closing, so an
-  editor session can `--send` again without restarting OpenSL; the daemon idle clock
-  starts only after that grace. `0`/`off`/`none`/`-1` disables the daemon timeout.
-  `--send` already auto-starts a replacement.
+  linger. Implemented: the accept loop sleeps in `poll(2)` (on the little cores) and exits
+  once no jobs are pending and the audio sink has closed. While a job or the sink is live
+  it re-checks every 5 s; while truly idle it sleeps until the deadline (it used to wake a
+  gold core every 250 ms for the daemon's whole life). The sink itself uses a
+  **30-second grace** (`RYK_SINK_IDLE_MS`, default `30000`) after the last sample before
+  closing; the daemon idle clock starts only after that grace. `0`/`off`/`none`/`-1`
+  disables the daemon timeout. `--send` already auto-starts a replacement.
 - **Windows** — `AF_UNIX`/named-pipe transport; one-shot already works there.
 - **Voice preloading** — should the daemon pre-resolve a set of voices, or lazily on first use?
