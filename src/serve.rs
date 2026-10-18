@@ -388,6 +388,11 @@ pub fn send() -> Result<()> {
     let mut stream = match UnixStream::connect(&path) {
         Ok(s) => s,
         Err(_) => {
+            // Fetch a missing model here, in the foreground with progress on
+            // this terminal. The daemon would otherwise download it silently
+            // into its log while connect_retry gives up after 20 s. Only stat
+            // calls when the bundle is already in place.
+            kokoro::resolve_assets_tract(&voice)?;
             spawn_daemon(&path)?;
             connect_retry(&path)?
         }

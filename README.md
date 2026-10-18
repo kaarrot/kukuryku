@@ -20,24 +20,23 @@ sudo apt install -y ffmpeg                     # playback via ffplay — optiona
 # 2. Build the pure-Rust binary.
 cargo build --release --bin ryk
 
-# 3. Download the model assets (~576 MB, once) — unpacks into the OS-specific per-user data dir
+# 3. Speak. The first run downloads the model (~576 MB, once) into the OS-specific per-user
+#    data dir, then speaks. Later runs use that copy and need no network.
 #    (Linux: ~/.local/share/kukuryku/kokoro-onyx/,
 #     macOS: ~/Library/Application Support/kukuryku/kokoro-onyx/,
 #     Windows: %APPDATA%\kukuryku\kokoro-onyx\)
-./target/release/ryk --install-assets
-
-# 4. Speak
 ./target/release/ryk "Hello, this is a pure-Rust text to speech test."
 ```
 
-Step 3 fetches a pinned release archive, checks its sha256, and unpacks `stage1.onnx` +
-`stage2.onnx` alongside `model.onnx` and `voices/`.
+The first run fetches a pinned release archive, checks its sha256, and unpacks `stage1.onnx` +
+`stage2.onnx` alongside `model.onnx` and `voices/`. `ryk --install-assets` does the same fetch
+ahead of time, without speaking.
 See
 [Split the model into two stages](#split-the-model-into-two-stages-one-time) for why the split
 exists and [Obtaining the split files](#obtaining-the-split-files) for the alternatives.
 
 If you already have a `kokoro-onyx/` in the project root — from a previous checkout or your own
-split — step 3 is unnecessary: `ryk` prefers it over the user-data-dir copy.
+split — `ryk` uses it and downloads nothing, as long as the user data dir has no bundle of its own.
 
 ## Install (users, no clone)
 
@@ -51,19 +50,22 @@ sudo apt install -y espeak-ng ffmpeg     # or: pkg install espeak-ng ffmpeg  (Te
 # 2. The binary — cargo installs it into ~/.cargo/bin (put that on your PATH)
 cargo install --locked --git https://github.com/kaarrot/kukuryku ryk
 
-# 3. The ~576 MB model bundle — into the OS per-user data dir (see step 3 in Quick start)
-ryk --install-assets
-
-# 4. Speak
+# 3. Speak. The first run downloads the ~576 MB model bundle into the OS per-user data dir.
 ryk "Hello from an installed ryk."
 ```
 
-Why the split? `cargo install` copies the compiled binary into `~/.cargo/bin` and nothing else —
-no post-install hook, no asset placement. So `--install-assets` is a one-time follow-up that
-fetches the ~576 MB weight bundle into the OS's per-user data dir (`~/.local/share/kukuryku/…`
-on Linux, `~/Library/Application Support/kukuryku/…` on macOS, `%APPDATA%\kukuryku\…` on
-Windows). Re-running is a no-op once the stages are in place; delete the directory to force a
-re-install.
+`cargo install` copies the compiled binary into `~/.cargo/bin` and nothing else — no
+post-install hook, no asset placement. So `ryk` places the assets itself: whenever it needs the
+model and finds no local copy, it fetches the ~576 MB weight bundle into the OS's per-user data
+dir (`~/.local/share/kukuryku/…` on Linux, `~/Library/Application Support/kukuryku/…` on macOS,
+`%APPDATA%\kukuryku\…` on Windows), then carries on. That covers one-shot `ryk`, `ryk --serve`
+and `ryk --send`. `--send` downloads in the foreground, before it starts the daemon, so the
+progress shows in your terminal. Two `ryk`s started at once on a fresh machine download once:
+the second waits for the first. An interrupted download or unzip is never mistaken for a
+complete bundle; the next run starts it again. Delete the directory to force a re-install.
+
+`ryk --install-assets` runs the same fetch on its own: to pre-load a machine before you go
+offline, or to keep the download out of the first speak.
 
 Overrides:
 
@@ -71,7 +73,7 @@ Overrides:
   on a `cargo run` checkout) instead of the user data dir. Use this when iterating on the
   install logic so you don't pollute your real `~/.local/share`.
 - `KUKURYKU_ASSET_DIR=/some/path ryk --install-assets` — write the bundle at an explicit path
-  (packagers, CI, Nix). `KUKURYKU_ASSET_DIR=exe` selects the exe-adjacent layout without
+  (packagers, CI, Nix). `ryk` also looks there first, and downloads there on first use. `KUKURYKU_ASSET_DIR=exe` selects the exe-adjacent layout without
   hard-coding a path.
 
 ## Prerequisites
@@ -143,13 +145,15 @@ with the repo**. Getting them is a one-time step, described next.
 nothing about them is machine-specific, so one published pair works on every target. Hence the
 easy path — download it.
 
-#### Download the published assets (recommended)
+#### Download the published assets (recommended, automatic)
+
+Nothing to run: `ryk` downloads them the first time it needs them. To do it ahead of time:
 
 ```bash
 ryk --install-assets
 ```
 
-Pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases),
+Either way it pulls `kokoro-onyx.zip` from the [releases page](https://github.com/kaarrot/kukuryku/releases),
 verifies its sha256, and unpacks it into `kokoro-onyx/` inside the **OS-specific per-user data
 dir** — `~/.local/share/kukuryku/` on Linux, `~/Library/Application Support/kukuryku/` on macOS,
 `%APPDATA%\kukuryku\` on Windows. Pass `--dev` to install beside the running executable
@@ -180,17 +184,25 @@ source/dest: `python3 tools/split_kokoro.py path/to/model.onnx [OUT_DIR]`.
 
 The dir is resolved in order:
 
-1. `KOKORO_TRACT_DIR`, if set — always wins.
+1. `KOKORO_TRACT_DIR`, if set — always wins, and is the only dir checked. If it lacks the
+   stages, `ryk` downloads the bundle into it.
 2. `dirs::data_dir()/kukuryku/kokoro-onyx` — the OS-specific per-user data dir where
-   `--install-assets` unpacks the bundle. Standard install target for an installed `ryk`.
+   `ryk` unpacks the bundle. Standard install target for an installed `ryk`.
+   `KUKURYKU_ASSET_DIR` replaces this arm when set.
 3. `./kokoro-onyx` — running from the project root, as in the quick start.
 4. `kokoro-onyx/` beside the `ryk` executable — the `--install-assets --dev` target, for
    iterating on a checkout without polluting the real user data dir. Also serves as a
    last-resort arm so old installs keep working.
 
-If none of these holds `stage1.onnx` + `stage2.onnx`, `ryk` errors and points you at
-`ryk --install-assets` — the split stages are *not* on Hugging Face, so there is no useful
-network fallback for them. Only a missing **voice** is fetched from the HF cache.
+A directory that exists but lacks one of the stages is skipped. If none of these holds
+`stage1.onnx` + `stage2.onnx`, `ryk` downloads the published bundle itself (the same fetch as
+`ryk --install-assets`) into arm 2 and then speaks. That first fetch needs GitHub. Once the
+stages are on disk, later runs do not touch the network, so `ryk` keeps working where GitHub
+is unreachable. To set up a machine that can't reach GitHub at all, copy a `kokoro-onyx/` from
+another machine into arm 2 (or anywhere, with `KOKORO_TRACT_DIR`); the error from a failed
+first fetch prints that path. The split stages are *not* on Hugging Face. Only a missing
+**voice** is fetched from the HF cache; the published bundle already includes `af_heart` and
+`am_michael`.
 
 > Phonemization uses raw `espeak-ng` rather than Kokoro's reference phonemizer (misaki), so
 > pronunciation is close but not identical on tricky words.
@@ -204,7 +216,7 @@ network fallback for them. Only a missing **voice** is fetched from the HF cache
 | `KOKORO_SPEED` | `1.0` | Speaking rate |
 | `KOKORO_RAW` | _(unset)_ | If set, skip the markdown cleanup and speak input verbatim (same as `--raw`) |
 | `KOKORO_WAV` | _(unset)_ | If set, write a 16-bit PCM WAV here instead of / in addition to playing |
-| `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/` |
+| `KOKORO_TRACT_DIR` | _(auto; see above)_ | Directory holding `stage1.onnx` + `stage2.onnx` + `voices/`; downloaded into on first use if empty |
 | `KOKORO_TRACT_THREADS` | _(Android: the gold cluster minus the prime core; elsewhere all cores)_ | Thread-pool size for the stage-2 vocoder. Fewer threads do not save battery: the golds run at the same clock either way, so the same work just takes longer. |
 | `KOKORO_TRACT_FP16` | on for aarch64 with fp16 SIMD, off elsewhere | `1` forces the f16 GEMMs of both stages on (errors if the CPU lacks `asimdhp`); `0` forces f32. Weights are cast in memory; the ONNX files stay f32. |
 | `KOKORO_GOVERNOR` | `thermal` | `pace` stops synthesizing ahead once 20 s of audio is queued. `thermal` (default) also drops stage 2 to 2 threads while the hottest gold core zone is at or above `KOKORO_THERM_HOT_C`. `off` does neither. |

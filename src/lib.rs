@@ -203,33 +203,67 @@ pub mod kokoro {
         user_dir.unwrap_or(cwd_dir)
     }
 
+    /// Whether `dir` holds both split stages. The installer writes the stages
+    /// last, so this also means the rest of the bundle is complete.
+    pub fn stages_ready(dir: &Path) -> bool {
+        dir.join("stage1.onnx").is_file() && dir.join("stage2.onnx").is_file()
+    }
+
+    /// Directory holding `stage1.onnx` + `stage2.onnx`, downloading the bundle
+    /// if none has them yet. That is what lets a bare `ryk` binary (`cargo
+    /// install`, no checkout) speak on its first run with no setup step.
+    ///
+    /// - `KOKORO_TRACT_DIR` set: that dir is the only candidate. If it lacks the
+    ///   stages, the bundle is downloaded into it.
+    /// - Otherwise the first dir that has both stages, in order: the install
+    ///   target (`KUKURYKU_ASSET_DIR`, else the user data dir), `./kokoro-onyx`,
+    ///   `kokoro-onyx/` beside the binary. If none does, the bundle is
+    ///   downloaded into the install target, the same place `ryk
+    ///   --install-assets` puts it.
+    ///
+    /// A dir that exists but lacks a stage is skipped, not trusted. Once the
+    /// stages are on disk no later run touches the network for them.
+    #[cfg(feature = "tract")]
+    fn tract_model_dir() -> Result<PathBuf> {
+        if let Some(dir) = std::env::var_os("KOKORO_TRACT_DIR") {
+            let dir = PathBuf::from(dir);
+            crate::install::ensure(&dir)?;
+            return Ok(dir);
+        }
+
+        // Resolved lazily into an error: a box with no data dir can still run
+        // off ./kokoro-onyx or the exe-adjacent copy.
+        let target = crate::install::resolve_install_dir(false);
+        let mut candidates: Vec<PathBuf> = target.as_ref().ok().cloned().into_iter().collect();
+        candidates.push(PathBuf::from("kokoro-onyx"));
+        candidates.extend(exe_assets_dir());
+        if let Some(dir) = candidates.into_iter().find(|d| stages_ready(d)) {
+            return Ok(dir);
+        }
+        let target = target?;
+        crate::install::ensure(&target)?;
+        Ok(target)
+    }
+
     /// Assets for the tract (`ryk`) binary: the directory holding the split stages
     /// plus the voice file. Deliberately *not* [`Assets`] — the tract path never
     /// reads the monolithic `model.onnx`, so requiring it (as [`resolve_assets`]
     /// does, correctly, for `kokoro-ort`) only forced a pointless 325 MB download
     /// into `~/.cache/huggingface` on any box whose bundle lacked it.
+    #[cfg(feature = "tract")]
     pub struct TractAssets {
         pub dir: PathBuf,
         pub voice_path: PathBuf,
     }
 
-    /// Resolve the split-model dir + voice for `ryk` without ever touching the HF
-    /// cache for the model. The dir (see [`local_assets_dir`]) must already hold
-    /// `stage1.onnx` + `stage2.onnx` — those come from `ryk --install-assets`, not
-    /// HF — so a missing pair is a clear error, not a silent network fetch. Only a
-    /// missing *voice* falls back to the HF cache (voices do live in [`REPO`]).
+    /// Resolve the split-model dir + voice for `ryk`. The stages come from the
+    /// GitHub bundle (see [`tract_model_dir`]), never Hugging Face. A voice the
+    /// bundle doesn't carry falls back to the HF cache (voices do live in
+    /// [`REPO`]); the bundle has `af_heart` and `am_michael`, so the default
+    /// voice needs no network once the bundle is in place.
+    #[cfg(feature = "tract")]
     pub fn resolve_assets_tract(voice: &str) -> Result<TractAssets> {
-        let dir = local_assets_dir();
-        let stage1 = dir.join("stage1.onnx");
-        let stage2 = dir.join("stage2.onnx");
-        if !stage1.is_file() || !stage2.is_file() {
-            bail!(
-                "split model not found in {} (need stage1.onnx + stage2.onnx).\n  \
-                 run `ryk --install-assets` to fetch the bundle, or point KOKORO_TRACT_DIR \
-                 at a directory that has them.",
-                dir.display()
-            );
-        }
+        let dir = tract_model_dir()?;
         let local_voice = dir.join("voices").join(format!("{voice}.bin"));
         let voice_path = if local_voice.is_file() {
             local_voice

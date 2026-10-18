@@ -9,9 +9,10 @@
 // is optimized with a concrete phoneme count per utterance, which is what makes
 // tract's static shape inference succeed. See docs/tract-support-plan.md.
 //
-// `ryk --install-assets` downloads the split stages + voices + model.onnx from the
-// pinned GitHub release into the OS-specific per-user data dir (see install.rs);
-// pass --dev to install beside the executable instead (for `cargo run` on a checkout).
+// The first speak (and `ryk --install-assets`) downloads the split stages + voices
+// + model.onnx from the pinned GitHub release into the OS-specific per-user data
+// dir when no local bundle is found (see install.rs). Later runs use that copy
+// and do not need GitHub. `--dev` installs beside the executable instead.
 //
 // For the low-latency `--serve` (warm daemon) / `--send` (client) modes, see serve.rs
 // and docs/ryk-cli-and-daemon.md. The one-shot path below is unchanged by them.
@@ -20,8 +21,8 @@
 //   KOKORO_SPEED / KOKORO_WAV, plus:
 //   KOKORO_TRACT_DIR   dir holding stage1.onnx + stage2.onnx + voices/ (default
 //                      lookup: OS-specific user data dir, else ./kokoro-onyx, else
-//                      kokoro-onyx/ beside the binary). Produce it with
-//                      tools/split_kokoro.py or `ryk --install-assets`.
+//                      kokoro-onyx/ beside the binary). If the dir it settles on
+//                      lacks both stages, the first speak downloads the bundle.
 //   KOKORO_TRACT_DUMP        if set to a dir, dump stage-boundary tensors as raw f32.
 //   KOKORO_TRACT_NAN_TRACE   step the plan node-by-node and print the first node whose
 //                            output contains a non-finite value (see nan_trace_run).
@@ -51,9 +52,10 @@ USAGE:
                             download the split model + voices into the OS-specific
                             per-user data dir (Linux: ~/.local/share/kukuryku,
                             macOS: ~/Library/Application Support/kukuryku,
-                            Windows: %APPDATA%\\kukuryku). --dev writes beside the
-                            binary instead — for iterating on a checkout without
-                            polluting the real user data dir.
+                            Windows: %APPDATA%\\kukuryku). The first speak does
+                            this on its own when those files are missing. --dev
+                            writes beside the binary instead — for iterating on a
+                            checkout without polluting the real user data dir.
     ryk --show-text [TEXT...]
                             print the cleaned-up text that would be spoken, then
                             exit — for checking the markdown pass on a real file
@@ -71,6 +73,7 @@ ENV:
     KOKORO_WAV     also write synthesized audio to this WAV path
     KOKORO_RAW     set to disable the markdown cleanup (same as --raw)
     KOKORO_TRACT_DIR  directory holding stage1.onnx + stage2.onnx + voices/
+                      (downloaded into on first use if it lacks them)
     KOKORO_TRACT_THREADS  stage-2 thread count. When set, disables the thermal
                       hold's 2-thread pool and uses one pool. Default on
                       Android is the mid cluster (3). Fewer threads do not
@@ -89,8 +92,9 @@ ENV:
                       (cpu-1-*-usr) is at or above KOKORO_THERM_HOT_C.
     KOKORO_THERM_HOT_C  thermal hold trip in °C (default 90, released 6 °C
                       lower). Normal 3-gold load runs at 80-85 °C.
-    KUKURYKU_ASSET_DIR  override the --install-assets target (absolute path, or
-                        the literal `exe` for the exe-adjacent dir)
+    KUKURYKU_ASSET_DIR  override where the bundle is looked for first and
+                        downloaded to (absolute path, or the literal `exe` for
+                        the exe-adjacent dir)
     RYK_SOCKET     daemon socket path (default $XDG_RUNTIME_DIR/ryk.sock)
     RYK_SINK_IDLE_MS  --serve: close the audio sink this long after the last
                       sample (default 30000)

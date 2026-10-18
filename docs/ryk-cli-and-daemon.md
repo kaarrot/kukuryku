@@ -22,10 +22,12 @@ Commit `0165d49` (branch `tract-prototype`):
 - **Asset resolution decoupled from `model.onnx`.** The tract path loads `stage1.onnx` +
   `stage2.onnx` and never reads the monolithic `model.onnx`, yet the old `resolve_assets()`
   required it locally or downloaded it into `~/.cache/huggingface`. New
-  `kokoro::resolve_assets_tract()` resolves the split-model dir from the stages, errors
-  toward `ryk --install-assets` when they're missing, and touches HF only for a genuinely
-  missing voice. `kokoro-ort` still uses the model.onnx-centric `resolve_assets()` (correct
-  there — it actually loads the model).
+  `kokoro::resolve_assets_tract()` resolves the split-model dir from the stages. When
+  none of the local lookup dirs has them, `ryk` downloads the published bundle (the same
+  fetch as `ryk --install-assets`) and then continues. A later run that finds the stages
+  does not touch the network. HF is used only for a genuinely missing voice. `kokoro-ort`
+  still uses the model.onnx-centric `resolve_assets()` (correct there — it actually loads
+  the model).
 
 ## The latency problem
 
@@ -82,7 +84,10 @@ dependencies** (std `UnixListener`/`UnixStream`, `thread`, `mpsc`, `process`).
 
 - Read text from args (joined) or stdin — same rules as one-shot.
 - Connect to the socket; if it's not there, **auto-start** the daemon (re-exec
-  `current_exe --serve` detached) and poll-connect for ~15 s (covers the compile).
+  `current_exe --serve` detached) and poll-connect for ~20 s (covers the compile).
+  Before spawning, the client resolves the assets itself, so a first-run model download
+  happens in the foreground with progress on the user's terminal. Left to the daemon, the
+  download would run silently in its log and outlast the connect window.
 - Send the request, half-close, read the `ok`/`err` ack, exit. Fire-and-forget: the client
   returns once the text is queued, so the editor never blocks on playback.
 
@@ -135,8 +140,9 @@ a new `src/serve.rs` can use it. The bin slims to flag dispatch + the existing o
 - **README**: new "Low-latency editor use (`--serve`/`--send`)" section after "Long input, and
   streaming across sentences"; add `RYK_SOCKET` to the env table; note `--help`/`--version`.
 - **README reconciliation** (already-stale from `0165d49`): the `KOKORO_MODEL` env row applies
-  to `kokoro-ort` only now; the offline lookup "arm 4" no longer downloads `model.onnx` for
-  `ryk` — it needs the stages locally (`--install-assets`) and only fetches a missing voice.
+  to `kokoro-ort` only now; the offline lookup no longer downloads `model.onnx` for
+  `ryk`. Missing stages trigger one GitHub bundle download into the user data dir;
+  once those files are present, `ryk` only fetches a voice that the bundle does not carry.
 
 ## Open questions / follow-ups
 
