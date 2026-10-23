@@ -767,8 +767,14 @@ pub mod kokoro {
 
     /// Whether the default.pa PulseAudio will read loads an Android output.
     /// A user `~/.config/pulse/default.pa` replaces the system one, so the
-    /// first file that exists decides.
+    /// first file that exists decides. False when that file won't be the one
+    /// that runs (see [`pa_default_script_replaced`]).
     fn default_pa_loads_android_sink() -> bool {
+        let extra = std::env::var("RYK_PULSE_ARGS").unwrap_or_default();
+        let script = std::env::var("PULSE_SCRIPT").ok();
+        if pa_default_script_replaced(&extra, script.as_deref()) {
+            return false;
+        }
         let mut candidates = Vec::new();
         if let Some(dir) = std::env::var_os("XDG_CONFIG_HOME") {
             candidates.push(PathBuf::from(dir).join("pulse/default.pa"));
@@ -783,6 +789,12 @@ pub mod kokoro {
             .iter()
             .find_map(|p| std::fs::read_to_string(p).ok())
             .is_some_and(|script| pa_script_loads_android_sink(&script))
+    }
+
+    /// True when PulseAudio won't run the default.pa we inspect: `-n` in the
+    /// extra start args drops it, and `$PULSE_SCRIPT` names a different one.
+    pub(crate) fn pa_default_script_replaced(extra_args: &str, pulse_script: Option<&str>) -> bool {
+        extra_args.split_whitespace().any(|a| a == "-n") || pulse_script.is_some_and(|s| !s.is_empty())
     }
 
     /// True if a PulseAudio script has an uncommented `load-module` line for
@@ -1257,5 +1269,15 @@ mod tests {
         assert!(pa_script_loads_android_sink("  load-module module-aaudio-sink\n"));
         assert!(!pa_script_loads_android_sink("#load-module module-sles-sink\nload-module module-null-sink\n"));
         assert!(!pa_script_loads_android_sink(""));
+    }
+
+    /// `-n` or `$PULSE_SCRIPT` means default.pa isn't what runs, so its sles line
+    /// must not suppress `--load=module-sles-sink`.
+    #[test]
+    fn pa_default_script_replaced_cases() {
+        assert!(!pa_default_script_replaced("", None));
+        assert!(!pa_default_script_replaced("--exit-idle-time=-1", Some("")));
+        assert!(pa_default_script_replaced("-n --load=module-native-protocol-unix", None));
+        assert!(pa_default_script_replaced("", Some("/home/u/my.pa")));
     }
 }
