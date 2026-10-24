@@ -24,6 +24,7 @@ use anyhow::{Context, Result, bail};
 
 use crate::info;
 use crate::kokoro;
+use crate::playback::{Cancelled, Control, Handle};
 use crate::tract_backend::Pipeline;
 
 /// A queued utterance: per-request config plus the text to speak.
@@ -32,6 +33,25 @@ struct Job {
     lang: String,
     speed: f32,
     text: String,
+    /// The cancel epoch when it was queued; a later cancel makes the worker skip it.
+    epoch: u64,
+}
+
+/// One request off the socket.
+#[derive(Debug, PartialEq)]
+enum Request {
+    Speak { voice: String, lang: String, speed: f32, text: String },
+    Control(Control),
+}
+
+/// Verbs that control the running session instead of speaking. An allowlist,
+/// not "any first field that is not a voice": a voice is never named like this.
+const VERBS: [&str; 7] = ["pause", "resume", "toggle", "back", "cancel", "rewind", "status"];
+
+/// Default step for a bare `rewind`: `$RYK_REWIND_SECS` or 10 s.
+fn default_rewind_secs() -> f32 {
+    crate::playback::parse_secs(std::env::var("RYK_REWIND_SECS").ok().as_deref())
+        .map_or(10.0, |v| v as f32)
 }
 
 /// Where the daemon listens and the client connects. `$RYK_SOCKET` wins; else
@@ -133,13 +153,16 @@ pub fn serve() -> Result<()> {
     );
     let player = kokoro::StreamPlayer::with_sink_idle(sink_idle)?;
     let sink_live = player.sink_live_flag();
+    let ctl = player.handle().context("daemon player has no control handle")?;
 
     // A single worker owns the pipeline (it's `&mut` / single-instance) and drains
     // an mpsc queue FIFO — that is the "queue" concurrency policy for free.
     let pending = Arc::new(AtomicUsize::new(0));
     let (tx, rx) = mpsc::channel::<Job>();
     let pending_w = Arc::clone(&pending);
-    let worker = std::thread::spawn(move || worker_loop(pipeline, player, dir, rx, pending_w));
+    let ctl_w = ctl.clone();
+    let worker =
+        std::thread::spawn(move || worker_loop(pipeline, player, ctl_w, dir, rx, pending_w));
     // The worker inherited the gold mask stage 2 needs. This thread only
     // accepts connections from here on, so it moves to the little cores.
     crate::tract_backend::pin_to_little_cores("accept loop");
@@ -159,13 +182,13 @@ pub fn serve() -> Result<()> {
 
     if let Some(timeout) = idle_timeout {
         listener.set_nonblocking(true).context("setting listener nonblocking")?;
-        accept_loop(&listener, &tx, &pending, &sink_live, timeout)?;
+        accept_loop(&listener, &tx, &pending, &sink_live, &ctl, timeout)?;
     } else {
         // Blocking accept: nothing to time out when the user disabled idle-exit.
         for conn in listener.incoming() {
             match conn {
                 Ok(conn) => {
-                    if let Err(e) = handle_conn(conn, &tx, &pending) {
+                    if let Err(e) = handle_conn(conn, &tx, &pending, &ctl) {
                         eprintln!("[ryk-serve] connection error: {e:#}");
                     }
                 }
@@ -189,12 +212,16 @@ fn accept_loop(
     tx: &mpsc::Sender<Job>,
     pending: &AtomicUsize,
     sink_live: &AtomicBool,
+    ctl: &Handle,
     idle_timeout: Duration,
 ) -> Result<()> {
     let mut idle_since: Option<Instant> = None;
     loop {
-        let truly_idle =
-            pending.load(Ordering::Acquire) == 0 && !sink_live.load(Ordering::Acquire);
+        // A paused session, or one still inside its rewind window, is not idle:
+        // exiting would throw the audio away.
+        let truly_idle = pending.load(Ordering::Acquire) == 0
+            && !sink_live.load(Ordering::Acquire)
+            && !ctl.busy();
         let wait = if truly_idle {
             let since = *idle_since.get_or_insert_with(Instant::now);
             let left = idle_timeout.saturating_sub(since.elapsed());
@@ -213,7 +240,7 @@ fn accept_loop(
         match listener.accept() {
             Ok((conn, _)) => {
                 idle_since = None;
-                if let Err(e) = handle_conn(conn, tx, pending) {
+                if let Err(e) = handle_conn(conn, tx, pending, ctl) {
                     eprintln!("[ryk-serve] connection error: {e:#}");
                 }
             }
@@ -242,9 +269,14 @@ fn wait_for_client(listener: &UnixListener, timeout: Duration) -> bool {
     true
 }
 
-/// Read one utterance from a connection (header line + body to EOF), enqueue it,
-/// and ack the client.
-fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>, pending: &AtomicUsize) -> Result<()> {
+/// Read one request from a connection (header line + body to EOF) and answer it.
+/// Speech is enqueued and acked; a control verb is run and its outcome returned.
+fn handle_conn(
+    mut conn: UnixStream,
+    tx: &mpsc::Sender<Job>,
+    pending: &AtomicUsize,
+    ctl: &Handle,
+) -> Result<()> {
     // Blocking read on this connection; the listener itself is nonblocking.
     conn.set_nonblocking(false).ok();
     let mut reader = BufReader::new(conn.try_clone().context("cloning connection")?);
@@ -254,8 +286,9 @@ fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>, pending: &AtomicUsi
     reader.read_to_string(&mut body).context("reading request body")?;
 
     match parse_request(&header, body) {
-        Ok(job) => {
-            let chars = job.text.chars().count();
+        Ok(Request::Speak { voice, lang, speed, text }) => {
+            let chars = text.chars().count();
+            let job = Job { voice, lang, speed, text, epoch: ctl.epoch() };
             pending.fetch_add(1, Ordering::Release);
             if tx.send(job).is_err() {
                 pending.fetch_sub(1, Ordering::Release);
@@ -265,6 +298,21 @@ fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>, pending: &AtomicUsi
             info!("[ryk-serve] queued utterance ({chars} chars)");
             Ok(())
         }
+        Ok(Request::Control(c)) => {
+            let queued_jobs = pending.load(Ordering::Acquire) > 0;
+            let reply = match ctl.control(c) {
+                // A cancel with nothing playing still counts when jobs are queued
+                // (the epoch bump already dropped them).
+                Ok(o) if c == Control::Cancel && o.note.as_deref() == Some("nothing") => {
+                    if queued_jobs { "ok idle cancelled".to_string() } else { "err: nothing playing".to_string() }
+                }
+                Ok(o) => format!("ok {}", o.line()),
+                Err(e) => format!("err: {e}"),
+            };
+            info!("[ryk-serve] {c:?} -> {reply}");
+            conn.write_all(format!("{reply}\n").as_bytes()).ok();
+            Ok(())
+        }
         Err(e) => {
             conn.write_all(format!("err: {e}\n").as_bytes()).ok();
             Err(e)
@@ -272,18 +320,43 @@ fn handle_conn(mut conn: UnixStream, tx: &mpsc::Sender<Job>, pending: &AtomicUsi
     }
 }
 
-/// Parse the wire request: a tab-separated `voice\tlang\tspeed` header line, then
-/// the UTF-8 body text. Missing/short fields fall back to the usual defaults.
-fn parse_request(header: &str, body: String) -> Result<Job> {
+/// Parse the wire request: a tab-separated header line, then the UTF-8 body.
+///
+/// `voice\tlang\tspeed` + body is speech (missing fields take the usual
+/// defaults). A first field from [`VERBS`] is a control: no body allowed, and
+/// `rewind` takes an optional `\tseconds`.
+fn parse_request(header: &str, body: String) -> Result<Request> {
     let mut parts = header.trim_end_matches(['\n', '\r']).split('\t');
-    let voice = parts.next().filter(|s| !s.is_empty()).unwrap_or("af_heart").to_string();
+    let first = parts.next().unwrap_or("");
+    if VERBS.contains(&first) {
+        if !body.trim().is_empty() {
+            bail!("control command must not have a body");
+        }
+        let ctl = match first {
+            "pause" => Control::Pause,
+            "resume" => Control::Resume,
+            "toggle" => Control::Toggle,
+            "back" => Control::Back,
+            "cancel" => Control::Cancel,
+            "status" => Control::Status,
+            _ => match parts.next() {
+                None => Control::Rewind(default_rewind_secs()),
+                Some(v) => match crate::playback::parse_secs(Some(v)) {
+                    Some(secs) => Control::Rewind(secs as f32),
+                    None => bail!("invalid rewind seconds"),
+                },
+            },
+        };
+        return Ok(Request::Control(ctl));
+    }
+    let voice = Some(first).filter(|s| !s.is_empty()).unwrap_or("af_heart").to_string();
     let lang = parts.next().filter(|s| !s.is_empty()).unwrap_or("en-us").to_string();
     let speed: f32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(1.0);
     let text = body.trim().to_string();
     if text.is_empty() {
         bail!("empty text");
     }
-    Ok(Job { voice, lang, speed, text })
+    Ok(Request::Speak { voice, lang, speed, text })
 }
 
 /// Decrements the pending-job count when a worker iteration finishes (including
@@ -310,6 +383,7 @@ impl Drop for SinkHold<'_> {
 fn worker_loop(
     mut pipeline: Pipeline,
     player: kokoro::StreamPlayer,
+    ctl: Handle,
     dir: PathBuf,
     rx: mpsc::Receiver<Job>,
     pending: Arc<AtomicUsize>,
@@ -317,8 +391,17 @@ fn worker_loop(
     let mut voices: HashMap<String, PathBuf> = HashMap::new();
     for job in rx {
         let _pending = PendingGuard(&pending);
-        if let Err(e) = speak_job(&mut pipeline, &player, &dir, &mut voices, &job) {
-            eprintln!("[ryk-serve] synth error: {e:#}");
+        if job.epoch != ctl.epoch() {
+            info!("[ryk-serve] skipping a job cancelled while queued");
+            continue;
+        }
+        player.start_job(job.epoch);
+        match speak_job(&mut pipeline, &player, &dir, &mut voices, &job) {
+            Ok(()) => {}
+            Err(e) if e.downcast_ref::<Cancelled>().is_some() => {
+                info!("[ryk-serve] job cancelled");
+            }
+            Err(e) => eprintln!("[ryk-serve] synth error: {e:#}"),
         }
     }
     let _ = player.finish();
@@ -511,6 +594,66 @@ mod tests {
     #[test]
     fn idle_timeout_garbage_falls_back_to_default() {
         assert_eq!(parse_idle_timeout(Some("nope")), Some(Duration::from_secs(1800)));
+    }
+
+    fn req(header: &str, body: &str) -> Result<Request> {
+        parse_request(header, body.to_string())
+    }
+
+    #[test]
+    fn speech_header_and_defaults() {
+        assert_eq!(
+            req("bf_emma\ten-gb\t1.2\n", " hello \n").unwrap(),
+            Request::Speak {
+                voice: "bf_emma".into(),
+                lang: "en-gb".into(),
+                speed: 1.2,
+                text: "hello".into()
+            }
+        );
+        // short or empty headers fall back to the usual defaults
+        assert_eq!(
+            req("\n", "hi").unwrap(),
+            Request::Speak {
+                voice: "af_heart".into(),
+                lang: "en-us".into(),
+                speed: 1.0,
+                text: "hi".into()
+            }
+        );
+        assert!(req("af_heart\n", "  \n").is_err(), "empty text is rejected");
+    }
+
+    #[test]
+    fn control_verbs_parse() {
+        for (h, want) in [
+            ("pause\n", Control::Pause),
+            ("resume\n", Control::Resume),
+            ("toggle\n", Control::Toggle),
+            ("back\n", Control::Back),
+            ("cancel\n", Control::Cancel),
+            ("status\n", Control::Status),
+            ("rewind\t5.5\n", Control::Rewind(5.5)),
+        ] {
+            assert_eq!(req(h, "").unwrap(), Request::Control(want), "{h:?}");
+        }
+        assert!(matches!(req("rewind\n", "").unwrap(), Request::Control(Control::Rewind(_))));
+    }
+
+    #[test]
+    fn control_verbs_reject_a_body_and_bad_seconds() {
+        let e = req("pause\n", "some text").unwrap_err().to_string();
+        assert!(e.contains("must not have a body"), "{e}");
+        for bad in ["rewind\t0\n", "rewind\t-1\n", "rewind\tnan\n", "rewind\t\n", "rewind\tx\n"] {
+            let e = req(bad, "").unwrap_err().to_string();
+            assert!(e.contains("invalid rewind seconds"), "{bad:?}: {e}");
+        }
+    }
+
+    #[test]
+    fn a_voice_that_is_not_a_verb_is_still_speech() {
+        assert!(matches!(req("backwards\n", "hi").unwrap(), Request::Speak { .. }));
+        assert!(req("back\ten-us\t1.0\n", "hi").is_err(), "a verb with a body is an error");
     }
 
     #[test]

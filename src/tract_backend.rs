@@ -1584,6 +1584,9 @@ impl Pipeline {
 
         let mut pending = Some(self.ahead.submit_text(&sentences[0], lang, voice, speed)?);
         for i in 0..sentences.len() {
+            // A cancel (headset, `ryk-ctl cancel`) ends the job at the next
+            // sentence boundary instead of synthesizing audio nobody will hear.
+            player.check_cancelled()?;
             let msg = pending
                 .take()
                 .context("internal: missing stage1 reply")?
@@ -1607,6 +1610,7 @@ impl Pipeline {
                     let token_len = s1.token_len;
                     let s1_secs = s1.s1_secs;
                     let pool = self.select_pool();
+                    player.check_cancelled()?; // stage 2 is the expensive part
                     let t_s2 = std::time::Instant::now();
                     let audio = self.run_stage2(s1, pool)?;
                     let s2_secs = t_s2.elapsed().as_secs_f64();

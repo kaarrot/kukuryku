@@ -98,6 +98,17 @@ ENV:
     RYK_SOCKET     daemon socket path (default $XDG_RUNTIME_DIR/ryk.sock)
     RYK_SINK_IDLE_MS  --serve: close the audio sink this long after the last
                       sample (default 30000)
+    RYK_HISTORY_SECS  --serve: seconds of played audio kept for rewinding (180)
+    RYK_REWIND_WINDOW_SECS  --serve: keep that history this long after the last
+                      sample, so `ryk-ctl back` works after speech ends (600)
+    RYK_PAUSE_MAX_SECS  --serve: a pause longer than this becomes a cancel (600)
+    RYK_BACK_RESTART_SECS  `back` restarts the current sentence when more than
+                      this far into it, else goes to the previous one (1.5)
+    RYK_SINK_PIPE_BYTES  --serve: pipe size to pacat; small keeps pause and back
+                      close to what you heard (4096; 0 = system default)
+
+CONTROL (a running --serve; the ryk-ctl script, see the README):
+    ryk-ctl pause|resume|toggle|back|cancel|status|rewind [SECS]
 ",
         version = env!("CARGO_PKG_VERSION"),
     );

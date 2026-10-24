@@ -224,6 +224,12 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 | `RYK_SOCKET` | `$XDG_RUNTIME_DIR/ryk.sock` | Daemon socket for `--serve`/`--send` (see below) |
 | `RYK_IDLE_TIMEOUT` | `1800` (seconds) | `--serve` exits after this long with no jobs and no live audio sink. `0`/`off`/`none`/`-1` disables. `--send` auto-starts a replacement. |
 | `RYK_SINK_IDLE_MS` | `30000` (30 seconds) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe. Then the sink closes and PulseAudio can idle-exit. Kept short because a connected `pacat` holds the Android audio path awake even when silent. |
+| `RYK_HISTORY_SECS` | `180` | `--serve`: seconds of **already-played** audio kept so `back` / `rewind` can replay it (~17 MB at 180 s). |
+| `RYK_REWIND_WINDOW_SECS` | `600` | `--serve`: how long after the last sample the history stays, so `ryk-ctl back` still works once speech has ended. Independent of the 30 s sink grace (the sink is respawned on demand). Keep `RYK_IDLE_TIMEOUT` at least this long. |
+| `RYK_PAUSE_MAX_SECS` | `600` | `--serve`: a pause longer than this becomes a cancel. |
+| `RYK_BACK_RESTART_SECS` | `1.5` | `back` restarts the sentence you are in when you are more than this far into it, else it goes to the previous sentence (previous-track behaviour). |
+| `RYK_REWIND_SECS` | `10` | Default step for `ryk-ctl rewind` / `ryk-rewind`. |
+| `RYK_SINK_PIPE_BYTES` | `4096` | Size of the pipe to `pacat` (Linux/Android). The 64 KiB default queues 0.68 s of audio ahead of the speaker, so a pause would stop that far late; 4 KiB cuts the lag from ~0.87 s to ~0.23 s. `0`/`off` keeps the system default. |
 | `RYK_PULSE_ARGS` | _(unset)_ | Extra args for `pulseaudio --start` (Termux). Do **not** pass `--exit-idle-time=-1` unless you want the daemon to pin the audio HAL awake. |
 
 (`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
@@ -341,6 +347,26 @@ the sink exits and PulseAudio can idle-exit (~20s more); a later `--send` restar
 while its first sentence synthesizes. After `RYK_IDLE_TIMEOUT` seconds of no jobs *and* no
 live sink (default 30 minutes after the grace) the daemon itself exits; the next `--send`
 starts a fresh one (~4s compile).
+
+### Controlling a running session
+
+The daemon keeps a replayable copy of what it played, so a running session can be paused,
+rewound and cancelled without re-synthesizing anything. The client is `ryk-ctl`
+(`ryk-skills/bin`; it never starts a daemon):
+
+| Command | Does |
+|---|---|
+| `ryk-ctl pause` / `resume` / `toggle` | Stop the sink where you heard it (the ~0.23 s still in the pipe is taken back), and continue later. Resume replays the last second, or the sentence start if you paused within 2 s of it. |
+| `ryk-ctl back` | **One sentence back**, like a music player's previous-track: restarts the sentence you are in, or goes to the previous one if you only just started it. Repeat to walk back further. Works while paused (and resumes), and after speech has ended, for `RYK_REWIND_WINDOW_SECS`. |
+| `ryk-ctl rewind [SECS]` | Go back `SECS` (default `RYK_REWIND_SECS`, 10). `ryk-rewind` is the same thing under the name the Helix `A-r` key runs. |
+| `ryk-ctl cancel` | Stop everything: the sentence being spoken, the rest of that text, and every queued `--send`. What was already heard stays rewindable. A `--send` after the cancel plays normally. |
+| `ryk-ctl status` | `ok playing`, `ok paused` or `ok idle`. |
+
+Replies are one line (`ok playing back`, `err: nothing playing`); the exit status is 0 for `ok`, 1 for
+`err`, 3 when no daemon is running. The same verbs are accepted on the socket as the header line
+(`pause`, `resume`, `toggle`, `back`, `cancel`, `status`, `rewind[\tSECS]`) with an empty body.
+A paused daemon never idle-exits. See [`docs/headset-control.md`](docs/headset-control.md) for
+the plan to drive these from headset buttons.
 
 The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
 an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the

@@ -5,6 +5,7 @@
 | Author | (draft) |
 | Date | 2026-09-21 |
 | Status | Draft (control-plane revision: Helix / Grok / Claude poke, /rr, no `--rewind` flag) |
+| Implementation | Built differently from this draft on 2026-10-24: `src/playback.rs`, `ryk-ctl` / `ryk-rewind`. See **Phase 1 status** in `docs/headset-control.md` for what changed (Condvar queue instead of polling, sink-idle no longer clears history, measured sink lag) |
 | Scope | `ryk` TTS player (`src/lib.rs` `kokoro::StreamPlayer`, `src/serve.rs`, `src/bin/kokoro_tract.rs`) |
 | Platforms | Termux/Android (`pacat` + PulseAudio OpenSL) and Unix desktop (`ffplay` or `pacat`) |
 
