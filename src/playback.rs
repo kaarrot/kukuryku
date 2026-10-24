@@ -37,6 +37,31 @@ pub fn secs_to_samples(secs: f64) -> u64 {
     (secs.max(0.0) * SR as f64).round() as u64
 }
 
+/// The sound after a cancel: 880 Hz for 70 ms, then 587 Hz (a fourth lower) for
+/// 90 ms, each with a 8 ms fade in and out so it cannot click, quiet next to
+/// speech. Not part of the history.
+pub fn cancel_earcon() -> Vec<f32> {
+    const TONES: [(f64, f64); 2] = [(880.0, 0.070), (587.33, 0.090)];
+    const AMPLITUDE: f64 = 0.18;
+    const FADE: f64 = 0.008;
+    let mut out = Vec::new();
+    for (hz, secs) in TONES {
+        let n = secs_to_samples(secs) as usize;
+        let fade = secs_to_samples(FADE) as usize;
+        for i in 0..n {
+            let edge = i.min(n - 1 - i);
+            let env = if edge >= fade {
+                1.0
+            } else {
+                (std::f64::consts::FRAC_PI_2 * edge as f64 / fade as f64).sin().powi(2)
+            };
+            let t = i as f64 / SR as f64;
+            out.push((AMPLITUDE * env * (2.0 * std::f64::consts::PI * hz * t).sin()) as f32);
+        }
+    }
+    out
+}
+
 // ------------------------------- history -------------------------------------
 
 /// Samples that have been handed to the playback thread, with an explicit
@@ -278,6 +303,10 @@ pub struct Config {
     /// Resume replays this much (a sentence start within `resume_snap` wins).
     pub resume_replay: u64,
     pub resume_snap: u64,
+    /// Play a short falling two-tone after a cancel, so a button press that
+    /// otherwise makes no sound is acknowledged. Off in `default()` (quiet
+    /// tests); `from_env` turns it on unless `RYK_EARCONS` is `0`/`off`.
+    pub earcon: bool,
 }
 
 impl Default for Config {
@@ -290,6 +319,7 @@ impl Default for Config {
             restart_after: secs_to_samples(1.5),
             resume_replay: secs_to_samples(1.0),
             resume_snap: secs_to_samples(2.0),
+            earcon: false,
         }
     }
 }
@@ -656,6 +686,9 @@ impl<F: SinkFactory> Engine<F> {
                 // may still have queued jobs, which it cancels by epoch.
                 let did = state != PlayState::Idle || self.hist.unplayed() > 0;
                 self.cancel(now);
+                if did && self.cfg.earcon {
+                    self.play_earcon();
+                }
                 Ok(Outcome::new(PlayState::Idle, Some(if did { "cancelled" } else { "nothing" })))
             }
         }
@@ -710,6 +743,21 @@ impl<F: SinkFactory> Engine<F> {
         if let Some(s) = self.sink.take() {
             s.kill();
         }
+    }
+
+    /// Play the cancel sound on a sink of its own, on its own thread, so the
+    /// reply to the cancel does not wait for it and the engine's state (sink,
+    /// history, tail) is untouched. Best effort: any failure is silent.
+    fn play_earcon(&mut self) {
+        let Ok(mut sink) = self.factory.spawn() else { return };
+        let tone = cancel_earcon();
+        let _ = std::thread::Builder::new().name("ryk-earcon".into()).spawn(move || {
+            if sink.write(bytemuck::cast_slice(&tone)).is_ok() {
+                let _ = sink.finish();
+            } else {
+                sink.kill();
+            }
+        });
     }
 
     fn ensure_sink(&mut self) -> bool {
@@ -1089,7 +1137,7 @@ pub fn parse_secs(val: Option<&str>) -> Option<f64> {
 
 impl Config {
     /// Defaults overridden by `RYK_SINK_IDLE_MS` (passed in), `RYK_HISTORY_SECS`,
-    /// `RYK_REWIND_WINDOW_SECS`, `RYK_PAUSE_MAX_SECS` and `RYK_BACK_RESTART_SECS`.
+    /// `RYK_REWIND_WINDOW_SECS`, `RYK_PAUSE_MAX_SECS`, `RYK_BACK_RESTART_SECS` and `RYK_EARCONS`.
     pub fn from_env(sink_idle: Duration) -> Self {
         let get = |k: &str| std::env::var(k).ok();
         let mut c = Config { sink_idle, ..Config::default() };
@@ -1105,6 +1153,7 @@ impl Config {
         if let Some(s) = parse_secs(get("RYK_BACK_RESTART_SECS").as_deref()) {
             c.restart_after = secs_to_samples(s);
         }
+        c.earcon = !matches!(get("RYK_EARCONS").as_deref(), Some("0" | "off" | "no" | "false"));
         c
     }
 }
@@ -1869,6 +1918,87 @@ mod tests {
         st.inbox.store(0, Ordering::Release);
         st.refresh();
         assert_eq!(st.snapshot().state, PlayState::Idle);
+    }
+
+    // ---- earcon ----
+
+    #[test]
+    fn the_cancel_earcon_is_short_quiet_clickless_and_falls() {
+        let t = cancel_earcon();
+        let secs = t.len() as f64 / SR as f64;
+        assert!((0.15..0.17).contains(&secs), "{secs}");
+        let peak = t.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        assert!(peak > 0.1 && peak <= 0.2, "quiet next to speech, but audible: {peak}");
+        assert_eq!(t[0], 0.0);
+        let crossings = |s: &[f32]| s.windows(2).filter(|w| (w[0] < 0.0) != (w[1] < 0.0)).count();
+        let n1 = secs_to_samples(0.070) as usize;
+        let (a, b) = t.split_at(n1);
+        let rate = |s: &[f32]| crossings(s) as f64 / (s.len() as f64 / SR as f64);
+        assert!(rate(a) > rate(b) * 1.3, "falling: {} vs {}", rate(a), rate(b));
+        // each tone starts and ends in silence
+        for part in [a, b] {
+            assert_eq!((part[0], part[part.len() - 1]), (0.0, 0.0));
+        }
+    }
+
+    fn earcon_cfg(earcon: bool) -> Config {
+        Config { earcon, ..Config::default() }
+    }
+
+    #[test]
+    fn a_cancel_plays_the_earcon_on_its_own_sink_and_leaves_the_history_alone() {
+        let (mut e, log, t) = engine_cfg(0, earcon_cfg(true));
+        feed(&mut e, &[1.0, 2.0], S, t);
+        play(&mut e, S / 2, t);
+        let end = e.end();
+        let spawns_before = log.lock().unwrap().spawns;
+        let out = e.apply(Control::Cancel, t, true).unwrap();
+        assert_eq!(out.note.as_deref(), Some("cancelled"));
+        // the tone arrives asynchronously, as the only write that starts at exactly zero
+        wait_for(|| log.lock().unwrap().writes.contains(&0.0));
+        wait_for(|| log.lock().unwrap().finishes >= 1);
+        assert_eq!(log.lock().unwrap().spawns, spawns_before + 1);
+        assert_eq!(e.end(), end - S as u64, "the unplayed sentence was dropped, nothing added");
+        assert!(!e.has_sink(), "the engine's own sink is untouched by the earcon");
+    }
+
+    #[test]
+    fn no_earcon_when_disabled_or_when_there_was_nothing_to_cancel() {
+        let (mut e, log, t) = engine_cfg(0, earcon_cfg(false));
+        feed(&mut e, &[1.0], S, t);
+        play(&mut e, S / 2, t);
+        e.apply(Control::Cancel, t, true).unwrap();
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!log.lock().unwrap().writes.contains(&0.0));
+
+        let (mut e, log, t) = engine_cfg(0, earcon_cfg(true));
+        let out = e.apply(Control::Cancel, t, false).unwrap();
+        assert_eq!(out.note.as_deref(), Some("nothing"));
+        std::thread::sleep(Duration::from_millis(100));
+        let l = log.lock().unwrap();
+        assert_eq!((l.spawns, l.writes.len()), (0, 0));
+    }
+
+    #[test]
+    fn a_pause_timeout_cancels_silently() {
+        let cfg = Config { earcon: true, pause_max: Duration::from_millis(10), ..Config::default() };
+        let (mut e, log, t) = engine_cfg(0, cfg);
+        feed(&mut e, &[1.0], S, t);
+        play(&mut e, S / 2, t);
+        e.apply(Control::Pause, t, true).unwrap();
+        e.tick(t + Duration::from_secs(1), true);
+        std::thread::sleep(Duration::from_millis(100));
+        assert!(!log.lock().unwrap().writes.contains(&0.0));
+    }
+
+    #[test]
+    fn earcons_are_on_unless_switched_off_in_the_environment() {
+        assert!(!Config::default().earcon);
+        // from_env reads the real environment; only the default is asserted here
+        // (the process-wide variable is not touched by tests).
+        if std::env::var_os("RYK_EARCONS").is_none() {
+            assert!(Config::from_env(Duration::from_secs(1)).earcon);
+        }
     }
 
     #[test]

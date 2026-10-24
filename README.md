@@ -229,9 +229,11 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 | `RYK_PAUSE_MAX_SECS` | `600` | `--serve`: a pause longer than this becomes a cancel. |
 | `RYK_BACK_RESTART_SECS` | `1.5` | `back` restarts the sentence you are in when you are more than this far into it, else it goes to the previous sentence (previous-track behaviour). |
 | `RYK_REWIND_SECS` | `10` | Default step for `ryk-ctl rewind` / `ryk-rewind`. |
-| `RYK_HEADSET` | _(on)_ | `--serve` on Android: `0`/`off`/`no`/`false` never starts the headset-button helper. It also stays off until the jar exists (see "Headset buttons"). |
-| `RYK_KEYS_JAR` | `~/.cache/ryk/keys.jar` | Where `--serve` looks for the helper jar. |
-| `RYK_SINK_PIPE_BYTES` | `4096` | Size of the pipe to `pacat` (Linux/Android). The 64 KiB default queues 0.68 s of audio ahead of the speaker, so a pause would stop that far late; 4 KiB cuts the lag from ~0.87 s to ~0.23 s. `0`/`off` keeps the system default. |
+| `RYK_HEADSET` | _(on)_ | `--serve` on Android: `0`/`off`/`no`/`false` never starts the headset-button helper (see "Headset buttons"). |
+| `RYK_KEYS_JAR` | _(unset)_ | Use this helper jar instead of `~/.cache/ryk/keys.jar`; ryk then never rebuilds it. |
+| `RYK_KEYS_MAP` | `tap:toggle,skip:back,stop:cancel` | Which verb each headset gesture runs: `tap` (double tap on the XM4, one click on a wired headset), `skip` (swipe, or two or more clicks), `stop` (the STOP key). Verbs: `pause` `resume` `toggle` `back` `cancel` `rewind` `none`. For example `tap:pause` makes the double tap pause only. |
+| `RYK_KEYS_CLICK_MS` | `350` | Wired headsets: how long to wait for another click before acting. |
+| `RYK_EARCONS` | _(on)_ | `0`/`off` silences the short falling tone that follows a cancel. |
 | `RYK_PULSE_ARGS` | _(unset)_ | Extra args for `pulseaudio --start` (Termux). Do **not** pass `--exit-idle-time=-1` unless you want the daemon to pin the audio HAL awake. |
 
 (`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
@@ -374,35 +376,33 @@ helper (below) talks to it.
 
 #### Headset buttons (Android, experimental)
 
-`tools/rykkeys/RykKeys.java` is a small Java program that `ryk --serve` starts by itself when an
-utterance begins. It owns a media session as the Termux user, so the buttons of a Bluetooth headset
-reach it with the screen off, and it turns them into the verbs above:
+`ryk --serve` starts a small Java helper (`tools/rykkeys/RykKeys.java`, embedded in the binary) when
+an utterance begins. It owns a media session as the Termux user, so the buttons of a Bluetooth or
+wired headset reach it with the screen off, and it turns them into the verbs above:
 
-| Headset gesture (Sony WH-1000XM4) | Does |
+| Headset gesture | Does |
 |---|---|
-| double tap (`PLAY` / `PAUSE`, whichever the headset sends) | `toggle`: pause, or resume |
-| swipe forward or back (`NEXT` / `PREVIOUS`) | `back`: one sentence back |
-| `STOP` (not on the XM4) | `cancel` |
+| double tap on a Sony WH-1000XM4 (it sends `PLAY` or `PAUSE`, whichever it thinks is next), or one click on a wired headset | `toggle`: pause, or resume |
+| swipe forward or back on the XM4 (`NEXT` / `PREVIOUS`), or two or more clicks on a wired headset | `back`: one sentence back |
+| `STOP` (a key the XM4 does not have) | `cancel`, followed by a short falling tone |
 
-Cancel is deliberately not on a gesture the headset can send by accident; use `ryk-ctl cancel`.
-Close other media apps (Apple Music, ...) first: Android hands a media key to one app. The helper
-stays for the rewind window after speech ends, then exits by itself (about 64 MB while it lives).
+Cancel is deliberately not on a gesture a headset can send by accident; use `ryk-ctl cancel`.
+`RYK_KEYS_MAP` changes the table. Close other media apps (Apple Music, ...) first: Android hands a
+media key to one app. The helper stays for the rewind window after speech ends, then exits by itself
+(about 64 MB while it lives).
+
+Needs `ecj` and `dx` (`pkg install ecj dx`) once: the first `ryk --serve` compiles the helper into
+`~/.cache/ryk/keys.jar` in the background (about 2 s), and again after an upgrade that changes it.
+`RYK_HEADSET=0` turns it off. Its output is in `~/.cache/ryk/keys.log`, a failed build in
+`~/.cache/ryk/keys-build.log`.
 
 ```sh
-tools/rykkeys/build.sh                      # once: builds ~/.cache/ryk/keys.jar (ecj + dx)
-python3 tools/rykkeys/chain-test.py         # optional: keys -> helper -> fake daemon, no headset needed
+ryk --headset-check                         # builds the helper if needed and tests the Android side (exit 0/1)
+python3 tools/rykkeys/chain-test.py         # optional, no headset needed: real keys -> helper -> fake daemon
 ```
 
-`RYK_HEADSET=0` turns it off. The helper's output is in `~/.cache/ryk/keys.log`. Design and the
-measurements behind it: [`docs/headset-control.md`](docs/headset-control.md).
-
-The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
-an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the
-one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
-
-See [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md) for the design and open follow-ups.
-Live rewind of already-played audio (Helix `A-r`, Grok/Claude `/rr`, no re-inference) is
-planned in [`docs/rewind-plan.md`](docs/rewind-plan.md).
+If an Android update breaks a hidden API, `ryk --headset-check` says which step failed. Design and
+the measurements behind it: [`docs/headset-control.md`](docs/headset-control.md).
 
 ### Helix
 

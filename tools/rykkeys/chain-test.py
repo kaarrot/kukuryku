@@ -10,7 +10,7 @@ routing, the real helper and the real wire protocol; only the daemon is fake.
     python3 tools/rykkeys/chain-test.py
 
 Needs ecj, dx and pulseaudio (a quiet tone plays so Termux is the app that last
-played audio, as it is while ryk speaks). Takes about 30 s. The first key sent
+played audio, as it is while ryk speaks). Takes about 45 s. The first key sent
 is STOP; if the helper does not see it, the run stops there so nothing else can
 reach another media app.
 """
@@ -30,29 +30,39 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SPIKE = os.path.join(os.path.dirname(HERE), "headset-spike", "MediaSpike.java")
 APP_PROCESS = "/system/bin/app_process"
 
-# key name for MediaSpike -> the verb RykKeys must send (None: consumed, ignored)
+# (key name for MediaSpike, presses, verb RykKeys must send; None: consumed, ignored).
+# PLAY_PAUSE and HOOK are a wired headset's raw clicks: one click toggles (after the
+# click window), two or more go back. The others arrive already resolved.
 KEYS = [
-    ("STOP", "cancel"),
-    ("PAUSE", "toggle"),
-    ("PLAY", "toggle"),
-    ("PLAY_PAUSE", "toggle"),
-    ("HOOK", "toggle"),
-    ("NEXT", "back"),
-    ("PREVIOUS", "back"),
-    ("FAST_FORWARD", None),
+    ("STOP", 1, "cancel"),
+    ("PAUSE", 1, "toggle"),
+    ("PLAY", 1, "toggle"),
+    ("NEXT", 1, "back"),
+    ("PREVIOUS", 1, "back"),
+    ("PLAY_PAUSE", 1, "toggle"),
+    ("HOOK", 1, "toggle"),
+    ("HOOK", 2, "back"),
+    ("HOOK", 3, "back"),
+    ("PLAY_PAUSE", 2, "back"),
+    ("FAST_FORWARD", 1, None),
 ]
 
 
-def java_env(jar):
+def java_env(jar, extra=None):
     env = dict(os.environ)
     env.pop("LD_PRELOAD", None)
     env.pop("LD_LIBRARY_PATH", None)
+    env.pop("RYK_KEYS_MAP", None)
+    env.pop("RYK_KEYS_CLICK_MS", None)
     env["CLASSPATH"] = jar
+    env.update(extra or {})
     return env
 
 
-def app(jar, *args, **kw):
-    return subprocess.Popen([APP_PROCESS, "-Xnoimage-dex2oat", "/", *args], env=java_env(jar), **kw)
+def app(jar, *args, env=None, **kw):
+    return subprocess.Popen(
+        [APP_PROCESS, "-Xnoimage-dex2oat", "/", *args], env=java_env(jar, env), **kw
+    )
 
 
 class Lines:
@@ -175,46 +185,36 @@ def main():
         if not ok:
             failures.append(what)
 
-    tmp = tempfile.mkdtemp(prefix="ryk-chain-")
-    pacat = None
-    try:
-        print("building the helper and the key dispatcher ...")
-        keys_jar, spike_jar = build(tmp)
-
-        print("helper with no daemon behind it:")
-        p = app(keys_jar, "RykKeys", os.path.join(tmp, "nothing.sock"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        out, _ = p.communicate(timeout=20)
-        check(p.returncode == 0, "exits 0 (the daemon went away, not a crash)")
-        check(b"no daemon" in out, "says so")
-
-        print("helper with a (fake) daemon:")
-        pacat = start_tone(45)
-        d = FakeDaemon(os.path.join(tmp, "d.sock"))
-        helper = app(keys_jar, "RykKeys", d.path, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    def scenario(tmp, keys_jar, spike_jar, name, keys, env=None):
+        """One helper against one fake daemon; press each key and compare the verb."""
+        d = FakeDaemon(os.path.join(tmp, name + ".sock"))
+        helper = app(keys_jar, "RykKeys", d.path, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         log = Lines(helper)
         check(d.connected.wait(20), "connects and sends `watch`")
         check(log.wait_for("session active", 20) is not None, "creates its media session")
         if failures:
-            return report(failures)
+            return False
         time.sleep(1)
-
-        for i, (key, want) in enumerate(KEYS):
+        for i, (key, times, want) in enumerate(keys):
             subprocess.run(
-                [APP_PROCESS, "-Xnoimage-dex2oat", "/", "MediaSpike", "key", key],
+                [APP_PROCESS, "-Xnoimage-dex2oat", "/", "MediaSpike", "key", key, str(times), "120"],
                 env=java_env(spike_jar), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
             )
             try:
                 got = d.verbs.get(timeout=3 if want else 1.5)
             except queue.Empty:
                 got = None
-            check(got == want, f"{key:13s} -> {want or '(nothing)'}" + ("" if got == want else f"   (got {got})"))
+            label = f"{key} x{times}"
+            check(got == want, f"{label:16s} -> {want or '(nothing)'}" + ("" if got == want else f"   (got {got})"))
             if i == 0 and got != want:
                 print("the first key never arrived; stopping so no other media app gets the rest")
-                return report(failures)
-
-        check(log.wait_for("<- state paused", 1) is not None, "state lines are read (fake daemon paused on toggle)")
+                return False
+            time.sleep(0.6)
+            extra = []
+            while not d.verbs.empty():
+                extra.append(d.verbs.get())
+            check(not extra, f"{label:16s}    exactly one verb" + (f"   (also {extra})" if extra else ""))
         check(helper.poll() is None, "still running after all of that")
-
         d.hang_up()
         try:
             helper.wait(timeout=10)
@@ -222,6 +222,41 @@ def main():
         except subprocess.TimeoutExpired:
             helper.kill()
             check(False, "exits when the daemon hangs up")
+        return d, log
+
+    tmp = tempfile.mkdtemp(prefix="ryk-chain-")
+    pacat = None
+    try:
+        print("building the helper and the key dispatcher ...")
+        keys_jar, spike_jar = build(tmp)
+
+        print("`RykKeys check` (the hidden-API steps):")
+        p = app(keys_jar, "RykKeys", "check", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        out, _ = p.communicate(timeout=30)
+        check(p.returncode == 0 and b"headset check: OK" in out, "passes on this phone")
+
+        print("helper with no daemon behind it:")
+        p = app(keys_jar, "RykKeys", os.path.join(tmp, "nothing.sock"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        out, _ = p.communicate(timeout=20)
+        check(p.returncode == 0, "exits 0 (the daemon went away, not a crash)")
+        check(b"no daemon" in out, "says so")
+
+        print("helper with a (fake) daemon, default mapping:")
+        pacat = start_tone(90)
+        res = scenario(tmp, keys_jar, spike_jar, "default", KEYS)
+        if not res:
+            return report(failures)
+        d, log = res
+        check(log.wait_for("<- state paused", 1) is not None, "state lines are read (fake daemon paused on toggle)")
+
+        print("helper with RYK_KEYS_MAP=tap:pause,stop:none,skip:rewind:")
+        scenario(tmp, keys_jar, spike_jar, "mapped", [
+            ("PAUSE", 1, "pause"),
+            ("PLAY", 1, "pause"),
+            ("HOOK", 1, "pause"),
+            ("NEXT", 1, "rewind"),
+            ("STOP", 1, None),
+        ], env={"RYK_KEYS_MAP": "tap:pause,stop:none,skip:rewind"})
         return report(failures)
     finally:
         if pacat:

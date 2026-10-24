@@ -7,8 +7,9 @@
 //                                         with `handoff`, on the first key release the
 //                                         session and re-dispatch that key to whoever
 //                                         held the buttons before
-//   MediaSpike key NAME         dispatch a media key like any app can (STOP PLAY_PAUSE PLAY PAUSE
-//                               HOOK NEXT PREVIOUS REWIND FAST_FORWARD)
+//   MediaSpike key NAME [N] [GAP_MS]   dispatch a media key like any app can, N times (default 1)
+//                               GAP_MS apart (default 100): STOP PLAY_PAUSE PLAY PAUSE HOOK NEXT
+//                               PREVIOUS REWIND FAST_FORWARD
 //
 // Same hidden-API-by-reflection style as TdAlarm.java.
 
@@ -45,7 +46,8 @@ public class MediaSpike {
 
     static void main2(String[] a) throws Exception {
         if (a.length >= 1 && a[0].equals("key")) {
-            key(a.length > 1 ? a[1] : "STOP");
+            key(a.length > 1 ? a[1] : "STOP", a.length > 2 ? Integer.parseInt(a[2]) : 1,
+                    a.length > 3 ? Integer.parseInt(a[3]) : 100);
         } else {
             session(a.length > 1 ? Integer.parseInt(a[1]) : 30,
                     a.length > 2 && a[2].equals("handoff"),
@@ -159,7 +161,7 @@ public class MediaSpike {
         Looper.loop();
     }
 
-    static void key(String name) throws Exception {
+    static void key(String name, int times, int gapMs) throws Exception {
         int code;
         switch (name) {
             case "PLAY_PAUSE": code = 85; break;
@@ -178,12 +180,15 @@ public class MediaSpike {
                 log("method " + m);
             }
         }
-        long now = SystemClock.uptimeMillis();
-        for (int action = 0; action <= 1; action++) {
-            KeyEvent e = new KeyEvent(now, now, action, code, 0);
-            call(sm, "dispatchMediaKeyEvent", PKG, false, e, false);
+        for (int n = 0; n < times; n++) {
+            if (n > 0) Thread.sleep(gapMs);
+            long now = SystemClock.uptimeMillis();
+            for (int action = 0; action <= 1; action++) {
+                KeyEvent e = new KeyEvent(now, now, action, code, 0);
+                call(sm, "dispatchMediaKeyEvent", PKG, false, e, false);
+            }
         }
-        log("dispatched " + name);
+        log("dispatched " + name + " x" + times);
     }
 
     static final String[] STEPS = {

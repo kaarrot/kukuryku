@@ -157,6 +157,7 @@ pub fn serve() -> Result<()> {
     // rewind window; the worker owns it so it dies with the daemon.
     let keys = Keys::from_env(&path);
     info!("[ryk-serve] {}", keys.describe());
+    keys.prepare(); // builds the helper jar in the background if it is missing or old
     let worker = std::thread::spawn(move || {
         worker_loop(pipeline, player, ctl_w, keys, dir, rx, pending_w)
     });

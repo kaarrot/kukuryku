@@ -48,6 +48,8 @@ USAGE:
     ryk -- TEXT...          same, but TEXT may start with a dash (`ryk -- \"- bullet\"`)
     ryk --serve             run the warm daemon (compile once, serve over a socket)
     ryk --send [TEXT...]    send TEXT/stdin to the daemon (auto-starts it); low-latency
+    ryk --headset-check     Android: build the headset-button helper if needed and test
+                            that it works on this phone (exit 0/1)
     ryk --install-assets [--dev]
                             download the split model + voices into the OS-specific
                             per-user data dir (Linux: ~/.local/share/kukuryku,
@@ -106,14 +108,19 @@ ENV:
                       this far into it, else goes to the previous one (1.5)
     RYK_SINK_PIPE_BYTES  --serve: pipe size to pacat; small keeps pause and back
                       close to what you heard (4096; 0 = system default)
-    RYK_HEADSET    --serve: 0/off keeps the headset-button helper off (default
-                      on once ~/.cache/ryk/keys.jar exists; see the README)
-    RYK_KEYS_JAR   path of the helper jar (default ~/.cache/ryk/keys.jar)
+    RYK_HEADSET    --serve: 0/off keeps the headset-button helper off (Android only;
+                      it is built on first use, needs ecj and dx)
+    RYK_KEYS_JAR   use this helper jar instead of ~/.cache/ryk/keys.jar (never rebuilt)
+    RYK_KEYS_MAP   headset gestures, e.g. tap:pause,stop:none (defaults tap:toggle,
+                      skip:back,stop:cancel; verbs pause resume toggle back cancel
+                      rewind none)
+    RYK_KEYS_CLICK_MS  wired headsets: wait this long for more clicks (350)
+    RYK_EARCONS    --serve: 0/off silences the short falling tone after a cancel
 
 CONTROL (a running --serve; the ryk-ctl script, see the README):
     ryk-ctl pause|resume|toggle|back|cancel|status|rewind [SECS]
   Headset buttons (Android): double tap = pause/resume, swipe = back one
-  sentence. Build the helper once: tools/rykkeys/build.sh
+  sentence; `ryk --headset-check` tests that this works on your phone.
 ",
         version = env!("CARGO_PKG_VERSION"),
     );
@@ -178,6 +185,11 @@ fn main() -> Result<()> {
             {
                 anyhow::bail!("--serve is only supported on Unix");
             }
+        }
+        // Does headset control work on this phone? Builds the helper if needed and
+        // runs its hidden-API steps; exit status 0/1.
+        Some("--headset-check") => {
+            std::process::exit(kukuryku::headset::check());
         }
         Some("--send") => {
             #[cfg(unix)]
