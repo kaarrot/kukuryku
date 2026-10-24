@@ -7,7 +7,8 @@
 //                                         with `handoff`, on the first key release the
 //                                         session and re-dispatch that key to whoever
 //                                         held the buttons before
-//   MediaSpike key NAME         dispatch a media key like any app can
+//   MediaSpike key NAME         dispatch a media key like any app can (STOP PLAY_PAUSE PLAY PAUSE
+//                               HOOK NEXT PREVIOUS REWIND FAST_FORWARD)
 //
 // Same hidden-API-by-reflection style as TdAlarm.java.
 
@@ -159,8 +160,18 @@ public class MediaSpike {
     }
 
     static void key(String name) throws Exception {
-        int code = name.equals("PLAY_PAUSE") ? 85 : name.equals("NEXT") ? 87
-                : name.equals("PREVIOUS") ? 88 : 86; // default STOP
+        int code;
+        switch (name) {
+            case "PLAY_PAUSE": code = 85; break;
+            case "NEXT": code = 87; break;
+            case "PREVIOUS": code = 88; break;
+            case "PLAY": code = 126; break;
+            case "PAUSE": code = 127; break;
+            case "HOOK": code = 79; break;
+            case "REWIND": code = 89; break;
+            case "FAST_FORWARD": code = 90; break;
+            default: code = 86; // STOP
+        }
         Object sm = service("media_session", "android.media.session.ISessionManager");
         for (Method m : sm.getClass().getMethods()) {
             if (m.getName().equals("dispatchMediaKeyEvent")) {

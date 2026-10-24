@@ -294,7 +294,8 @@ impl Default for Config {
     }
 }
 
-/// What the rest of the process may read without asking the playback thread.
+/// What the rest of the process may read without asking the playback thread,
+/// plus a change counter that watchers (the headset helper) sleep on.
 #[derive(Debug, Default)]
 pub struct Status {
     /// Absolute playhead: samples written to the sink.
@@ -302,6 +303,94 @@ pub struct Status {
     pub paused: AtomicBool,
     /// History still retained (inside the rewind window).
     pub history: AtomicBool,
+    /// Samples accepted and not yet written to the sink.
+    pub unplayed: AtomicU64,
+    /// Samples a `push` queued that the playback thread has not taken yet.
+    pub inbox: AtomicU64,
+    /// A job is in progress (the daemon sets it for the length of one utterance).
+    pub held: AtomicBool,
+    changes: Mutex<Changes>,
+    changed: Condvar,
+}
+
+#[derive(Debug, Default)]
+struct Changes {
+    seq: u64,
+    /// The last state/history combination that bumped `seq`.
+    code: u8,
+}
+
+/// What a watcher sees: the change counter and the coarse state. `state` is
+/// `Playing` while audio is unwritten or a job is running, `Paused` while
+/// paused, else `Idle`; `history` is whether `back` still has something to
+/// replay (the rewind window is open).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Snapshot {
+    pub seq: u64,
+    pub state: PlayState,
+    pub history: bool,
+}
+
+impl Status {
+    fn coarse(&self) -> (PlayState, bool) {
+        let state = if self.paused.load(Ordering::Acquire) {
+            PlayState::Paused
+        } else if self.unplayed.load(Ordering::Acquire) > 0
+            || self.inbox.load(Ordering::Acquire) > 0
+            || self.held.load(Ordering::Acquire)
+        {
+            PlayState::Playing
+        } else {
+            PlayState::Idle
+        };
+        (state, self.history.load(Ordering::Acquire))
+    }
+
+    fn lock_changes(&self) -> MutexGuard<'_, Changes> {
+        self.changes.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Call after any input above changed: wakes watchers if the coarse state
+    /// or the history flag is different from the last time.
+    pub fn refresh(&self) {
+        let (state, history) = self.coarse();
+        let code = state as u8 | (history as u8) << 2;
+        let mut c = self.lock_changes();
+        if c.code != code {
+            c.code = code;
+            c.seq += 1;
+            drop(c);
+            self.changed.notify_all();
+        }
+    }
+
+    /// Wake watchers although nothing changed (a watcher asking to be looked at,
+    /// for instance because its client went away).
+    pub fn nudge(&self) {
+        self.lock_changes().seq += 1;
+        self.changed.notify_all();
+    }
+
+    pub fn snapshot(&self) -> Snapshot {
+        let seq = self.lock_changes().seq;
+        let (state, history) = self.coarse();
+        Snapshot { seq, state, history }
+    }
+
+    /// Block until the counter differs from `seen` or `timeout` passes.
+    pub fn wait_change(&self, seen: u64, timeout: Duration) -> Snapshot {
+        let deadline = Instant::now() + timeout;
+        let mut c = self.lock_changes();
+        while c.seq == seen {
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            c = self.changed.wait_timeout(c, deadline - now).unwrap_or_else(|e| e.into_inner()).0;
+        }
+        drop(c);
+        self.snapshot()
+    }
 }
 
 pub struct Engine<F: SinkFactory> {
@@ -644,6 +733,8 @@ impl<F: SinkFactory> Engine<F> {
         self.status.playhead.store(self.hist.playhead(), Ordering::Release);
         self.status.paused.store(self.is_paused(), Ordering::Release);
         self.status.history.store(self.hist.has_audio(), Ordering::Release);
+        self.status.unplayed.store(self.hist.unplayed(), Ordering::Release);
+        self.status.refresh();
     }
 }
 
@@ -680,7 +771,6 @@ struct Shared {
     consumer: Condvar,
     /// Wakes pushes blocked on a full queue.
     producer: Condvar,
-    hold: AtomicBool,
     /// Samples accepted by `push` and not dropped by a cancel.
     queued: AtomicU64,
     /// Bumped by every cancel.
@@ -720,6 +810,7 @@ impl Drop for DeadOnDrop {
         }
         drop(q);
         self.0.producer.notify_all();
+        self.0.status.nudge();
     }
 }
 
@@ -740,7 +831,6 @@ impl Session {
             q: Mutex::new(Queue::default()),
             consumer: Condvar::new(),
             producer: Condvar::new(),
-            hold: AtomicBool::new(false),
             queued: AtomicU64::new(0),
             cancel_epoch: AtomicU64::new(0),
             job_epoch: AtomicU64::new(0),
@@ -793,19 +883,23 @@ impl Session {
             q = sh.producer.wait(q).unwrap_or_else(|e| e.into_inner());
         }
         sh.queued.fetch_add(samples, Ordering::Release);
+        sh.status.inbox.fetch_add(samples, Ordering::AcqRel);
         let epoch = sh.job_epoch.load(Ordering::Acquire);
         q.chunks.push_back(Queued { msg, epoch });
         drop(q);
+        sh.status.refresh();
         sh.consumer.notify_one();
         Ok(())
     }
 
     pub fn hold(&self) {
-        self.shared.hold.store(true, Ordering::Release);
+        self.shared.status.held.store(true, Ordering::Release);
+        self.shared.status.refresh();
     }
 
     pub fn release(&self) {
-        self.shared.hold.store(false, Ordering::Release);
+        self.shared.status.held.store(false, Ordering::Release);
+        self.shared.status.refresh();
         // Take the lock so the thread cannot miss the wakeup between its check
         // of `hold` and its wait.
         drop(self.shared.lock());
@@ -836,7 +930,7 @@ impl Session {
 
     /// Close the queue, let playback finish, join the thread.
     pub fn finish(mut self) -> anyhow::Result<()> {
-        self.shared.hold.store(false, Ordering::Release);
+        self.shared.status.held.store(false, Ordering::Release);
         self.shared.lock().closed = true;
         self.shared.consumer.notify_all();
         if let Some(t) = self.thread.take() {
@@ -856,6 +950,21 @@ impl Handle {
     pub fn busy(&self) -> bool {
         self.shared.status.paused.load(Ordering::Acquire)
             || self.shared.status.history.load(Ordering::Acquire)
+    }
+
+    /// The coarse state and history flag, with the counter to wait on.
+    pub fn snapshot(&self) -> Snapshot {
+        self.shared.status.snapshot()
+    }
+
+    /// Sleep until the state or history flag changes (or `nudge`), at most `timeout`.
+    pub fn wait_change(&self, seen: u64, timeout: Duration) -> Snapshot {
+        self.shared.status.wait_change(seen, timeout)
+    }
+
+    /// Wake everyone in [`wait_change`](Self::wait_change).
+    pub fn nudge(&self) {
+        self.shared.status.nudge();
     }
 
     /// Send a control to the playback thread and wait for its answer.
@@ -910,7 +1019,7 @@ fn run<F: SinkFactory>(sh: Arc<Shared>, mut eng: Engine<F>) {
                 if q.closed && (eng.is_paused() || (q.chunks.is_empty() && !eng.wants_write())) {
                     break Work::Exit;
                 }
-                let held = sh.hold.load(Ordering::Acquire);
+                let held = sh.status.held.load(Ordering::Acquire);
                 match eng.next_deadline(held) {
                     None => q = sh.consumer.wait(q).unwrap_or_else(|e| e.into_inner()),
                     Some(d) => {
@@ -928,17 +1037,23 @@ fn run<F: SinkFactory>(sh: Arc<Shared>, mut eng: Engine<F>) {
                 eng.shutdown();
                 return;
             }
-            Work::Tick => eng.tick(Instant::now(), sh.hold.load(Ordering::Acquire)),
+            Work::Tick => eng.tick(Instant::now(), sh.status.held.load(Ordering::Acquire)),
             Work::Write => {
                 eng.write_slice(Instant::now());
                 eng.touch(Instant::now());
             }
             Work::Ingest(m) => match m.msg {
                 Msg::Warm => eng.warm(Instant::now()),
-                Msg::Chunk(c) => eng.ingest(&c, Instant::now()),
+                Msg::Chunk(c) => {
+                    eng.ingest(&c, Instant::now());
+                    // Only now is it counted in `unplayed`, so there is never a
+                    // moment when a watcher sees neither.
+                    sh.status.inbox.fetch_sub(c.len() as u64, Ordering::AcqRel);
+                    sh.status.refresh();
+                }
             },
             Work::Ctl(req) => {
-                let held = sh.hold.load(Ordering::Acquire);
+                let held = sh.status.held.load(Ordering::Acquire);
                 let res = eng.apply(req.ctl, Instant::now(), held);
                 if req.ctl == Control::Cancel {
                     // Drop what the cancelled jobs queued; keep newer ones.
@@ -954,7 +1069,9 @@ fn run<F: SinkFactory>(sh: Arc<Shared>, mut eng: Engine<F>) {
                         })
                         .sum();
                     sh.queued.store(eng.end() + kept, Ordering::Release);
+                    sh.status.inbox.store(kept, Ordering::Release);
                     drop(q);
+                    sh.status.refresh();
                     sh.producer.notify_all();
                 }
                 let _ = req.reply.send(res);
@@ -1621,6 +1738,137 @@ mod tests {
         let h = s.handle();
         s.finish().unwrap();
         assert!(h.control(Control::Status).is_err());
+    }
+
+    // ---- Status: what watchers see ----
+
+    #[test]
+    fn status_refresh_bumps_the_counter_only_on_a_real_change() {
+        let st = Status::default();
+        let g0 = st.snapshot().seq;
+        st.refresh();
+        assert_eq!(st.snapshot().seq, g0, "idle and no history is the starting point");
+        st.held.store(true, Ordering::Release);
+        st.refresh();
+        let snap = st.snapshot();
+        assert_eq!((snap.state, snap.history), (PlayState::Playing, false));
+        assert_eq!(snap.seq, g0 + 1);
+        st.refresh();
+        assert_eq!(st.snapshot().seq, g0 + 1);
+        st.paused.store(true, Ordering::Release);
+        st.refresh();
+        assert_eq!(st.snapshot().state, PlayState::Paused);
+        st.paused.store(false, Ordering::Release);
+        st.held.store(false, Ordering::Release);
+        st.history.store(true, Ordering::Release);
+        st.refresh();
+        let snap = st.snapshot();
+        assert_eq!((snap.state, snap.history), (PlayState::Idle, true));
+        assert_eq!(snap.seq, g0 + 3);
+    }
+
+    #[test]
+    fn wait_change_times_out_and_wakes_on_a_change_or_a_nudge() {
+        let st = Arc::new(Status::default());
+        let seen = st.snapshot().seq;
+        let t = Instant::now();
+        assert_eq!(st.wait_change(seen, Duration::from_millis(50)).seq, seen);
+        assert!(t.elapsed() >= Duration::from_millis(45));
+        let st2 = Arc::clone(&st);
+        let th = std::thread::spawn(move || st2.wait_change(seen, Duration::from_secs(5)));
+        std::thread::sleep(Duration::from_millis(30));
+        st.held.store(true, Ordering::Release);
+        st.refresh();
+        let snap = th.join().unwrap();
+        assert!(snap.seq > seen && snap.state == PlayState::Playing);
+        let seen = snap.seq;
+        let st2 = Arc::clone(&st);
+        let th = std::thread::spawn(move || st2.wait_change(seen, Duration::from_secs(5)));
+        std::thread::sleep(Duration::from_millis(30));
+        st.nudge();
+        assert!(th.join().unwrap().seq > seen);
+    }
+
+    #[test]
+    fn a_watcher_sees_playing_paused_playing_idle_and_the_window_close() {
+        let log: SharedLog = Arc::default();
+        let cfg = Config {
+            sink_idle: Duration::from_millis(100),
+            window: Duration::from_millis(1000),
+            ..Config::default()
+        };
+        let s = Session::spawn(SlowFactory(FakeFactory { log: Arc::clone(&log), lag: 0 }), cfg);
+        let h = s.handle();
+        let snap = h.snapshot();
+        assert_eq!((snap.state, snap.history), (PlayState::Idle, false));
+
+        s.hold();
+        assert_eq!(h.snapshot().state, PlayState::Playing, "a job in progress is playing");
+        s.start_job(h.epoch());
+        s.push(chunk(1.0, 2 * S)).unwrap();
+        wait_for(|| s.buffered_secs() < 0.01);
+        assert_eq!(h.snapshot().state, PlayState::Playing);
+        assert!(h.snapshot().history, "heard audio is replayable");
+
+        h.control(Control::Pause).unwrap();
+        assert_eq!(h.snapshot().state, PlayState::Paused);
+        h.control(Control::Resume).unwrap();
+        wait_for(|| h.snapshot().state == PlayState::Playing);
+
+        s.release();
+        wait_for(|| h.snapshot().state == PlayState::Idle);
+        assert!(h.snapshot().history, "the rewind window is still open");
+        // the window (1 s of silence) closes and the watcher is woken for it
+        let mut seen = h.snapshot().seq;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while h.snapshot().history {
+            assert!(Instant::now() < deadline, "the window never closed");
+            seen = h.wait_change(seen, Duration::from_millis(200)).seq;
+        }
+        s.finish().unwrap();
+    }
+
+    #[test]
+    fn queued_but_untaken_audio_counts_as_playing_and_a_cancel_clears_it() {
+        let (s, _log) = session();
+        let h = s.handle();
+        s.hold();
+        s.start_job(h.epoch());
+        s.push(chunk(1.0, S / 2)).unwrap();
+        wait_for(|| s.buffered_secs() < 0.01);
+        h.control(Control::Pause).unwrap();
+        // paused: the next chunk is taken but not written, the rest wait in the queue
+        s.push(chunk(2.0, 100)).unwrap();
+        s.push(chunk(3.0, 200)).unwrap();
+        s.push(chunk(4.0, 300)).unwrap();
+        let inbox = &s.shared.status.inbox;
+        wait_for(|| inbox.load(Ordering::Acquire) == 500);
+        h.control(Control::Cancel).unwrap();
+        assert_eq!(inbox.load(Ordering::Acquire), 0, "a cancel drops what was queued");
+        s.release();
+        s.finish().unwrap();
+    }
+
+    #[test]
+    fn inbox_is_empty_once_everything_is_taken() {
+        let (s, _log) = session();
+        for v in 0..5 {
+            s.push(chunk(v as f32, 1000)).unwrap();
+        }
+        wait_for(|| s.buffered_secs() < 0.001);
+        assert_eq!(s.shared.status.inbox.load(Ordering::Acquire), 0);
+        s.finish().unwrap();
+    }
+
+    #[test]
+    fn status_with_only_an_inbox_is_playing() {
+        let st = Status::default();
+        st.inbox.store(10, Ordering::Release);
+        st.refresh();
+        assert_eq!(st.snapshot().state, PlayState::Playing);
+        st.inbox.store(0, Ordering::Release);
+        st.refresh();
+        assert_eq!(st.snapshot().state, PlayState::Idle);
     }
 
     #[test]

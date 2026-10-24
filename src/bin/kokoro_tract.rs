@@ -106,9 +106,14 @@ ENV:
                       this far into it, else goes to the previous one (1.5)
     RYK_SINK_PIPE_BYTES  --serve: pipe size to pacat; small keeps pause and back
                       close to what you heard (4096; 0 = system default)
+    RYK_HEADSET    --serve: 0/off keeps the headset-button helper off (default
+                      on once ~/.cache/ryk/keys.jar exists; see the README)
+    RYK_KEYS_JAR   path of the helper jar (default ~/.cache/ryk/keys.jar)
 
 CONTROL (a running --serve; the ryk-ctl script, see the README):
     ryk-ctl pause|resume|toggle|back|cancel|status|rewind [SECS]
+  Headset buttons (Android): double tap = pause/resume, swipe = back one
+  sentence. Build the helper once: tools/rykkeys/build.sh
 ",
         version = env!("CARGO_PKG_VERSION"),
     );

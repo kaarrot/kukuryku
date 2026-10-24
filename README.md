@@ -229,6 +229,8 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 | `RYK_PAUSE_MAX_SECS` | `600` | `--serve`: a pause longer than this becomes a cancel. |
 | `RYK_BACK_RESTART_SECS` | `1.5` | `back` restarts the sentence you are in when you are more than this far into it, else it goes to the previous sentence (previous-track behaviour). |
 | `RYK_REWIND_SECS` | `10` | Default step for `ryk-ctl rewind` / `ryk-rewind`. |
+| `RYK_HEADSET` | _(on)_ | `--serve` on Android: `0`/`off`/`no`/`false` never starts the headset-button helper. It also stays off until the jar exists (see "Headset buttons"). |
+| `RYK_KEYS_JAR` | `~/.cache/ryk/keys.jar` | Where `--serve` looks for the helper jar. |
 | `RYK_SINK_PIPE_BYTES` | `4096` | Size of the pipe to `pacat` (Linux/Android). The 64 KiB default queues 0.68 s of audio ahead of the speaker, so a pause would stop that far late; 4 KiB cuts the lag from ~0.87 s to ~0.23 s. `0`/`off` keeps the system default. |
 | `RYK_PULSE_ARGS` | _(unset)_ | Extra args for `pulseaudio --start` (Termux). Do **not** pass `--exit-idle-time=-1` unless you want the daemon to pin the audio HAL awake. |
 
@@ -365,8 +367,34 @@ rewound and cancelled without re-synthesizing anything. The client is `ryk-ctl`
 Replies are one line (`ok playing back`, `err: nothing playing`); the exit status is 0 for `ok`, 1 for
 `err`, 3 when no daemon is running. The same verbs are accepted on the socket as the header line
 (`pause`, `resume`, `toggle`, `back`, `cancel`, `status`, `rewind[\tSECS]`) with an empty body.
-A paused daemon never idle-exits. See [`docs/headset-control.md`](docs/headset-control.md) for
-the plan to drive these from headset buttons.
+A paused daemon never idle-exits. A client can also keep a connection open with the header
+`watch`: the daemon answers `ok`, pushes `state idle|playing|paused` on every change, accepts the
+same verbs as lines, and hangs up when the rewind window is over. That is how the headset
+helper (below) talks to it.
+
+#### Headset buttons (Android, experimental)
+
+`tools/rykkeys/RykKeys.java` is a small Java program that `ryk --serve` starts by itself when an
+utterance begins. It owns a media session as the Termux user, so the buttons of a Bluetooth headset
+reach it with the screen off, and it turns them into the verbs above:
+
+| Headset gesture (Sony WH-1000XM4) | Does |
+|---|---|
+| double tap (`PLAY` / `PAUSE`, whichever the headset sends) | `toggle`: pause, or resume |
+| swipe forward or back (`NEXT` / `PREVIOUS`) | `back`: one sentence back |
+| `STOP` (not on the XM4) | `cancel` |
+
+Cancel is deliberately not on a gesture the headset can send by accident; use `ryk-ctl cancel`.
+Close other media apps (Apple Music, ...) first: Android hands a media key to one app. The helper
+stays for the rewind window after speech ends, then exits by itself (about 64 MB while it lives).
+
+```sh
+tools/rykkeys/build.sh                      # once: builds ~/.cache/ryk/keys.jar (ecj + dx)
+python3 tools/rykkeys/chain-test.py         # optional: keys -> helper -> fake daemon, no headset needed
+```
+
+`RYK_HEADSET=0` turns it off. The helper's output is in `~/.cache/ryk/keys.log`. Design and the
+measurements behind it: [`docs/headset-control.md`](docs/headset-control.md).
 
 The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`;
 an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**; elsewhere use the

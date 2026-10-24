@@ -22,6 +22,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 
+use crate::control::{VERBS, control_reply, parse_control, serve_watch};
+use crate::headset::Keys;
 use crate::info;
 use crate::kokoro;
 use crate::playback::{Cancelled, Control, Handle};
@@ -42,16 +44,6 @@ struct Job {
 enum Request {
     Speak { voice: String, lang: String, speed: f32, text: String },
     Control(Control),
-}
-
-/// Verbs that control the running session instead of speaking. An allowlist,
-/// not "any first field that is not a voice": a voice is never named like this.
-const VERBS: [&str; 7] = ["pause", "resume", "toggle", "back", "cancel", "rewind", "status"];
-
-/// Default step for a bare `rewind`: `$RYK_REWIND_SECS` or 10 s.
-fn default_rewind_secs() -> f32 {
-    crate::playback::parse_secs(std::env::var("RYK_REWIND_SECS").ok().as_deref())
-        .map_or(10.0, |v| v as f32)
 }
 
 /// Where the daemon listens and the client connects. `$RYK_SOCKET` wins; else
@@ -161,8 +153,13 @@ pub fn serve() -> Result<()> {
     let (tx, rx) = mpsc::channel::<Job>();
     let pending_w = Arc::clone(&pending);
     let ctl_w = ctl.clone();
-    let worker =
-        std::thread::spawn(move || worker_loop(pipeline, player, ctl_w, dir, rx, pending_w));
+    // The headset helper starts with the first utterance and ends with the
+    // rewind window; the worker owns it so it dies with the daemon.
+    let keys = Keys::from_env(&path);
+    info!("[ryk-serve] {}", keys.describe());
+    let worker = std::thread::spawn(move || {
+        worker_loop(pipeline, player, ctl_w, keys, dir, rx, pending_w)
+    });
     // The worker inherited the gold mask stage 2 needs. This thread only
     // accepts connections from here on, so it moves to the little cores.
     crate::tract_backend::pin_to_little_cores("accept loop");
@@ -210,7 +207,7 @@ const BUSY_RECHECK: Duration = Duration::from_secs(5);
 fn accept_loop(
     listener: &UnixListener,
     tx: &mpsc::Sender<Job>,
-    pending: &AtomicUsize,
+    pending: &Arc<AtomicUsize>,
     sink_live: &AtomicBool,
     ctl: &Handle,
     idle_timeout: Duration,
@@ -274,7 +271,7 @@ fn wait_for_client(listener: &UnixListener, timeout: Duration) -> bool {
 fn handle_conn(
     mut conn: UnixStream,
     tx: &mpsc::Sender<Job>,
-    pending: &AtomicUsize,
+    pending: &Arc<AtomicUsize>,
     ctl: &Handle,
 ) -> Result<()> {
     // Blocking read on this connection; the listener itself is nonblocking.
@@ -282,6 +279,13 @@ fn handle_conn(
     let mut reader = BufReader::new(conn.try_clone().context("cloning connection")?);
     let mut header = String::new();
     reader.read_line(&mut header).context("reading request header")?;
+    // `watch` keeps the connection open for the headset helper; it gets its own
+    // threads, so this one is free to accept the next client.
+    if header.trim_end_matches(['\n', '\r']).split('\t').next() == Some("watch") {
+        info!("[ryk-serve] watch connection opened");
+        serve_watch(conn, reader, ctl.clone(), Arc::clone(pending));
+        return Ok(());
+    }
     let mut body = String::new();
     reader.read_to_string(&mut body).context("reading request body")?;
 
@@ -299,16 +303,7 @@ fn handle_conn(
             Ok(())
         }
         Ok(Request::Control(c)) => {
-            let queued_jobs = pending.load(Ordering::Acquire) > 0;
-            let reply = match ctl.control(c) {
-                // A cancel with nothing playing still counts when jobs are queued
-                // (the epoch bump already dropped them).
-                Ok(o) if c == Control::Cancel && o.note.as_deref() == Some("nothing") => {
-                    if queued_jobs { "ok idle cancelled".to_string() } else { "err: nothing playing".to_string() }
-                }
-                Ok(o) => format!("ok {}", o.line()),
-                Err(e) => format!("err: {e}"),
-            };
+            let reply = control_reply(ctl, c, pending.load(Ordering::Acquire) > 0);
             info!("[ryk-serve] {c:?} -> {reply}");
             conn.write_all(format!("{reply}\n").as_bytes()).ok();
             Ok(())
@@ -332,22 +327,7 @@ fn parse_request(header: &str, body: String) -> Result<Request> {
         if !body.trim().is_empty() {
             bail!("control command must not have a body");
         }
-        let ctl = match first {
-            "pause" => Control::Pause,
-            "resume" => Control::Resume,
-            "toggle" => Control::Toggle,
-            "back" => Control::Back,
-            "cancel" => Control::Cancel,
-            "status" => Control::Status,
-            _ => match parts.next() {
-                None => Control::Rewind(default_rewind_secs()),
-                Some(v) => match crate::playback::parse_secs(Some(v)) {
-                    Some(secs) => Control::Rewind(secs as f32),
-                    None => bail!("invalid rewind seconds"),
-                },
-            },
-        };
-        return Ok(Request::Control(ctl));
+        return Ok(Request::Control(parse_control(first, parts.next())?));
     }
     let voice = Some(first).filter(|s| !s.is_empty()).unwrap_or("af_heart").to_string();
     let lang = parts.next().filter(|s| !s.is_empty()).unwrap_or("en-us").to_string();
@@ -384,6 +364,7 @@ fn worker_loop(
     mut pipeline: Pipeline,
     player: kokoro::StreamPlayer,
     ctl: Handle,
+    keys: Keys,
     dir: PathBuf,
     rx: mpsc::Receiver<Job>,
     pending: Arc<AtomicUsize>,
@@ -395,6 +376,7 @@ fn worker_loop(
             info!("[ryk-serve] skipping a job cancelled while queued");
             continue;
         }
+        keys.ensure();
         player.start_job(job.epoch);
         match speak_job(&mut pipeline, &player, &dir, &mut voices, &job) {
             Ok(()) => {}

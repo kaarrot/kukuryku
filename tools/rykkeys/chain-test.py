@@ -1,0 +1,242 @@
+#!/data/data/com.termux/files/usr/bin/python3
+"""Check the headset chain on the phone without a headset and without ryk:
+
+    media key  ->  Android  ->  RykKeys' MediaSession  ->  verb on the watch socket
+
+A fake daemon stands in for `ryk --serve`. The keys are dispatched the way any
+app can (tools/headset-spike MediaSpike `key`), so what is tested is the real
+routing, the real helper and the real wire protocol; only the daemon is fake.
+
+    python3 tools/rykkeys/chain-test.py
+
+Needs ecj, dx and pulseaudio (a quiet tone plays so Termux is the app that last
+played audio, as it is while ryk speaks). Takes about 30 s. The first key sent
+is STOP; if the helper does not see it, the run stops there so nothing else can
+reach another media app.
+"""
+import math
+import os
+import queue
+import shutil
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SPIKE = os.path.join(os.path.dirname(HERE), "headset-spike", "MediaSpike.java")
+APP_PROCESS = "/system/bin/app_process"
+
+# key name for MediaSpike -> the verb RykKeys must send (None: consumed, ignored)
+KEYS = [
+    ("STOP", "cancel"),
+    ("PAUSE", "toggle"),
+    ("PLAY", "toggle"),
+    ("PLAY_PAUSE", "toggle"),
+    ("HOOK", "toggle"),
+    ("NEXT", "back"),
+    ("PREVIOUS", "back"),
+    ("FAST_FORWARD", None),
+]
+
+
+def java_env(jar):
+    env = dict(os.environ)
+    env.pop("LD_PRELOAD", None)
+    env.pop("LD_LIBRARY_PATH", None)
+    env["CLASSPATH"] = jar
+    return env
+
+
+def app(jar, *args, **kw):
+    return subprocess.Popen([APP_PROCESS, "-Xnoimage-dex2oat", "/", *args], env=java_env(jar), **kw)
+
+
+class Lines:
+    """A process's output, collected line by line."""
+
+    def __init__(self, proc):
+        self.lines = []
+        self.q = queue.Queue()
+        threading.Thread(target=self._pump, args=(proc,), daemon=True).start()
+
+    def _pump(self, proc):
+        for raw in proc.stdout:
+            line = raw.decode(errors="replace").rstrip()
+            self.lines.append(line)
+            self.q.put(line)
+
+    def wait_for(self, text, timeout):
+        end = time.time() + timeout
+        for line in list(self.lines):
+            if text in line:
+                return line
+        while time.time() < end:
+            try:
+                line = self.q.get(timeout=max(0.05, end - time.time()))
+            except queue.Empty:
+                break
+            if text in line:
+                return line
+        return None
+
+
+class FakeDaemon:
+    """The daemon's side of the protocol, as far as the helper needs it."""
+
+    def __init__(self, path):
+        self.path = path
+        self.srv = socket.socket(socket.AF_UNIX)
+        self.srv.bind(path)
+        self.srv.listen(2)
+        self.verbs = queue.Queue()
+        self.state = "playing"
+        self.conn = None
+        self.header = None
+        self.connected = threading.Event()
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _send(self, text):
+        self.conn.sendall((text + "\n").encode())
+
+    def _accept(self):
+        self.conn, _ = self.srv.accept()
+        f = self.conn.makefile("rb")
+        self.header = f.readline().decode().strip()
+        if self.header != "watch":
+            self._send("err: empty text")
+            return
+        self._send("ok")
+        self._send("state " + self.state)
+        self.connected.set()
+        for raw in f:
+            verb = raw.decode().strip()
+            self.verbs.put(verb)
+            if verb == "toggle":
+                self.state = "paused" if self.state == "playing" else "playing"
+                self._send("ok " + self.state)
+                self._send("state " + self.state)
+            elif verb == "cancel":
+                self.state = "idle"
+                self._send("ok idle cancelled")
+                self._send("state idle")
+            else:
+                self.state = "playing"
+                self._send("ok playing back")
+                self._send("state playing")
+
+    def hang_up(self):
+        if self.conn:
+            self.conn.shutdown(socket.SHUT_RDWR)
+
+
+def build(tmp):
+    """The helper jar (via the real build script) and the key-dispatching spike."""
+    jar = os.path.join(tmp, "keys.jar")
+    subprocess.run(["sh", os.path.join(HERE, "build.sh"), tmp], check=True, stdout=subprocess.DEVNULL)
+    classes = os.path.join(tmp, "spike-classes")
+    os.makedirs(classes)
+    subprocess.run(["ecj", "-nowarn", "-d", classes, SPIKE], check=True)
+    spike = os.path.join(tmp, "spike.jar")
+    subprocess.run(["dx", "--dex", "--output=" + spike, classes], check=True, stdout=subprocess.DEVNULL)
+    return jar, spike
+
+
+def start_tone(seconds):
+    """A very quiet tone through pacat, so Termux is the app that last played audio."""
+    subprocess.run("pulseaudio --check || pulseaudio --start --exit-idle-time=30", shell=True, check=False)
+    time.sleep(1)
+    period = b"".join(struct.pack("<f", 0.002 * math.sin(2 * math.pi * 240 * i / 24000)) for i in range(100))
+    pacat = subprocess.Popen(
+        ["pacat", "--raw", "--format=float32le", "--rate", "24000", "--channels=1", "--latency-msec=100"],
+        stdin=subprocess.PIPE,
+    )
+
+    def feed():
+        try:
+            for _ in range(int(seconds)):
+                pacat.stdin.write(period * 240)
+                pacat.stdin.flush()
+        except (BrokenPipeError, ValueError):
+            pass
+
+    threading.Thread(target=feed, daemon=True).start()
+    return pacat
+
+
+def main():
+    failures = []
+
+    def check(ok, what):
+        print(("  ok   " if ok else "  FAIL ") + what)
+        if not ok:
+            failures.append(what)
+
+    tmp = tempfile.mkdtemp(prefix="ryk-chain-")
+    pacat = None
+    try:
+        print("building the helper and the key dispatcher ...")
+        keys_jar, spike_jar = build(tmp)
+
+        print("helper with no daemon behind it:")
+        p = app(keys_jar, "RykKeys", os.path.join(tmp, "nothing.sock"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        out, _ = p.communicate(timeout=20)
+        check(p.returncode == 0, "exits 0 (the daemon went away, not a crash)")
+        check(b"no daemon" in out, "says so")
+
+        print("helper with a (fake) daemon:")
+        pacat = start_tone(45)
+        d = FakeDaemon(os.path.join(tmp, "d.sock"))
+        helper = app(keys_jar, "RykKeys", d.path, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        log = Lines(helper)
+        check(d.connected.wait(20), "connects and sends `watch`")
+        check(log.wait_for("session active", 20) is not None, "creates its media session")
+        if failures:
+            return report(failures)
+        time.sleep(1)
+
+        for i, (key, want) in enumerate(KEYS):
+            subprocess.run(
+                [APP_PROCESS, "-Xnoimage-dex2oat", "/", "MediaSpike", "key", key],
+                env=java_env(spike_jar), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
+            )
+            try:
+                got = d.verbs.get(timeout=3 if want else 1.5)
+            except queue.Empty:
+                got = None
+            check(got == want, f"{key:13s} -> {want or '(nothing)'}" + ("" if got == want else f"   (got {got})"))
+            if i == 0 and got != want:
+                print("the first key never arrived; stopping so no other media app gets the rest")
+                return report(failures)
+
+        check(log.wait_for("<- state paused", 1) is not None, "state lines are read (fake daemon paused on toggle)")
+        check(helper.poll() is None, "still running after all of that")
+
+        d.hang_up()
+        try:
+            helper.wait(timeout=10)
+            check(helper.returncode == 0, "exits 0 when the daemon hangs up")
+        except subprocess.TimeoutExpired:
+            helper.kill()
+            check(False, "exits when the daemon hangs up")
+        return report(failures)
+    finally:
+        if pacat:
+            pacat.kill()
+            try:
+                pacat.stdin.close()
+            except (BrokenPipeError, ValueError):
+                pass
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def report(failures):
+    print("PASS" if not failures else f"FAIL ({len(failures)})")
+    return 0 if not failures else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

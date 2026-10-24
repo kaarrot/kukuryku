@@ -23,6 +23,15 @@ pub mod serve;
 /// rewind / cancel. Pure std (the sink is a trait), so it is tested without audio.
 pub mod playback;
 
+/// The control verbs on the daemon socket and the long-lived `watch` connection
+/// the headset helper keeps. Pure std on top of `playback`.
+#[cfg(unix)]
+pub mod control;
+
+/// Launching the headset helper (`RykKeys`, a small Java program) when an
+/// utterance starts. Pure std; does nothing off Android.
+pub mod headset;
+
 /// Markdown-aware input cleanup. Unconditional (no feature gate): it is pure
 /// std and both binaries' text path runs through it.
 pub mod markdown;

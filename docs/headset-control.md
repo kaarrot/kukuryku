@@ -314,6 +314,7 @@ No notification and no UI in v1 (a session with no notification adds nothing to 
 | Wired single-click pause feels laggy (350 ms window) | Low | shorten the window; Bluetooth unaffected |
 | `SINK_LAG` is wrong for `ffplay` or when the writer isn't blocked | Low | error bounded by a few hundred ms; calibrate per sink |
 | Cancel can't interrupt `run_stage2` | Low | accept; follow-up |
+| A job arrives in the ~100 ms after the daemon hung up on the helper at the end of the window | Low | `Keys::ensure` still sees the old process alive, so that one utterance has no headset control; the next job starts a fresh helper |
 
 ---
 
@@ -345,10 +346,20 @@ No notification and no UI in v1 (a session with no notification adds nothing to 
 4. Let it finish, wait 40 s (past the 30 s sink grace), `ryk-ctl back`: the last sentence replays.
 5. `ryk-ctl pause` and wait: the daemon must still be there after `RYK_IDLE_TIMEOUT` would have passed (try `RYK_IDLE_TIMEOUT=30`).
 6. Listen for clicks at each restart, and for gaps between sentences (the 4 KiB pipe); if there are any, try `RYK_SINK_PIPE_BYTES=16384`.
+7. Headset (after `tools/rykkeys/build.sh`; close Apple Music first): `ryk --send` a long text with the XM4 on. The daemon log says `headset control on`; `pgrep -f RykKeys` shows one process about a second after the text starts; `cat ~/.cache/ryk/keys.log` shows `session active`. Then: double tap pauses, double tap resumes, a swipe goes back a sentence (twice walks back two), a swipe while paused resumes from the earlier sentence. After the text ends, a swipe within the rewind window replays the last sentence. With `RYK_REWIND_WINDOW_SECS=20` the helper should be gone about 20 s after the last sentence (`pgrep -f RykKeys` empty, the log ends with `daemon closed the connection`).
 
-**Phase 2: `watch` + spawn.** `watch` verb with `state` push; the daemon spawns `RykKeys` on Idle -> Playing and closes the watch when the rewind window ends. Test the whole chain **without a headset** by dispatching keys with the spike's `key` mode (`ISessionManager.dispatchMediaKeyEvent`).
+**Phase 2: `watch` + spawn (2026-10-24): written; the Android half is verified on the phone, the daemon half is tested with stubs.**
 
-**Phase 3: `RykKeys` for real.** Rewind window, consume every media key, click counter (wired only), mapping table, embedded source + on-first-use build, `ryk --headset-check`, earcons, README section for the phone.
+- **Where:** `src/control.rs` (new: the verb parser shared with the one-shot path, `control_reply`, and `serve_watch`), `src/headset.rs` (new: `Keys::ensure` launches the helper), `src/playback.rs` (`Status` gained `unplayed`/`held` and a change counter; `Handle::{snapshot, wait_change, nudge}`), `src/serve.rs` (a `watch` header goes to `serve_watch`; the worker calls `keys.ensure()` before each job), `tools/rykkeys/{RykKeys.java, build.sh, chain-test.py}`.
+- **`watch` on the wire:** `ok`, then `state idle|playing|paused` first and on every change; the client sends the same verbs as lines and gets `ok ...` / `err: ...` back. A job in progress (`hold`) counts as `playing` even between sentences. The daemon hangs up when the state is idle, nothing can be replayed and nothing is queued (the rewind window is over): that EOF is the helper's cue to exit. Two detached threads per connection (state pusher, verb reader); a client that stops reading is cut off after 5 s; lines over 4 KiB end the connection.
+- **Spawning:** `Keys::ensure` runs on the worker thread when a job starts. It does nothing when the helper is alive, when `RYK_HEADSET=0`, off Android (no `/system/bin/app_process`), or while `~/.cache/ryk/keys.jar` is missing (one hint in the log; the jar is picked up as soon as it appears). A helper that exits cleanly (the daemon hung up) is simply started again by the next job; one that crashes three times in a row within 10 s is not tried again. Output goes to `~/.cache/ryk/keys.log`.
+- **`RykKeys` (first version):** the session (spike recipe), the key map (`PLAY`/`PAUSE`/`PLAY_PAUSE`/`HEADSETHOOK` -> `toggle`, `NEXT`/`PREVIOUS` -> `back`, `STOP` -> `cancel`, everything else consumed and ignored), one verb per key-down (repeats and key-ups ignored), and `state` lines mirrored into `PlaybackState`. Exit 0 when the daemon goes away, 1 on its own failure.
+- **Tested:**
+  - **Rust** (scratch crate, no tract; `playback.rs`, `control.rs`, `headset.rs` and `serve.rs` compiled against hand-written stubs of `kokoro`/`tract_backend`): 76 tests, 40 consecutive runs without a flake. New: status/wake-up semantics (audio pushed but not yet taken by the playback thread counts as `playing`, which a stress run showed a watcher could otherwise miss), `watch` handshake, verbs, errors, over-long line, hang-up frees the threads, window end closes the connection, a queued job keeps it open, spawn/respawn/give-up/log/drop-kills with real child processes. This also typechecks `serve.rs`, but **the real crate has still not been built here**.
+  - **Android** (`python3 tools/rykkeys/chain-test.py`, 22 s, no headset): the helper with no daemon exits 0; with a fake daemon it connects, sends `watch`, creates its session, and real keys dispatched through `ISessionManager` arrive as `STOP`->`cancel`, `PAUSE`/`PLAY`/`PLAY_PAUSE`/`HOOK`->`toggle`, `NEXT`/`PREVIOUS`->`back`, `FAST_FORWARD`->nothing; `state` lines are read; it exits 0 when the daemon hangs up.
+- **Not tested:** the real daemon with the helper (needs the release build); a real headset through this helper (the spike covered the headset, the chain test covers the helper).
+
+**Phase 3: finish `RykKeys`.** What Phase 2 left out: the wired-headset click counter (350 ms window, x1 toggle, x2+ back), a mapping table in env/argv (`RYK_KEYS_MAP`), the Java source embedded in the binary and compiled on first use (so there is no `build.sh` step), `ryk --headset-check` (the three reflection steps, exit 0/1), earcons for `cancel` and for `back` with nowhere to go, and a README section for the phone.
 
 **Phase 4: polish.** Fade-in after a sink restart, stage-2 cancel point, optional media notification.
 
