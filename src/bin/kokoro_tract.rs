@@ -116,6 +116,11 @@ ENV:
                       rewind none)
     RYK_KEYS_CLICK_MS  wired headsets: wait this long for more clicks (350)
     RYK_EARCONS    --serve: 0/off silences the short falling tone after a cancel
+    RYK_FADE_IN_MS --serve: ramp the first N ms (10) after a resume/back/rewind from
+                      silence so a restart does not click; 0 = off
+    RYK_NOTIFY     --serve on Android: 1 = a notification with Back/Pause/Cancel
+                      buttons while the headset helper lives (needs Termux:API;
+                      RYK_CTL = path of ryk-ctl if it is not on PATH)
 
 CONTROL (a running --serve; the ryk-ctl script, see the README):
     ryk-ctl pause|resume|toggle|back|cancel|status|rewind [SECS]

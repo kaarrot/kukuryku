@@ -16,6 +16,9 @@
 //                      resume toggle back cancel rewind none. Defaults: tap:toggle
 //                      skip:back stop:cancel.
 //   RYK_KEYS_CLICK_MS  how long to wait for more clicks of a wired headset (350)
+//   RYK_NOTIFY         1 = keep a notification with Back / Pause / Cancel buttons while the
+//                      helper lives (needs Termux:API; buttons run ryk-ctl, found on PATH or
+//                      at RYK_CTL). Off by default.
 //
 // Exit codes: 0 = the daemon went away (normal); 1 = something failed here
 // (hidden API, session). An uncaught exception in a process like this is a
@@ -41,7 +44,11 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Constructor;
+import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class RykKeys {
     static final String PKG = "com.termux";
@@ -211,8 +218,139 @@ public class RykKeys {
             if (session != null) session.release();
         } catch (Throwable ignored) {
         }
+        removeNotification();
         System.out.flush();
         System.exit(code);
+    }
+
+    // ---- the optional notification ---------------------------------------------
+
+    static final String NOTE_ID = "ryk";
+    static final Object NOTE = new Object();
+    static boolean noteOn;
+    static boolean noteClosed;
+    static String noteWanted; // the latest state not yet shown
+    static String ctl;
+    /** The daemon's socket, handed to the buttons: they run in a bare environment. */
+    static String sockPath;
+
+    /** The shell command a button runs. */
+    static String action(String verb) {
+        return "RYK_SOCKET=" + q(sockPath) + " " + q(ctl) + " " + verb;
+    }
+
+    /** Absolute path of ryk-ctl: $RYK_CTL, else the first one on $PATH. */
+    static String findCtl() {
+        String own = System.getenv("RYK_CTL");
+        if (own != null && new File(own).canExecute()) return own;
+        String path = System.getenv("PATH");
+        if (path != null) {
+            for (String dir : path.split(":")) {
+                File f = new File(dir, "ryk-ctl");
+                if (dir.length() > 0 && f.canExecute()) return f.getPath();
+            }
+        }
+        return null;
+    }
+
+    static String q(String s) {
+        return "'" + s.replace("'", "'\\''") + "'";
+    }
+
+    static void setupNotification() {
+        String v = System.getenv("RYK_NOTIFY");
+        if (v == null || !(v.equals("1") || v.equals("on") || v.equals("yes") || v.equals("true"))) return;
+        ctl = findCtl();
+        if (ctl == null) {
+            log("RYK_NOTIFY is set but ryk-ctl was not found on PATH (set RYK_CTL); no notification");
+            return;
+        }
+        noteOn = true;
+        log("buttons run: " + action("back")); // the others differ only in the verb
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                try {
+                    while (true) {
+                        String state;
+                        synchronized (NOTE) {
+                            while (noteWanted == null && !noteClosed) NOTE.wait();
+                            if (noteClosed) return;
+                            state = noteWanted;
+                            noteWanted = null;
+                        }
+                        postNotification(state);
+                    }
+                } catch (Throwable e) {
+                    fail(e);
+                }
+            }
+        }, "ryk-keys-notify");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** Show `state` once the worker is free; later states replace earlier ones. */
+    static void showState(String state) {
+        if (!noteOn) return;
+        synchronized (NOTE) {
+            noteWanted = state;
+            NOTE.notifyAll();
+        }
+    }
+
+    static int exec(List<String> argv) throws Exception {
+        Process p = new ProcessBuilder(argv).redirectErrorStream(true).start();
+        p.getOutputStream().close();
+        java.io.InputStream in = p.getInputStream();
+        byte[] buf = new byte[512];
+        while (in.read(buf) >= 0) { /* drain */ }
+        if (!p.waitFor(15, TimeUnit.SECONDS)) {
+            p.destroy();
+            return -1;
+        }
+        return p.exitValue();
+    }
+
+    static void postNotification(String state) throws Exception {
+        boolean playing = state.equals("playing");
+        boolean paused = state.equals("paused");
+        List<String> a = new ArrayList<String>();
+        a.add("termux-notification");
+        a.add("--id"); a.add(NOTE_ID);
+        a.add("--title"); a.add("ryk");
+        a.add("--content");
+        a.add(playing ? "Reading" : paused ? "Paused" : "Done. Back replays the last sentence.");
+        a.add("--priority"); a.add("low");
+        a.add("--alert-once");
+        if (playing || paused) a.add("--ongoing");
+        a.add("--button1"); a.add("Back");
+        a.add("--button1-action"); a.add(action("back"));
+        a.add("--button2"); a.add(paused ? "Resume" : "Pause");
+        a.add("--button2-action"); a.add(action("toggle"));
+        a.add("--button3"); a.add("Cancel");
+        a.add("--button3-action"); a.add(action("cancel"));
+        synchronized (NOTE) {
+            if (noteClosed) return;
+        }
+        int code = exec(a);
+        log("notification " + state + ": " + (code == 0 ? "ok" : "exit " + code));
+    }
+
+    static void removeNotification() {
+        if (!noteOn) return;
+        synchronized (NOTE) {
+            noteClosed = true;
+            NOTE.notifyAll();
+        }
+        try {
+            List<String> a = new ArrayList<String>();
+            a.add("termux-notification-remove");
+            a.add(NOTE_ID);
+            int code = exec(a);
+            log("notification removed: " + (code == 0 ? "ok" : "exit " + code));
+        } catch (Throwable t) {
+            log("could not remove the notification: " + t);
+        }
     }
 
     // ---- the session ---------------------------------------------------------
@@ -360,6 +498,8 @@ public class RykKeys {
         }
         if (a[0].equals("check")) return check();
         loadSettings();
+        sockPath = a[0];
+        setupNotification();
         LocalSocket sock = new LocalSocket();
         try {
             sock.connect(new LocalSocketAddress(a[0], LocalSocketAddress.Namespace.FILESYSTEM));
@@ -387,6 +527,7 @@ public class RykKeys {
                         if (line.startsWith("state ")) {
                             log("<- " + line);
                             mirror(line.substring(6).trim());
+                            showState(line.substring(6).trim());
                         } else {
                             log("<- " + line); // the answer to a verb
                         }

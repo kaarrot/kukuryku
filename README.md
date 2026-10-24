@@ -101,8 +101,8 @@ Overrides:
 | `speak-orpheus` | **Orpheus-3B** + SNAC on Candle. More natural, but ~10× slower than realtime. | `--features orpheus` |
 
 The full write-up for the tract work is in
-[`docs/tract-support-plan.md`](docs/tract-support-plan.md). This branch (`tract-prototype`) is
-focused on `ryk`.
+[`docs/tract-support-plan.md`](docs/tract-support-plan.md). This README is focused on
+`ryk`.
 
 ## How it compares to onnxruntime
 
@@ -232,8 +232,10 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 | `RYK_HEADSET` | _(on)_ | `--serve` on Android: `0`/`off`/`no`/`false` never starts the headset-button helper (see "Headset buttons"). |
 | `RYK_KEYS_JAR` | _(unset)_ | Use this helper jar instead of `~/.cache/ryk/keys.jar`; ryk then never rebuilds it. |
 | `RYK_KEYS_MAP` | `tap:toggle,skip:back,stop:cancel` | Which verb each headset gesture runs: `tap` (double tap on the XM4, one click on a wired headset), `skip` (swipe, or two or more clicks), `stop` (the STOP key). Verbs: `pause` `resume` `toggle` `back` `cancel` `rewind` `none`. For example `tap:pause` makes the double tap pause only. |
-| `RYK_KEYS_CLICK_MS` | `350` | Wired headsets: how long to wait for another click before acting. |
+| `RYK_KEYS_CLICK_MS` | `350` | Wired headsets: how long to wait for another click before acting, counted from one click's release to the next. On one real headset a double click took 213 ms and a triple click 285 and 220 ms. A double click slower than this becomes two single clicks (pause, then resume); if that happens, try `450` (a single click then waits 450 ms). |
 | `RYK_EARCONS` | _(on)_ | `0`/`off` silences the short falling tone that follows a cancel. |
+| `RYK_FADE_IN_MS` | `10` | `--serve`: after a resume, `back` or `rewind` the first 10 ms ramp up from silence, so restarting mid-waveform does not click. `0` turns it off. |
+| `RYK_NOTIFY` | _(off)_ | `1` keeps a notification with Back / Pause / Cancel buttons while the headset helper lives (needs Termux:API). Its buttons run `ryk-ctl`, found on `$PATH` or at `RYK_CTL`. |
 | `RYK_PULSE_ARGS` | _(unset)_ | Extra args for `pulseaudio --start` (Termux). Do **not** pass `--exit-idle-time=-1` unless you want the daemon to pin the audio HAL awake. |
 
 (`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
@@ -352,6 +354,10 @@ while its first sentence synthesizes. After `RYK_IDLE_TIMEOUT` seconds of no job
 live sink (default 30 minutes after the grace) the daemon itself exits; the next `--send`
 starts a fresh one (~4s compile).
 
+The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `$TMPDIR/ryk-$USER.sock`,
+else `/tmp/ryk-$USER.sock`; an auto-started daemon logs beside it (`…/ryk.log`). This is **Unix-only**;
+elsewhere use the one-shot form. Plain `ryk "text"` / stdin is unchanged and needs no daemon.
+
 ### Controlling a running session
 
 The daemon keeps a replayable copy of what it played, so a running session can be paused,
@@ -386,6 +392,12 @@ wired headset reach it with the screen off, and it turns them into the verbs abo
 | swipe forward or back on the XM4 (`NEXT` / `PREVIOUS`), or two or more clicks on a wired headset | `back`: one sentence back |
 | `STOP` (a key the XM4 does not have) | `cancel`, followed by a short falling tone |
 
+A wired headset sends each click as a `PLAY_PAUSE` key (checked on a real one: a down and an up per
+click, both arriving when the button is released). The helper counts the clicks within
+`RYK_KEYS_CLICK_MS`, so a single click pauses or resumes about 350 ms after the press. Pause, resume
+and back have been tried on a wired headset against a live `ryk --serve`. Three clicks do the same
+as two (one sentence back); to go back further, double-click again.
+
 Cancel is deliberately not on a gesture a headset can send by accident; use `ryk-ctl cancel`.
 `RYK_KEYS_MAP` changes the table. Close other media apps (Apple Music, ...) first: Android hands a
 media key to one app. The helper stays for the rewind window after speech ends, then exits by itself
@@ -400,6 +412,10 @@ Needs `ecj` and `dx` (`pkg install ecj dx`) once: the first `ryk --serve` compil
 ryk --headset-check                         # builds the helper if needed and tests the Android side (exit 0/1)
 python3 tools/rykkeys/chain-test.py         # optional, no headset needed: real keys -> helper -> fake daemon
 ```
+
+With `RYK_NOTIFY=1` the helper also keeps a pinned notification while it lives ("Reading", "Paused",
+"Done. Back replays the last sentence.") with **Back**, **Pause/Resume** and **Cancel** buttons, so a
+paused or finished session can be driven from the screen, and removes it when it exits.
 
 If an Android update breaks a hidden API, `ryk --headset-check` says which step failed. Design and
 the measurements behind it: [`docs/headset-control.md`](docs/headset-control.md).
@@ -420,6 +436,10 @@ d = "@:: /path/to/ryk --send<ret>"
 `ryk-rewind` talks to the live `--serve` socket; it is not a `ryk --rewind` flag. On this
 phone the Helix bindings live in `~/.config/helix/config.toml` (outside this repo); the
 canonical copy is in [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md#editor-integration).
+
+See [`docs/ryk-cli-and-daemon.md`](docs/ryk-cli-and-daemon.md) for the daemon design and open
+follow-ups, [`docs/rewind-plan.md`](docs/rewind-plan.md) for the rewind design and
+[`docs/headset-control.md`](docs/headset-control.md) for pause, cancel and the headset.
 
 ## Termux / Android (aarch64)
 
@@ -481,6 +501,8 @@ a mimalloc global allocator, `Square(Sin)`→`SinSq` fusion, and a vectorized `s
 
 ## Testing
 
+### Speed (RTF) smoke test
+
 Smoke-test RTF against the already-built binary (no `cargo run`, no rebuild) with a two-sentence
 prompt so the pipeline reports a `[1/2]` and `[2/2]` line plus the `done:` summary:
 
@@ -500,3 +522,97 @@ Fastest on Android: override the 3-gold default to use all four gold cores (adds
 KOKORO_TRACT_CPUSET=4-7 KOKORO_TRACT_THREADS=4 target/release/ryk -v "The old lighthouse keeper climbed the winding staircase every single evening at dusk. Carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night."
 ```
 
+### Unit tests
+
+```bash
+cargo test --release --lib                    # everything that needs no sound and no model
+cargo test --release --lib -- --include-ignored   # + the helper build with the real ecj/dx (Termux)
+```
+
+On a phone use `--release`: a debug build of the vendored tract is too heavy for it.
+
+The pause / back / rewind / cancel / headset code is written to be testable without audio or the
+model, in layers:
+
+| Layer | What it covers | How |
+|---|---|---|
+| Playback engine (`src/playback.rs`) | the PCM history and playhead, sentence marks, pause / resume / back / rewind / cancel, the rewind window, sink idle, the cancel epoch, the fade-in and the cancel tone | the audio sink is a trait; the tests use a fake one that records what was written |
+| Socket protocol (`src/control.rs`, `src/serve.rs`) | the control verbs, the `watch` connection (state pushes, verbs as lines, hang-up when the window ends, an over-long line, a client that disappears) | a connected socket pair against a real session with a null sink |
+| Helper launch and build (`src/headset.rs`) | the launch command from the environment, the first-use build (atomic install, stale detection, tool failures), respawn, giving up after repeated crashes, the log | fake `ecj`/`dx` scripts and real child processes (`sleep`, `true`, `false`) |
+
+Several of these depend on timing (windows, grace periods, wake-ups), so after touching them run
+the suite in a loop and expect no failure at all: `for i in $(seq 20); do cargo test --release --lib 2>&1 | grep 'test result'; done`.
+A flake here has been a real race more than once (a watcher hanging up while a sentence was still
+queued, for example).
+
+### Pause / back / cancel and the headset
+
+From cheapest to most real.
+
+1. **Real `pacat`, no model**: plays a quiet tone through the daemon's player and counts `pacat`
+   processes to prove that pause, back and cancel really stop and restart the sink.
+   ```bash
+   cargo test --release --test real_sink -- --ignored --nocapture --test-threads=1
+   ```
+2. **The Android side, no headset and no ryk** (Termux): `python3 tools/rykkeys/chain-test.py`
+   runs the real helper against a fake daemon and dispatches real media keys through Android's
+   own service. It checks the key map (including 1, 2 and 3 clicks of a wired headset and a custom
+   `RYK_KEYS_MAP`), that exactly one verb arrives per press, that state lines are read, and that the
+   helper exits when the daemon hangs up. `--notify` adds the notification (it appears on the
+   phone for a few seconds). About 45 s.
+3. **Does it work on this phone?** `ryk --headset-check` builds the helper if needed and runs its
+   hidden-API steps, one line each. Run it after an Android update.
+4. **What does my headset send?** `tools/headset-spike/run.sh 60` prints every key event with a
+   timestamp; `run.sh 75 guided` asks for one gesture at a time and names the key it produced. On a
+   wired headset, click once, twice and three times: the gaps between the clicks must stay under
+   `RYK_KEYS_CLICK_MS` (350 ms by default).
+5. **The real daemon, by hand.** Close other media apps first, then use two Termux sessions:
+   ```bash
+   ryk --serve -v                                  # session A: shows what the daemon does
+   ryk --send "A paragraph of five or six sentences, each at least a few words long. ..."
+   ryk-ctl pause; ryk-ctl toggle; ryk-ctl back; ryk-ctl back; ryk-ctl status
+   ryk-ctl cancel                                  # during the first sentence, then --send again
+   ```
+   Wait 40 s after speech ends and run `ryk-ctl back`: the last sentence should replay. Then
+   try the headset (double tap, swipe; `pgrep -f RykKeys` and `~/.cache/ryk/keys.log` show the
+   helper) and `RYK_REWIND_WINDOW_SECS=20` to watch the helper exit. The full checklist, with what
+   to listen for, is "First live run" in [`docs/headset-control.md`](docs/headset-control.md).
+
+What only a human can judge: clicks at a restart, gaps between sentences, the level of the cancel
+tone, whether the pause lands where you heard it. If something is off, `RYK_SINK_PIPE_BYTES=16384`
+(gaps), `RYK_FADE_IN_MS=0` and `RYK_EARCONS=0` (to rule those out) and `RYK_HEADSET=0` (helper off)
+isolate it quickly.
+
+### Test sentences for pause / back / cancel
+
+Always send them with `--send`, never as plain `ryk "text"`. Plain `ryk "text"` is the one-shot path:
+it synthesizes and plays inside its own process and exits, with no replay history, no control
+socket and no headset helper, so `ryk-ctl` exits 3 (no daemon) and the headset does nothing.
+`--send` hands the text to the `ryk --serve` daemon, which owns the audio sink and the replayable
+history that pause, back, rewind and cancel work on (and starts the headset helper). `--send`
+starts the daemon itself if none is running (the first call takes ~4 s longer); run
+`ryk --serve -v` in a second session to watch what each control does.
+
+One long sentence (about 20 s), for pause, resume and cancel. `back` can only restart it, because it
+steps by sentence:
+
+```bash
+ryk --send "The old lighthouse keeper climbed the winding staircase every single evening at dusk, carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night, while far below him the waves crashed against the black rocks and the gulls circled once more before settling down to sleep."
+```
+
+Five medium sentences, each at least 3 s long, for `back`:
+
+```bash
+ryk --send "The first sentence is here so you can hear where the story begins. The second sentence follows right behind it, a little longer than the first one. The third sentence is the one you will go back to, so listen for the word lantern. The fourth sentence keeps going so there is plenty of speech left to interrupt. The fifth sentence is the last, and it should replay when you press back after the speech has ended."
+```
+
+With the five sentences, try:
+
+- `back` more than `RYK_BACK_RESTART_SECS` (1.5 s) into sentence 3 restarts sentence 3.
+- `back` within 1.5 s of the start of a sentence goes to the previous one.
+- Wait 40 s after the last sentence, then `back`: sentence 5 replays.
+- `pause`, wait, `resume`: it continues where you heard it stop.
+- `cancel` mid-sentence, then `--send` again: the new text plays, and `back` replays the sentence you cancelled in.
+
+On a wired headset one click is `toggle`, two or more clicks are `back`; on the XM4 a double tap is
+`toggle` and a swipe is `back`.

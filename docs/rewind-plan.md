@@ -2,10 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Author | (draft) |
 | Date | 2026-09-21 |
-| Status | Draft (control-plane revision: Helix / Grok / Claude poke, /rr, no `--rewind` flag) |
-| Implementation | Built differently from this draft on 2026-10-24: `src/playback.rs`, `ryk-ctl` / `ryk-rewind`. See **Phase 1 status** in `docs/headset-control.md` for what changed (Condvar queue instead of polling, sink-idle no longer clears history, measured sink lag) |
+| Status | Implemented with differences (see Implementation); kept as the design record. Its last revision was the control plane: Helix / Grok / Claude poke, `/rr`, no `--rewind` flag |
+| Implementation | Built differently from this draft on 2026-10-24: `src/playback.rs`, `ryk-ctl` / `ryk-rewind`. See **Phase 1 status** and "Deltas to `docs/rewind-plan.md`" in `docs/headset-control.md` for what changed (Condvar queue instead of polling, sink idle no longer clears history, measured sink lag, `RYK_HISTORY_SECS` 60 -> 180, `RYK_SINK_IDLE_MS` 10 min -> 30 s). The work landed as commits on one branch, not as the PRs listed at the end; `SIGUSR1` and the `/rr` skill were not built |
 | Scope | `ryk` TTS player (`src/lib.rs` `kokoro::StreamPlayer`, `src/serve.rs`, `src/bin/kokoro_tract.rs`) |
 | Platforms | Termux/Android (`pacat` + PulseAudio OpenSL) and Unix desktop (`ffplay` or `pacat`) |
 
@@ -13,11 +12,11 @@
 
 ## Feasibility
 
-### 1. Today: no
+### 1. Before this change: no
 
-Rewind-from-CLI while playback is live is **not possible** with the current binary. The player is a one-way PCM pipe with no playhead, no retained samples, and no control plane that can interrupt a live sink.
+Rewind-from-CLI while playback is live was **not possible** with the binary at the time of writing (September 2026). The player was a one-way PCM pipe with no playhead, no retained samples, and no control plane that could interrupt a live sink.
 
-Grounding in the code:
+Grounding in the code as it was then (the present tense below describes that code, not the current one):
 
 - `kokoro::StreamPlayer` (`src/lib.rs`) owns a `sync_channel::<Vec<f32>>(STREAM_BUFFER)` with `STREAM_BUFFER = 32` **sentence chunks**, not seconds. `push` sends a finished `Vec<f32>`; `playback_thread` / `playback_sessions` `recv`s it and immediately `write_pcm`s it to `ffplay`/`pacat` stdin. There is no store after that write. Samples that have left `write_pcm` cannot be un-written. `push` backpressure **is** the synth pacing: the playback thread only `recv`s the next chunk after `write_pcm` of the current one returns (`docs/ryk-cli-and-daemon.md`).
 - `write_pcm` is a single `write_all` of the whole sentence chunk. A chunk is typically several seconds. Nothing inspects a control flag between samples.
@@ -244,9 +243,9 @@ compact drains [phys, retain_from) when (retain_from - phys) >= compact_after
 never drop samples >= playhead              // in-flight tail, including the 10 s we just rewound over
 ```
 
-Worked example (the test that used to be ambiguous): `played_cap = 60s`, 65 s committed, compact not yet run → `phys = 0`, `playhead = 65s`, `retain_from = 5s`, `played() == 60s`. `rewind(60s)` sets playhead to **5 s**, not 0. The first 5 s still sitting in `buf` must not be returned. After compact, `phys = 5s` and `buf[0]` is the old 5 s mark.
+Worked example: `played_cap = 60s`, 65 s committed, compact not yet run → `phys = 0`, `playhead = 65s`, `retain_from = 5s`, `played() == 60s`. `rewind(60s)` sets playhead to **5 s**, not 0. The first 5 s still sitting in `buf` must not be returned. After compact, `phys = 5s` and `buf[0]` is the old 5 s mark.
 
-Compensation “never walks past `retain_from`” (the rewind clamp), not past `phys`.
+Latency compensation is clamped to `retain_from` (the rewind clamp), not to `phys`.
 
 **Default cap:** 60 s of already-played PCM (`RYK_HISTORY_SECS`, default `60`).
 
@@ -354,7 +353,7 @@ Because the pipe is not seekable, a **real** seek is kill + spawn. A no-op is no
 1. Compute `RewindOutcome` **first**, before touching the child.
    - `had_audio = !history.is_empty()` (never ingested, or `clear` after idle-close → false).
    - User-facing `applied_secs = min(requested_secs, played_secs_available)` where `played_secs_available = played() / SAMPLE_RATE` (`played()` already caps at `played_cap`, i.e. distance to `retain_from`, not to `phys`).
-   - If `!had_audio`: reply `err: nothing playing`. **Stop.** No `kill_sink`, no `spawn_sink`, no `ensure_pulseaudio`. `--rewind` must not auto-start Pulse/OpenSL any more than it auto-starts a daemon.
+   - If `!had_audio`: reply `err: nothing playing`. **Stop.** No `kill_sink`, no `spawn_sink`, no `ensure_pulseaudio`. A rewind request must not auto-start Pulse/OpenSL any more than it auto-starts a daemon.
    - If `applied_secs == 0` (already at `retain_from`): reply `ok 0`. **Stop.** Leave the live child alone.
 2. Only if the playhead will actually move: internally `history.rewind(applied_samples + extra)` where `extra = min(SINK_LATENCY_SAMPLES, remaining_after_applied)` so compensation never walks past `retain_from`. Clamp the user-facing request first.
 3. `kill_sink`: drop stdin, `Child::kill()`, `wait()`. Do **not** EOF-drain — `close_sink` would play out the ~100 ms we are trying to leave. Killed children often exit non-zero; do not `bail!` on that (unlike current `close_sink`).
@@ -463,7 +462,7 @@ Control never uses the `Job` mpsc. A rewind stuck behind `pipeline.synthesize` (
 
 #### One poke, many callers (Helix / Grok / Claude Code)
 
-There is **one** user-facing client: `~/.local/bin/ryk-rewind`, in `~/PRJ/ryk-skills` next to `speak-last-reply` (symlink like `/spk`). It is **not** a `ryk --rewind` flag. Termux has no `nc`; spawning the full `ryk` binary just to connect is the sequential CLI the user rejected. The script is a few dozen lines of Python 3: resolve `socket_path()` the same way `serve.rs` does, connect, write `rewind\t{secs}\n`, half-close, print the ack, exit. No auto-start.
+There is **one** user-facing client: `~/.local/bin/ryk-rewind`, in `~/PRJ/ryk-skills` next to `speak-last-reply` (symlink like `/spk`). It is **not** a `ryk --rewind` flag. Termux has no `nc`; spawning the full `ryk` binary just to connect is the sequential CLI mode that was rejected. The script is a few dozen lines of Python 3: resolve `socket_path()` the same way `serve.rs` does, connect, write `rewind\t{secs}\n`, half-close, print the ack, exit. No auto-start.
 
 Every editor uses that same script. They differ only in **how they invoke it**.
 
@@ -477,7 +476,7 @@ Helix keymap (locked):
 
 ```toml
 [keys.normal.space."."]
-d = "@:: /data/data/com.termux/files/home/PRJ/kukuryku/target/release/ryk --send<ret>"
+d = "@:: /path/to/ryk --send<ret>"
 
 [keys.normal]
 A-r = ":sh ryk-rewind"
@@ -524,7 +523,7 @@ body:    UTF-8 text until EOF
 
 `--send` clients must keep working. Control verbs are an **allowlist**, not "any first field that is not a Kokoro voice".
 
-**Allowlist:** `rewind` (implemented); reserved for later: `pause`, `skip`, `stop`, `flush`.
+**Allowlist:** `rewind` is the only verb in this draft; `pause`, `skip`, `stop` and `flush` were reserved for later. The implementation also accepts `pause`, `resume`, `toggle`, `back`, `cancel` and `status`, plus the `watch` header (`docs/headset-control.md`, "Wire protocol"); `skip`, `stop` and `flush` stayed unused.
 
 Parse algorithm (`parse_header(header, body) -> Request`):
 
@@ -784,7 +783,7 @@ Keep call sites as `kokoro::StreamPlayer` (re-export if extracted). `lib.rs` is 
 
 #### Docs
 
-- `docs/ryk-cli-and-daemon.md`: control verb, allowlist, `ryk-rewind` poke, Helix/`/spk`/`/rr`, queue-vs-control, coupling to future barge-in (`kill_sink` + a later `Flush` that *does* drop history and un-hold the worker). Note `connect_retry` is 20 s if that doc still says ~15 s.
+- `docs/ryk-cli-and-daemon.md`: control verb, allowlist, `ryk-rewind` poke, Helix/`/spk`/`/rr`, queue-vs-control, coupling to future barge-in (`kill_sink` + a later `Flush` that *does* drop history and un-hold the worker).
 - `README.md`: `ryk-rewind` next to `--serve`/`--send`; env table rows. Not a `--rewind` flag.
 
 ### Tests
@@ -816,7 +815,7 @@ Protocol tests in `serve.rs`:
 - `rewind`, `rewind\t10`, `rewind\t5.5` → Rewind.
 - `rewind\t0`, `rewind\t-1`, `rewind\tnan`, `rewind\t` → err.
 - `rewind\t10` + non-empty body → err (not a Job).
-- `pause` / `skip` / `stop` / `flush` → `err: unknown command`.
+- `skip` / `stop` / `flush` → `err: unknown command` (`pause` was on this list in the first draft and has since become a real verb).
 - `af_heart\ten-us\t1\n` + body still a Job.
 - `foo\tbar\t1\n` + body still a Job (not an unknown command).
 
@@ -994,7 +993,7 @@ No new alerts. A restart click is user-audible; a hung `child.wait()` after `kil
 
 ## Open Questions
 
-Product forks only. The rest of this doc picks a default so implementation can start.
+Product forks only. The rest of this doc picks a default so implementation can start. These are the questions as they stood in the draft; the implementation settled them differently in places (history cap 180 s, a rewind window independent of the sink grace, measured sink lag), see "Deltas to `docs/rewind-plan.md`" in `docs/headset-control.md`.
 
 1. **~~Daemon-only CLI vs one-shot+daemon.~~ Resolved.** Editors (`Helix`, `/spk`) `--send`. Control is `ryk-rewind` → existing Unix socket. No `ryk --rewind` flag. No one-shot control socket. No TCP port.
 2. **History cap: whole current utterance vs fixed seconds.** Recommendation: **60 s of already-played + the one in-flight chunk**, `RYK_HISTORY_SECS`. Alternative: keep the whole current `Job` (simplest playhead, no trim until next job) with a hard cap (e.g. 120 s / ~11 MiB) to protect Termux. Cross-job rewind during FIFO queue is a consequence of the time-based store; a per-utterance clamp would be the other UX. Either alternative still `recv`s one chunk at a time.
@@ -1007,7 +1006,7 @@ Product forks only. The rest of this doc picks a default so implementation can s
 
 ## Key Decisions
 
-1. **Not feasible today; feasible after a playhead + sink restart.** The live binary writes f32le to a non-seekable pipe and forgets it. No CLI, socket verb, or signal can move audio backward without new state in `ryk`.
+1. **Not feasible at the time of writing; feasible after a playhead + sink restart.** The binary then wrote f32le to a non-seekable pipe and forgot it. No CLI, socket verb, or signal could move audio backward without new state in `ryk`.
 2. **Playback thread owns `PcmHistory` and the playhead.** Synth only `push`es. Control only sets a pending rewind. No history mutex, no rewind on the `Job` queue, no rewind on the PCM `sync_channel`.
 3. **Capped store of ingested PCM, not an overwrite ring, not a drain of the channel.** Rewind keeps `[new_playhead, end)` of **recv'd** samples. `recv` one chunk only when `ahead == 0`, so `STREAM_BUFFER` still paces synth. Channel-queued audio is already after the playhead and is not copied into history until ingest. `phys` is the index of `buf[0]` and moves only on compact/`clear`. Rewind clamps to `retain_from = max(phys, playhead - played_cap)`, not to `phys`. Compact lazily when `(retain_from - phys) >= 10 s` (~960 KiB), not a 5.5 MiB `Vec::drain` every quantum. Expired prefix still in `buf` is not rewindable (`played() == min(playhead - phys, played_cap)`).
 4. **Seek = `kill_sink` + `spawn_sink` + feed from playhead, and only when the playhead moves.** The pipe cannot seek. Kill rather than EOF-drain so the old ~100 ms buffer is discarded. Reuse `build_sink_command` / `ensure_pulseaudio`. Empty history (`!had_audio`) and `applied_secs == 0` reply without touching the child — no Pulse/OpenSL wake, no click.
@@ -1041,7 +1040,7 @@ Product forks only. The rest of this doc picks a default so implementation can s
 
 ## PR Plan
 
-Incremental, each PR independently reviewable and mergeable. No tract/GEMM changes in any PR.
+Incremental, each PR independently reviewable and mergeable. No tract/GEMM changes in any PR. (The implementation landed as commits on one branch instead; this is the intended slicing.)
 
 ### PR 1 — `PcmHistory` store and playhead math
 
@@ -1083,7 +1082,7 @@ Incremental, each PR independently reviewable and mergeable. No tract/GEMM chang
 - **Title:** Document rewind poke, Helix/`/spk`/`/rr`, `RYK_REWIND_SECS` / `RYK_HISTORY_SECS`
 - **Files:** `docs/ryk-cli-and-daemon.md`, `README.md`, `ryk-skills/README.md`, help ENV rows if not already in PR 4
 - **Depends on:** PR 4
-- **Changes:** Usage, env table, poke-vs-daemon `RYK_REWIND_SECS`, allowlist, Helix keymap, Grok/Claude fast vs slow path, note that barge-in is still deferred but will share `kill_sink` and must *flush* history. **No** playback behavior (idle-clear already in PR 2). Fix the daemon doc's `connect_retry` "~15 s" to 20 s if still present.
+- **Changes:** Usage, env table, poke-vs-daemon `RYK_REWIND_SECS`, allowlist, Helix keymap, Grok/Claude fast vs slow path, note that barge-in is still deferred but will share `kill_sink` and must *flush* history. **No** playback behavior (idle-clear already in PR 2).
 
 ### PR 6 (optional) — `SIGUSR1` on `--serve`
 
@@ -1099,4 +1098,4 @@ Incremental, each PR independently reviewable and mergeable. No tract/GEMM chang
 - **Depends on:** PR 3
 - **Changes:** 5–10 ms cosine fade on the first quantum after `spawn_sink` from rewind (not on cold start / idle respawn, to avoid changing first-audio today). Only if the gap/click is annoying on device.
 
-Pause, skip, and barge-in are **not** in this plan. When they happen, they should add siblings on `PlaybackCtrl` (`Pause` holds playhead and `kill_sink` without moving it; `Flush`/`Stop` kills, `history.clear()`, drains `rx`) rather than overloading `rewind`.
+Pause, skip, and barge-in are **not** in this plan. They were meant to be added as siblings on `PlaybackCtrl` (`Pause` holds playhead and `kill_sink` without moving it; `Flush`/`Stop` kills, `history.clear()`, drains `rx`) rather than by overloading `rewind`. Pause, back and cancel have since been built that way (`docs/headset-control.md`); `cancel` keeps the played history instead of clearing it, so an accidental cancel can be undone with `back`.

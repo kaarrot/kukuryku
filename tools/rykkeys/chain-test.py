@@ -7,7 +7,10 @@ A fake daemon stands in for `ryk --serve`. The keys are dispatched the way any
 app can (tools/headset-spike MediaSpike `key`), so what is tested is the real
 routing, the real helper and the real wire protocol; only the daemon is fake.
 
-    python3 tools/rykkeys/chain-test.py
+    python3 tools/rykkeys/chain-test.py [--notify]
+
+--notify also tests RYK_NOTIFY=1 (a real notification appears on the phone for a few
+seconds; needs Termux:API).
 
 Needs ecj, dx and pulseaudio (a quiet tone plays so Termux is the app that last
 played audio, as it is while ryk speaks). Takes about 45 s. The first key sent
@@ -107,18 +110,31 @@ class FakeDaemon:
         self.conn = None
         self.header = None
         self.connected = threading.Event()
+        self.oneshots = queue.Queue()
         threading.Thread(target=self._accept, daemon=True).start()
 
     def _send(self, text):
         self.conn.sendall((text + "\n").encode())
 
     def _accept(self):
-        self.conn, _ = self.srv.accept()
-        f = self.conn.makefile("rb")
-        self.header = f.readline().decode().strip()
-        if self.header != "watch":
-            self._send("err: empty text")
+        while True:
+            try:
+                conn, _ = self.srv.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
+
+    def _serve(self, conn):
+        f = conn.makefile("rb")
+        header = f.readline().decode().strip()
+        if header != "watch":
+            # a one-shot control request, as `ryk-ctl` sends it
+            self.oneshots.put(header)
+            conn.sendall(b"ok playing\n")
+            conn.close()
             return
+        self.conn = conn
+        self.header = header
         self._send("ok")
         self._send("state " + self.state)
         self.connected.set()
@@ -138,9 +154,51 @@ class FakeDaemon:
                 self._send("ok playing back")
                 self._send("state playing")
 
+    def push(self, state):
+        self.state = state
+        self._send("state " + state)
+
     def hang_up(self):
         if self.conn:
             self.conn.shutdown(socket.SHUT_RDWR)
+
+
+def notify_scenario(tmp, keys_jar, check):
+    """RYK_NOTIFY=1: a notification follows the state and is removed when the helper exits.
+
+    Only the exit status of termux-notification / termux-notification-remove is checked
+    (termux-notification-list needs a permission and hangs without it), so look at the
+    phone to see it.
+    """
+    ctl = os.path.expanduser("~/PRJ/ryk-skills/bin/ryk-ctl")
+    d = FakeDaemon(os.path.join(tmp, "notify.sock"))
+    helper = app(keys_jar, "RykKeys", d.path, env={"RYK_NOTIFY": "1", "RYK_CTL": ctl},
+                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    log = Lines(helper)
+    check(d.connected.wait(20), "connects")
+    check(log.wait_for("notification playing: ok", 40) is not None, "posts the notification (playing)")
+    d.push("paused")
+    check(log.wait_for("notification paused: ok", 40) is not None, "updates it (paused)")
+    # a button's action, run the way Termux:API runs it: a bare environment
+    line = log.wait_for("buttons run: ", 1)
+    check(line is not None, "logs what the buttons run")
+    if line:
+        action = line.split("buttons run: ", 1)[1]
+        env = {"PATH": "/data/data/com.termux/files/usr/bin", "HOME": os.environ["HOME"]}
+        r = subprocess.run(["sh", "-c", action], env=env, capture_output=True, text=True, timeout=30)
+        try:
+            got = d.oneshots.get(timeout=3)
+        except queue.Empty:
+            got = None
+        check(r.returncode == 0 and got == "back", f"the Back button's command reaches the daemon ({got!r}, exit {r.returncode})")
+    d.hang_up()
+    try:
+        helper.wait(timeout=30)
+        check(helper.returncode == 0, "exits 0 when the daemon hangs up")
+    except subprocess.TimeoutExpired:
+        helper.kill()
+        check(False, "exits when the daemon hangs up")
+    check(log.wait_for("notification removed: ok", 1) is not None, "removes it on the way out")
 
 
 def build(tmp):
@@ -257,6 +315,9 @@ def main():
             ("NEXT", 1, "rewind"),
             ("STOP", 1, None),
         ], env={"RYK_KEYS_MAP": "tap:pause,stop:none,skip:rewind"})
+        if "--notify" in sys.argv:
+            print("helper with RYK_NOTIFY=1 (a notification will flash on the phone):")
+            notify_scenario(tmp, keys_jar, check)
         return report(failures)
     finally:
         if pacat:

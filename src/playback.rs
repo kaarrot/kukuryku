@@ -62,6 +62,18 @@ pub fn cancel_earcon() -> Vec<f32> {
     out
 }
 
+/// `samples` with its first `len` samples multiplied by a rising sin² ramp, so
+/// the first one is exactly 0. Used after a restart in the middle of a waveform.
+pub fn fade_in(samples: &[f32], len: usize) -> Vec<f32> {
+    let mut out = samples.to_vec();
+    let n = len.min(out.len());
+    for (i, v) in out.iter_mut().take(n).enumerate() {
+        let g = (std::f64::consts::FRAC_PI_2 * i as f64 / len as f64).sin().powi(2);
+        *v *= g as f32;
+    }
+    out
+}
+
 // ------------------------------- history -------------------------------------
 
 /// Samples that have been handed to the playback thread, with an explicit
@@ -307,6 +319,10 @@ pub struct Config {
     /// otherwise makes no sound is acknowledged. Off in `default()` (quiet
     /// tests); `from_env` turns it on unless `RYK_EARCONS` is `0`/`off`.
     pub earcon: bool,
+    /// Ramp the first this-many samples up from silence after a restart
+    /// (resume, back, rewind), so starting in the middle of a waveform does not
+    /// click. 0 = off (the `default()`); `from_env` uses 10 ms.
+    pub fade_in: u64,
 }
 
 impl Default for Config {
@@ -320,6 +336,7 @@ impl Default for Config {
             resume_replay: secs_to_samples(1.0),
             resume_snap: secs_to_samples(2.0),
             earcon: false,
+            fade_in: 0,
         }
     }
 }
@@ -433,6 +450,8 @@ pub struct Engine<F: SinkFactory> {
     /// Last time audio was ingested or written. Drives sink idle and the window.
     last_activity: Option<Instant>,
     fails: u8,
+    /// The next slice is the first after a restart in the middle of the audio.
+    fade_pending: bool,
     cfg: Config,
     status: Arc<Status>,
 }
@@ -448,6 +467,7 @@ impl<F: SinkFactory> Engine<F> {
             paused_at: None,
             last_activity: None,
             fails: 0,
+            fade_pending: false,
             cfg,
             status,
         }
@@ -505,10 +525,20 @@ impl<F: SinkFactory> Engine<F> {
         }
         let slice = self.hist.peek(WRITE_SLICE);
         let n = slice.len();
+        // After a restart the first slice goes out through a short fade-in. The
+        // history itself is never touched, so a later replay is bit-exact.
+        let faded: Vec<f32>;
+        let slice = if self.fade_pending && self.cfg.fade_in > 0 {
+            faded = fade_in(slice, self.cfg.fade_in as usize);
+            &faded[..]
+        } else {
+            slice
+        };
         let bytes: &[u8] = bytemuck::cast_slice(slice);
         let res = self.sink.as_mut().map(|s| s.write(bytes));
         match res {
             Some(Ok(())) => {
+                self.fade_pending = false;
                 self.fails = 0;
                 self.hist.commit(n);
                 self.last_activity = Some(now);
@@ -713,6 +743,7 @@ impl<F: SinkFactory> Engine<F> {
         };
         self.hist.seek(target);
         self.paused_at = None;
+        self.fade_pending = true;
         self.last_activity = Some(now);
         self.publish();
     }
@@ -722,6 +753,7 @@ impl<F: SinkFactory> Engine<F> {
         self.kill_sink();
         self.hist.seek(target);
         self.paused_at = None;
+        self.fade_pending = true;
         self.last_activity = Some(now);
         self.publish();
     }
@@ -1137,7 +1169,7 @@ pub fn parse_secs(val: Option<&str>) -> Option<f64> {
 
 impl Config {
     /// Defaults overridden by `RYK_SINK_IDLE_MS` (passed in), `RYK_HISTORY_SECS`,
-    /// `RYK_REWIND_WINDOW_SECS`, `RYK_PAUSE_MAX_SECS`, `RYK_BACK_RESTART_SECS` and `RYK_EARCONS`.
+    /// `RYK_REWIND_WINDOW_SECS`, `RYK_PAUSE_MAX_SECS`, `RYK_BACK_RESTART_SECS`, `RYK_EARCONS` and `RYK_FADE_IN_MS`.
     pub fn from_env(sink_idle: Duration) -> Self {
         let get = |k: &str| std::env::var(k).ok();
         let mut c = Config { sink_idle, ..Config::default() };
@@ -1154,6 +1186,13 @@ impl Config {
             c.restart_after = secs_to_samples(s);
         }
         c.earcon = !matches!(get("RYK_EARCONS").as_deref(), Some("0" | "off" | "no" | "false"));
+        c.fade_in = match get("RYK_FADE_IN_MS").as_deref().map(str::trim) {
+            None | Some("") => secs_to_samples(0.010),
+            Some(v) => v.parse::<f64>().ok().filter(|ms| ms.is_finite() && *ms >= 0.0).map_or(
+                secs_to_samples(0.010),
+                |ms| secs_to_samples(ms / 1000.0),
+            ),
+        };
         c
     }
 }
@@ -1296,6 +1335,8 @@ mod tests {
     struct Log {
         /// First sample of each write slice, as the value of its first f32.
         writes: Vec<f32>,
+        /// Every write slice in full.
+        slices: Vec<Vec<f32>>,
         spawns: usize,
         kills: usize,
         finishes: usize,
@@ -1309,7 +1350,9 @@ mod tests {
     impl Sink for FakeSink {
         fn write(&mut self, pcm: &[u8]) -> io::Result<()> {
             let s: &[f32] = bytemuck::cast_slice(pcm);
-            self.0.lock().unwrap().writes.push(s[0]);
+            let mut l = self.0.lock().unwrap();
+            l.writes.push(s[0]);
+            l.slices.push(s.to_vec());
             Ok(())
         }
         fn finish(self: Box<Self>) -> anyhow::Result<()> {
@@ -1999,6 +2042,93 @@ mod tests {
         if std::env::var_os("RYK_EARCONS").is_none() {
             assert!(Config::from_env(Duration::from_secs(1)).earcon);
         }
+    }
+
+    // ---- fade-in after a restart ----
+
+    fn fade_cfg(samples: u64) -> Config {
+        Config { fade_in: samples, ..Config::default() }
+    }
+
+    #[test]
+    fn fade_in_ramps_from_exact_silence_and_leaves_the_rest_alone() {
+        let f = fade_in(&[1.0; 600], 240);
+        assert_eq!(f[0], 0.0);
+        assert!(f[..240].windows(2).all(|w| w[1] >= w[0]), "rising");
+        assert!(f[239] > 0.99 && f[239] < 1.0);
+        assert!(f[240..].iter().all(|&v| v == 1.0));
+        let short = fade_in(&[1.0; 100], 240);
+        assert_eq!((short.len(), short[0]), (100, 0.0));
+        assert!(short[99] < 0.4, "a short slice only reaches the start of the ramp");
+        assert!(fade_in(&[], 240).is_empty());
+    }
+
+    #[test]
+    fn a_restart_fades_in_the_first_slice_only_and_the_history_stays_exact() {
+        for restart in [Control::Back, Control::Rewind(0.5)] {
+            let (mut e, log, t) = engine_cfg(0, fade_cfg(240));
+            feed(&mut e, &[1.0], 3 * S, t);
+            play(&mut e, S, t); // a full second in
+            let before = log.lock().unwrap().slices.len();
+            e.apply(restart, t, true).unwrap();
+            play(&mut e, S, t);
+            {
+                let l = log.lock().unwrap();
+                let first = &l.slices[before];
+                assert_eq!(first[0], 0.0, "{restart:?}: starts from silence");
+                assert!(first[1] < first[200] && first[200] < first[239]);
+                assert!(first[240..].iter().all(|&v| v == 1.0));
+                assert!(l.slices[before + 1].iter().all(|&v| v == 1.0), "only the first slice");
+            }
+            // restarting again replays the untouched samples, faded afresh
+            let before = log.lock().unwrap().slices.len();
+            e.apply(restart, t, true).unwrap();
+            play(&mut e, S / 2, t);
+            let l = log.lock().unwrap();
+            assert_eq!(l.slices[before][0], 0.0);
+            assert!(l.slices[before + 1].iter().all(|&v| v == 1.0));
+        }
+    }
+
+    #[test]
+    fn resume_after_a_pause_fades_in_too() {
+        let (mut e, log, t) = engine_cfg(0, fade_cfg(240));
+        feed(&mut e, &[1.0], 3 * S, t);
+        play(&mut e, S, t);
+        e.apply(Control::Pause, t, true).unwrap();
+        let before = log.lock().unwrap().slices.len();
+        e.apply(Control::Resume, t, true).unwrap();
+        play(&mut e, S / 2, t);
+        let l = log.lock().unwrap();
+        assert_eq!(l.slices[before][0], 0.0);
+        assert!(l.slices[before + 1].iter().all(|&v| v == 1.0));
+    }
+
+    #[test]
+    fn plain_playback_and_a_disabled_fade_are_untouched() {
+        let (mut e, log, t) = engine_cfg(0, fade_cfg(240));
+        feed(&mut e, &[1.0], S, t);
+        play(&mut e, S, t);
+        assert!(log.lock().unwrap().slices.iter().all(|s| s.iter().all(|&v| v == 1.0)));
+
+        let (mut e, log, t) = engine_cfg(0, fade_cfg(0));
+        feed(&mut e, &[1.0], 3 * S, t);
+        play(&mut e, S, t);
+        e.apply(Control::Rewind(0.5), t, true).unwrap();
+        play(&mut e, S, t);
+        assert!(log.lock().unwrap().slices.iter().all(|s| s.iter().all(|&v| v == 1.0)));
+    }
+
+    #[test]
+    fn a_failed_write_keeps_the_fade_for_the_retry() {
+        let (mut e, log, t) = engine_cfg(0, fade_cfg(240));
+        feed(&mut e, &[1.0], 3 * S, t);
+        play(&mut e, S, t);
+        e.apply(Control::Rewind(0.5), t, true).unwrap();
+        log.lock().unwrap().fail_spawn = true;
+        e.write_slice(t); // no sink: the audio is dropped, nothing is written
+        log.lock().unwrap().fail_spawn = false;
+        assert!(e.fade_pending, "still waiting for the first slice that is actually written");
     }
 
     #[test]

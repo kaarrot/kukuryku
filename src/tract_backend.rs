@@ -111,6 +111,27 @@ impl Stage {
 
     /// Run the cached plan; tensors are matched to declared inputs by name.
     fn run(&self, inputs: &[(&str, Tensor)], stage: &str) -> Result<TVec<TValue>> {
+        self.run_with(inputs, stage, None)
+    }
+
+    /// Like [`run`](Self::run), but `cancelled` is asked before every node and a
+    /// yes ends the run at once with [`crate::playback::Cancelled`]. That is how a
+    /// cancel reaches into a vocoder pass instead of waiting for it to finish.
+    fn run_cancellable(
+        &self,
+        inputs: &[(&str, Tensor)],
+        stage: &str,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<TVec<TValue>> {
+        self.run_with(inputs, stage, Some(cancelled))
+    }
+
+    fn run_with(
+        &self,
+        inputs: &[(&str, Tensor)],
+        stage: &str,
+        cancelled: Option<&dyn Fn() -> bool>,
+    ) -> Result<TVec<TValue>> {
         let mut ordered: TVec<TValue> = TVec::with_capacity(self.input_names.len());
         for (ix, name) in self.input_names.iter().enumerate() {
             let (_, t) = inputs
@@ -139,10 +160,39 @@ impl Stage {
             || std::env::var_os("KOKORO_TRACT_PROFILE_JSON").is_some()
         {
             profile_run(&self.runnable, ordered, stage)
+        } else if let Some(cancelled) = cancelled {
+            cancellable_run(&self.runnable, ordered, cancelled).map_err(|e| {
+                // a cancel is not a failure; leave it unwrapped for the caller
+                if e.downcast_ref::<crate::playback::Cancelled>().is_some() {
+                    e
+                } else {
+                    e.context(format!("running {stage}"))
+                }
+            })
         } else {
             self.runnable.run(ordered).with_context(|| format!("running {stage}"))
         }
     }
+}
+
+/// `runnable.run(inputs)` with a look at `cancelled` before each node. `run` is
+/// `SimpleState::new` then `run_plan_with_eval(inputs, eval)`; this is the same
+/// with a check in front of `eval` (the profiler below hooks the plan the same
+/// way). A node that has started runs to its end, so the cancel lands within
+/// one op, not one sentence.
+fn cancellable_run(
+    runnable: &TypedRunnableModel<TypedModel>,
+    inputs: TVec<TValue>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<TVec<TValue>> {
+    use tract_onnx::tract_core::plan::{SimpleState, eval};
+    let mut state = SimpleState::new(runnable)?;
+    state.run_plan_with_eval(inputs, |session, op_state, node, input| {
+        if cancelled() {
+            return Err(anyhow::Error::from(crate::playback::Cancelled));
+        }
+        eval(session, op_state, node, input)
+    })
 }
 
 /// Per-op profiler (KOKORO_TRACT_PROFILE): run the plan node-by-node, timing
@@ -1544,7 +1594,7 @@ impl Pipeline {
         let ahead = rx.recv().map_err(|_| anyhow::anyhow!("stage1 lookahead stopped"))??;
         let pool = self.select_pool();
         match ahead {
-            AheadOut::Ready(s1) => self.run_stage2(s1, pool),
+            AheadOut::Ready(s1) => self.run_stage2(s1, pool, &|| false),
             AheadOut::Unspeakable | AheadOut::Failed => bail!("nothing to synthesize"),
         }
     }
@@ -1612,7 +1662,8 @@ impl Pipeline {
                     let pool = self.select_pool();
                     player.check_cancelled()?; // stage 2 is the expensive part
                     let t_s2 = std::time::Instant::now();
-                    let audio = self.run_stage2(s1, pool)?;
+                    // ...and a cancel reaches into it: the plan is checked before every node
+                    let audio = self.run_stage2(s1, pool, &|| player.is_cancelled())?;
                     let s2_secs = t_s2.elapsed().as_secs_f64();
                     let arrival = t0.elapsed().as_secs_f64();
                     let gap = clock.observe(
@@ -1697,7 +1748,12 @@ impl Pipeline {
         self.execs.full.clone()
     }
 
-    fn run_stage2(&mut self, s1: S1Out, pool: PoolKind) -> Result<Vec<f32>> {
+    fn run_stage2(
+        &mut self,
+        s1: S1Out,
+        pool: PoolKind,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<f32>> {
         let n = s1.n;
         let frames = s1.frames;
         let executor = self.executor_for(pool);
@@ -1715,7 +1771,7 @@ impl Pipeline {
         let alignment = s1.alignment;
         let style = s1.style;
         let s2 = tract_linalg::multithread::multithread_tract_scope(executor, || {
-            stage2.run(
+            stage2.run_cancellable(
                 &[
                     (S1_FEAT_640, feat640),
                     (S1_FEAT_512, feat512),
@@ -1723,6 +1779,7 @@ impl Pipeline {
                     ("style", style),
                 ],
                 "stage2",
+                cancelled,
             )
         })?;
         for (i, o) in s2.iter().enumerate() {

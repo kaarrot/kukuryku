@@ -110,14 +110,20 @@ Per-request voice/lang/speed is cheap (voice path resolved on demand, cached in 
 `HashMap<String, PathBuf>`) and avoids "restart the daemon to change voice". The client
 always sends the header from its own env, so there's no ambiguity.
 
+Control verbs (`pause`, `resume`, `toggle`, `back`, `cancel`, `status`, `rewind[\tSECS]`) use the
+same socket as the header line with an empty body, and a `watch` header keeps the connection
+open for the headset helper. See "Controlling a running session" in the README and
+[headset-control.md](headset-control.md).
+
 The **markdown cleanup happens client-side**, in `client_text` (see
-`docs/markdown-stripping.md`): the body on the wire is already stripped, so `--raw` is honoured
+`docs/markdown-stripping.md`): the body on the wire is already stripped, so `--raw` is honored
 per invocation without a fourth header field, and the daemon never re-strips what it receives.
 A non-`ryk` client speaking this socket directly gets no cleanup and should strip its own text.
 
 ### Socket path
 
-`$RYK_SOCKET` if set, else `$XDG_RUNTIME_DIR/ryk.sock`, else `/tmp/ryk-$USER.sock`. On
+`$RYK_SOCKET` if set, else `$XDG_RUNTIME_DIR/ryk.sock`, else `$TMPDIR/ryk-$USER.sock` (Termux
+has no `/tmp`), else `/tmp/ryk-$USER.sock`. On
 `--serve`: if the path exists and a connect succeeds, another daemon is live → exit
 ("already running"); a dead socket is unlinked, then bound. Best-effort unlink on exit via a
 `Drop` guard (no signal-handling crate).
@@ -125,34 +131,35 @@ A non-`ryk` client speaking this socket directly gets no cleanup and should stri
 ## Editor integration
 
 Speak must go through `--send` so the editor is not blocked in one-shot `ryk` until
-`finish()`. Rewind is a poke into that same `--serve` process (`ryk-rewind` on the
-existing Unix socket), not a `ryk --rewind` flag. Full control-plane plan:
-[rewind-plan.md](rewind-plan.md).
+`finish()`. Pause, back, rewind and cancel are pokes into that same `--serve` process over the
+existing Unix socket (`ryk-ctl`; `ryk-rewind` is the same client under the name the Helix key
+runs), not `ryk` flags. Design: [rewind-plan.md](rewind-plan.md) and
+[headset-control.md](headset-control.md).
 
-- **Helix** (this machine's `~/.config/helix/config.toml`; not in this git repo).
-  `space+. d` used to pipe the selection to one-shot `ryk`, which held Helix until
-  playback ended. It now `--send`s. `A-r` runs the same `ryk-rewind` poke Grok/Claude
-  `/rr` will use:
+- **Helix** (`~/.config/helix/config.toml`; not in this git repo). `space+. d` used to pipe
+  the selection to one-shot `ryk`, which held Helix until playback ended. It now `--send`s.
+  `A-r` runs the `ryk-rewind` poke:
 
   ```toml
   [keys.normal]
-  # Rewind ~10s of currently playing ryk audio. Same script as Grok/Claude /rr.
-  # Needs ~/.local/bin/ryk-rewind and a live ryk --serve (auto-started by --send).
+  # Rewind ~10s of currently playing ryk audio.
+  # Needs ryk-rewind on $PATH and a live ryk --serve (auto-started by --send).
   A-r = ":sh ryk-rewind"
 
   [keys.normal.space."."]
   # Selection → warm daemon. Helix returns immediately; --serve owns pacat.
-  d = "@:: /data/data/com.termux/files/home/PRJ/kukuryku/target/release/ryk --send<ret>"
+  # Replace /path/to/ryk with the release binary.
+  d = "@:: /path/to/ryk --send<ret>"
   ```
 
   Because `/spk` already `--send`s into the same daemon, Helix `A-r` also rewinds
   Grok/Claude speech if Helix can receive the key (split pane, or Helix focused).
 
-- **Grok / Claude Code:** `/spk` → `speak-last-reply` → `ryk --send` (unchanged).
-  Optional `/rr` skill runs **the same** `~/.local/bin/ryk-rewind` via Bash
-  (`disable-model-invocation: true`, like `/spk`). Slash dispatch is the slow path
-  (harness turn, seconds). Fast path is Helix `A-r`, a Termux widget, or SIGUSR1.
-  Grok pager keys are not remappable.
+- **Grok / Claude Code:** `/spk` → `speak-last-reply` → `ryk --send` (unchanged). To control
+  that speech, use Helix `A-r`, a second Termux session or a Termux widget running `ryk-ctl`,
+  or the headset buttons (Android). A slash command would be slower (a harness turn, seconds),
+  and Grok's pager keys are not remappable. A `/rr` skill and a `SIGUSR1` handler were proposed
+  in the rewind plan but are not implemented.
 
 - **vim** (visual selection, buffer unmodified): `xnoremap <leader>s :w !ryk --send<CR>` —
   writes the selection to the client's stdin.
@@ -176,12 +183,15 @@ a new `src/serve.rs` can use it. The bin slims to flag dispatch + the existing o
 
 ## Open questions / follow-ups
 
-- **Rewind 10s of already-played audio** — planned in [rewind-plan.md](rewind-plan.md). Not a
-  `ryk --rewind` flag: Helix `A-r` and Grok/Claude `/rr` poke `--serve` via `ryk-rewind`.
-  Shares the future barge-in `kill_sink` path but keeps PCM history.
-- **Barge-in** (stop current, speak new) — nicer for rapid re-selection, but needs a
-  `StreamPlayer` kill path (kill the ffplay/pacat child + abort remaining sentences between
-  utterances). Deferred in favor of queue. Rewind will land `kill_sink` first.
+- **Rewind, pause, back and cancel of a running session** — implemented (README, "Controlling a
+  running session"; design in [rewind-plan.md](rewind-plan.md) and
+  [headset-control.md](headset-control.md)). Not `ryk` flags: Helix `A-r`, `ryk-ctl` and the
+  headset buttons poke `--serve` over its socket. Not implemented: a `SIGUSR1` rewind and a `/rr`
+  skill.
+- **Barge-in** (stop current, speak new automatically) — nicer for rapid re-selection. The
+  kill path now exists (`kill_sink`), and `ryk-ctl cancel` stops the running text and everything
+  queued, after which a new `--send` plays normally. What is still deferred in favor of the queue
+  is doing that automatically when a new selection arrives.
 - **Idle auto-shutdown** (`RYK_IDLE_TIMEOUT`, default 1800s) so a forgotten daemon doesn't
   linger. Implemented: the accept loop sleeps in `poll(2)` (on the little cores) and exits
   once no jobs are pending and the audio sink has closed. While a job or the sink is live
