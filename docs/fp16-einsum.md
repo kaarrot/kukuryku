@@ -232,6 +232,33 @@ change is no bigger than FP16's own noise: vs the f32 run, 2 of 88
 durations move by one frame (3 before) and the 640-ch features stay at
 34.1 dB (34.0 before).
 
+### 13. Cheaper `sin²` in `Snake` / `SinSq` (landed)
+
+`Snake` (48 per run, ~7% of stage 2) is compute-bound, not bandwidth-bound:
+about 3.3 GB/s on `[1,128,29281]` while the `Sub`/`Mul`/`Add` passes beside
+it run at 11–15 GB/s. It evaluated `ssin_f32` (cephes, octant select and two
+polynomials) and squared it. `sin_sq_f32` uses that sin² has period π:
+reduce to w in [-π/2, π/2], then a degree-8 polynomial in w², evaluated with
+Estrin's scheme because Horner's FMA chain was latency-bound once vectorized
+(3.77 → 3.14 ns/element for the same coefficients). The rounding uses the
+1.5·2²³ trick so it vectorizes without libm `roundf` on x86 builds.
+`Sin` itself still uses `ssin_f32`.
+
+- Single thread, A76, `[1,128,29281]`: 5.2 → 3.1 ns/element.
+- In the stage-2 profile (alternating A/B, one 107-token sentence): `Snake`
+  0.292 s → 0.187–0.190 s (7.0% → ~4.6% of stage 2). Wall RTF moved within run
+  noise (±0.03), so treat it as ~2.4% of stage 2, not a visible RTF step.
+- Error against f64: 2.8e-7 absolute for |r| < 12000 (`ssin_f32` was 1.1e-7;
+  f16 noise downstream is ~1e-3). Past ~1e5 an f32 phase has no resolution
+  left, and `ssin_f32` is garbage there too, so there is no clamp: one cost
+  1.1 of 4.2 ns/element and bought nothing the old kernel had.
+- Output: durations unchanged (same sample count), 22% of samples
+  bit-identical, spectral convergence 0.012 and LSD 1.65 dB against the old
+  FP16 output (the rejected `Deconv` change in #11 moved SC by 0.064).
+  Perturbing the sine at 1e-7 flips f16 roundings in the next conv, which the
+  vocoder then spreads, so waveform SNR (35 dB) is the wrong yardstick; listen
+  to it before trusting it.
+
 ### Low-value / dismissed
 
 - PGO: 1–4%, works in Termux.

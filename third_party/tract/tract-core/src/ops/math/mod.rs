@@ -756,6 +756,47 @@ fn ssin_f32(xin: f32) -> f32 {
     f32::from_bits(mag.to_bits() ^ sign)
 }
 
+// `sin(r)²` for the Snake path, ~2.8e-7 abs error (ssin_f32 + a square is ~1.1e-7;
+// f16 noise downstream is ~1e-3). sin² has period pi, so one reduction to
+// w in [-pi/2, pi/2] and a degree-8 polynomial in w² replace ssin_f32's octant
+// select and two polynomials. The Taylor series of sin²w is evaluated with Estrin's
+// scheme: Horner's 8-deep FMA chain is latency-bound once vectorized, Estrin's is 4.
+// 3.1 ns/element against 5.2 for ssin_f32 on an A76, single thread.
+//
+// `n = round(r/pi)` uses the 1.5*2^23 trick (round-half-even, valid for |r/pi| < 2^22)
+// so it vectorizes without libm `roundf` or SSE4.1. pi is split in two so `n * PI_HI`
+// is exact for |n| < 4096, so the error stays under 5e-7 for |r| < 12000. Past ~1e5 an
+// f32 phase has an ulp above 0.008 rad, so the input carries no phase to preserve;
+// the result is then garbage (as ssin_f32's is, its i32 octant overflows), and NaN
+// stays NaN. Snake's inputs are alpha * activation, far inside the range. A clamp
+// to keep the result finite cost 1.1 of the 4.2 ns/element, so there is none.
+#[inline(always)]
+fn sin_sq_f32(r: f32) -> f32 {
+    const INV_PI: f32 = 0.318_309_9;
+    const PI_HI: f32 = 3.140_625; // 12 significant bits
+    const PI_LO: f32 = 9.676_536e-4; // pi - PI_HI
+    const ROUND: f32 = 12_582_912.0; // 1.5 * 2^23
+    // Taylor coefficients of sin²w in w²: (-1)^(k+1) 2^(2k-1) / (2k)!, k = 1..8. The
+    // dropped k = 9 term is 7e-8 at w = pi/2.
+    const C1: f32 = 1.0;
+    const C2: f32 = -3.333_333_3e-1;
+    const C3: f32 = 4.444_444_4e-2;
+    const C4: f32 = -3.174_603_2e-3;
+    const C5: f32 = 1.410_934_7e-4;
+    const C6: f32 = -4.275_559_8e-6;
+    const C7: f32 = 9.396_834_8e-8;
+    const C8: f32 = -1.566_139_1e-9;
+
+    let n = (r * INV_PI + ROUND) - ROUND;
+    let w = (r - n * PI_HI) - n * PI_LO;
+    let y = w * w;
+    let y2 = y * y;
+    let y4 = y2 * y2;
+    let lo = (C1 + C2 * y) + y2 * (C3 + C4 * y);
+    let hi = (C5 + C6 * y) + y2 * (C7 + C8 * y);
+    (lo + y4 * hi) * y
+}
+
 element_wise!(sin, Sin,
     [f32] => |_, xs| { par_elementwise(xs, |x| *x = ssin_f32(*x)); Ok(()) },
     [f16, f64] => |_, xs| { par_elementwise(xs, |x| *x = x.sin()); Ok(()) }
@@ -764,10 +805,10 @@ q: [i8, u8, i32] => f32::sin);
 
 // Fused sin-then-square: `Square(Sin(x))`, decluttered from that pair (see
 // declutter_square). One memory pass over the large [1,C,F] tensors instead of two.
-// The f32 path uses the vectorized ssin_f32 (Lever 3b); f16/f64 keep exact `.sin()`.
+// The f32 path uses the vectorized sin_sq_f32; f16/f64 keep exact `.sin()`.
 // Kokoro's 48 Snake activations (`x + (1/a)*sin(a*x)^2`) drive this.
 element_wise!(sin_sq, SinSq,
-    [f32] => |_, xs| { par_elementwise(xs, |x| { let s = ssin_f32(*x); *x = s * s; }); Ok(()) },
+    [f32] => |_, xs| { par_elementwise(xs, |x| *x = sin_sq_f32(*x)); Ok(()) },
     [f16, f64] => |_, xs| { par_elementwise(xs, |x| *x = x.sin().powi(2)); Ok(()) }
 );
 
@@ -803,8 +844,7 @@ impl ElementWiseMiniOp for Snake {
         if alpha.len() == 1 && inv.len() == 1 {
             let (a, inv_a) = (alpha[0], inv[0]);
             par_elementwise(xs, |x| {
-                let s = ssin_f32(a * *x);
-                *x += inv_a * s * s;
+                *x += inv_a * sin_sq_f32(a * *x);
             });
             return Ok(());
         }
@@ -819,8 +859,7 @@ impl ElementWiseMiniOp for Snake {
                     }
                     let (a, inv_a) = (alpha[ci], inv[ci]);
                     for x in row.iter_mut() {
-                        let s = ssin_f32(a * *x);
-                        *x += inv_a * s * s;
+                        *x += inv_a * sin_sq_f32(a * *x);
                     }
                 });
             }
@@ -1070,8 +1109,40 @@ mod tests {
         Ok(())
     }
 
+    /// `sin_sq_f32` stays within 5e-7 of the f64 value for |r| < 12000, including
+    /// multiples of pi/2 where the reduction flips, and never leaves [0, 1] there.
+    #[test]
+    fn sin_sq_f32_matches_f64() {
+        let mut worst = 0f64;
+        let mut check = |r: f32| {
+            let got = super::sin_sq_f32(r);
+            let expect = (r as f64).sin().powi(2);
+            worst = worst.max((got as f64 - expect).abs());
+            assert!((0.0..=1.0).contains(&got), "sin_sq_f32({r}) = {got} outside [0, 1]");
+        };
+        let mut r = -300.0f32;
+        while r < 300.0 {
+            check(r);
+            r += 0.00137;
+        }
+        let mut r = -12_000.0f32;
+        while r < 12_000.0 {
+            check(r);
+            r += 0.031;
+        }
+        for k in -200..=200 {
+            let half_pi = k as f32 * std::f32::consts::FRAC_PI_2;
+            for d in [-1e-3f32, 0.0, 1e-3] {
+                check(half_pi + d);
+            }
+        }
+        assert!(worst < 5e-7, "worst abs error {worst:e}");
+        assert!(super::sin_sq_f32(f32::NAN).is_nan());
+        assert_eq!(super::sin_sq_f32(0.0), 0.0);
+    }
+
     /// `Add(x, Mul(SinSq(Mul(x, α)), 1/α))` becomes one Snake pass, and the
-    /// values match the f32 formula (not a looser fast-math sin).
+    /// values match the exact formula.
     #[test]
     fn snake_fuses_and_matches_ssin() -> TractResult<()> {
         let mut model = TypedModel::default();
@@ -1100,8 +1171,8 @@ mod tests {
         for c in 0..2 {
             for f in 0..4 {
                 let x = xs[c * 4 + f];
-                let s = super::ssin_f32(alphas[c] * x);
-                let expect = x + invs[c] * s * s;
+                let s = (alphas[c] as f64 * x as f64).sin();
+                let expect = (x as f64 + invs[c] as f64 * s * s) as f32;
                 let g = got[c * 4 + f];
                 assert!((g - expect).abs() < 1e-5, "c={c} f={f} got {g} expect {expect}");
             }
