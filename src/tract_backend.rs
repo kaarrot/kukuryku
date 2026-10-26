@@ -363,7 +363,9 @@ fn fp16_enabled() -> Result<bool> {
     }
 }
 
-/// Translate a node to f16 only when it is a GEMM-like op (MatMul/Gemm/Conv).
+/// Seed predicate: translate a node to f16 only when it is a GEMM-like op
+/// (MatMul/Gemm/Conv/EinSum). [`fp16_nodes_to_translate`] grows this set into
+/// the shape-only ops, biases, residual Adds and scale Muls around the GEMMs.
 ///
 /// `op_type` is the *actual* op kind (`node.op().name()`); filtering by op
 /// type matters because an earlier declutter pass can fuse e.g. Add+Snake
@@ -378,8 +380,9 @@ fn fp16_enabled() -> Result<bool> {
 /// `OptAddByScalar`, `OptSubByScalar`, `OptAddUnicast`) was tried and
 /// *doubled* the Cast count (335 → 748) and silenced the output — translating
 /// isolated scalar ops creates new f16↔f32 boundaries instead of merging
-/// existing ones. A neighborhood-aware translator would be needed to realise
-/// the 16% Cast share theoretically available.
+/// existing ones. The neighborhood-aware pass that was missing then is
+/// [`fp16_nodes_to_translate`]: it only promotes a scalar op when it extends an
+/// f16 region that a GEMM already started (docs/fp16-einsum.md #15).
 fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
     const DENY_OPS: &[&str] = &[
         "Snake",
@@ -416,6 +419,107 @@ fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
     ACCEPT_OPS.iter().any(|a| op_type.contains(a))
 }
 
+/// Check whether an outlet is a float constant whose values all fit in finite f16.
+fn konst_fits_f16(fact: &TypedFact) -> bool {
+    let Some(ref k) = fact.konst else { return false };
+    if !k.datum_type().is_float() {
+        return false;
+    }
+    let Ok(f32s) = k.cast_to::<f32>() else { return false };
+    let Ok(slice) = f32s.as_slice::<f32>() else { return false };
+    slice.iter().all(|v| v.is_finite() && v.abs() <= 65504.0)
+}
+
+/// Compute the set of node IDs to translate to f16.
+///
+/// Starts from the core GEMM ops (`fp16_translate_node`) and propagates forward
+/// in topological order through:
+/// - shape-only `AxisOp`s (`Reshape`, `MoveAxis`, `AddAxis`, `RmAxis`) whose input
+///   is already in f16,
+/// - `Add` nodes where one input is in f16 and the other is a finite-f16 constant
+///   (allowing `OptMatMul::fuse` to fuse GEMM/1x1-Conv biases in-register instead
+///   of emitting a `Cast(f16 -> f32)` followed by an unfused `OptAddUnicast`),
+/// - `Add` nodes where both inputs are already in f16 and no successor is `Scan`
+///   (fusing Stage 2 residual/skip `Add`s into `OptMatMul` via `AddUnicast` while
+///   keeping Stage 1's BiLSTM recurrent gate sums in f32 for exact duration parity),
+/// - `Mul` nodes where one input is in f16, the other is a finite-f16 constant,
+///   and all consumers are GEMM ops (keeping Stage 1 Q/K attention scaling in f16
+///   end-to-end without a `Cast(f16 -> f32) -> Mul -> Cast(f32 -> f16)` round-trip).
+///
+/// `KOKORO_FP16_FUSE_BIAS=0` skips the propagation and returns the seed set.
+/// `m_source` nodes are never added. Constant operands are only accepted when
+/// every value is finite and `|v| <= 65504`; tiny values are *not* checked, so
+/// anything below f16's subnormal range flushes to zero.
+fn fp16_nodes_to_translate(model: &TypedModel) -> std::collections::HashSet<usize> {
+    use std::collections::HashSet;
+    let mut in_f16: HashSet<usize> = model
+        .nodes()
+        .iter()
+        .filter(|n| fp16_translate_node(n.op().name().as_ref(), &n.name))
+        .map(|n| n.id)
+        .collect();
+
+    if std::env::var("KOKORO_FP16_FUSE_BIAS").ok().as_deref() == Some("0") {
+        return in_f16;
+    }
+
+    let order = model
+        .eval_order()
+        .unwrap_or_else(|_| (0..model.nodes().len()).collect());
+    for nid in order {
+        if in_f16.contains(&nid) {
+            continue;
+        }
+        let node = model.node(nid);
+        if node.name.contains("m_source") {
+            continue;
+        }
+        let op_type = node.op().name();
+        if node.op_is::<tract_onnx::tract_core::ops::change_axes::AxisOp>()
+            && node.inputs.len() == 1
+            && in_f16.contains(&node.inputs[0].node)
+        {
+            in_f16.insert(nid);
+            continue;
+        }
+        if op_type == "Add" && node.inputs.len() == 2 {
+            let (i0, i1) = (node.inputs[0], node.inputs[1]);
+            let f0_in = in_f16.contains(&i0.node);
+            let f1_in = in_f16.contains(&i1.node);
+            let f0_const = model.outlet_fact(i0).is_ok_and(konst_fits_f16);
+            let f1_const = model.outlet_fact(i1).is_ok_and(konst_fits_f16);
+            let feeds_scan = node.outputs.iter().any(|o| {
+                o.successors
+                    .iter()
+                    .any(|s| model.node(s.node).op().name() == "Scan")
+            });
+            if (f0_in && f1_const) || (f1_in && f0_const) || (f0_in && f1_in && !feeds_scan) {
+                in_f16.insert(nid);
+                continue;
+            }
+        }
+        if op_type == "Mul" && node.inputs.len() == 2 {
+            let (i0, i1) = (node.inputs[0], node.inputs[1]);
+            let f0_in = in_f16.contains(&i0.node);
+            let f1_in = in_f16.contains(&i1.node);
+            let f0_const = model.outlet_fact(i0).is_ok_and(konst_fits_f16);
+            let f1_const = model.outlet_fact(i1).is_ok_and(konst_fits_f16);
+            // Only translate constant-scale Mul when its consumers are all GEMM ops.
+            let feeds_gemm = node.outputs.len() == 1
+                && !node.outputs[0].successors.is_empty()
+                && node.outputs[0].successors.iter().all(|s| {
+                    let succ = model.node(s.node);
+                    fp16_translate_node(succ.op().name().as_ref(), &succ.name)
+                });
+            if ((f0_in && f1_const) || (f1_in && f0_const)) && feeds_gemm {
+                in_f16.insert(nid);
+                continue;
+            }
+        }
+    }
+    in_f16
+}
+
 /// Cast matching f32 weights to f16 inside `model`. Does not touch the ONNX
 /// files. Only called once [`fp16_enabled`] has confirmed fp16 SIMD.
 fn apply_fp16(model: &mut TypedModel, path: &Path) -> Result<()> {
@@ -426,19 +530,15 @@ fn apply_fp16(model: &mut TypedModel, path: &Path) -> Result<()> {
             "[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten"
         );
     }
-    let translated = model
-        .nodes()
-        .iter()
-        .filter(|n| fp16_translate_node(n.op().name().as_ref(), &n.name))
-        .count();
+    let translate_ids = fp16_nodes_to_translate(model);
+    let translated = translate_ids.len();
     let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("?");
     eprintln!("[kokoro] fp16 {stem}: {translated} of {} nodes translated", model.nodes().len());
 
     let translator =
-        tract_onnx::tract_core::floats::FloatPrecisionTranslator::<f32, f16>::with_filter(|node| {
-            let op_type = node.op().name();
-            fp16_translate_node(op_type.as_ref(), &node.name)
-        });
+        tract_onnx::tract_core::floats::FloatPrecisionTranslator::<f32, f16>::with_filter(
+            move |node| translate_ids.contains(&node.id),
+        );
     model.transform(&translator)?;
     Ok(())
 }
@@ -1716,5 +1816,173 @@ mod cpuset_tests {
         // The m_source harmonic subgraph is f32 end-to-end even on otherwise
         // acceptable op types.
         assert!(!fp16_translate_node("Conv", "/m_source/conv"));
+    }
+
+    /// `nk,mk->nm` f32 GEMM, the shape tract's declutter gives a Gemm / 1x1 Conv.
+    fn gemm_nm() -> tract_onnx::tract_core::ops::einsum::EinSum {
+        tract_onnx::tract_core::ops::einsum::EinSum {
+            axes: "nk,mk->nm".parse().unwrap(),
+            operating_dt: f32::datum_type(),
+            q_params: None,
+        }
+    }
+
+    /// GEMM -> bias Add -> Reshape -> scale Mul -> GEMM: every non-GEMM node in the
+    /// chain must follow the GEMMs into f16, and the bias must then fuse into the
+    /// first `OptMatMul` instead of surviving as a standalone Add.
+    #[test]
+    fn fp16_propagates_to_gemm_bias_and_fuses_into_opt_matmul() -> Result<()> {
+        use tract_onnx::tract_core::ops::change_axes::AxisOp;
+        use tract_onnx::tract_core::ops::einsum::EinSum;
+        use tract_onnx::tract_core::ops::math::{add, mul};
+        use tract_onnx::tract_core::ops::matmul::optimized::{OptMatMul, ProtoFusedSpec};
+
+        let mut model = TypedModel::default();
+        let x = model.add_source("x", TypedFact::dt_shape(f32::datum_type(), &[4, 8]))?;
+        let w = model.add_const("w", Tensor::from_shape(&[16, 8], &vec![0.1f32; 16 * 8])?)?;
+        let b = model.add_const("b", Tensor::from_shape(&[1, 16], &vec![0.25f32; 16])?)?;
+        let scale = model.add_const("scale", Tensor::from_shape(&[1, 1, 1], &[0.125f32])?)?;
+        // mm2 is `nhk,mhk->nhm` over the [4,2,8] reshape, so `w2` is [m=4,h=2,k=8].
+        let w2 = model.add_const("w2", Tensor::from_shape(&[4, 2, 8], &vec![0.1f32; 4 * 2 * 8])?)?;
+
+        let mm1 = model.wire_node("mm1", gemm_nm(), &[x, w])?[0];
+        let biased = model.wire_node("mm1_bias", add(), &[mm1, b])?[0];
+        let reshaped = model.wire_node(
+            "reshape",
+            AxisOp::Reshape(1, tvec!(16.into()), tvec!(2.into(), 8.into())),
+            &[biased],
+        )?[0];
+        let scaled = model.wire_node("q_scale", mul(), &[reshaped, scale])?[0];
+        let mm2 = model.wire_node(
+            "mm2",
+            EinSum {
+                axes: "nhk,mhk->nhm".parse().unwrap(),
+                operating_dt: f32::datum_type(),
+                q_params: None,
+            },
+            &[scaled, w2],
+        )?[0];
+        model.set_output_outlets(&[mm2])?;
+
+        let ids = fp16_nodes_to_translate(&model);
+        assert!(ids.contains(&mm1.node), "EinSum mm1 must be in f16");
+        assert!(ids.contains(&biased.node), "GEMM bias Add must propagate f16");
+        assert!(ids.contains(&reshaped.node), "AxisOp after f16 must propagate f16");
+        assert!(ids.contains(&scaled.node), "scale Mul feeding EinSum must propagate f16");
+        assert!(ids.contains(&mm2.node), "EinSum mm2 must be in f16");
+
+        apply_fp16(&mut model, Path::new("test.onnx"))?;
+        let opt = model.into_optimized()?;
+        let ops: Vec<String> = opt.nodes().iter().map(|n| n.op().name().into_owned()).collect();
+        // `AddAxis` also contains "Add", so match the standalone kernels exactly.
+        let standalone_adds: Vec<&String> =
+            ops.iter().filter(|n| *n == "Add" || n.starts_with("OptAdd")).collect();
+        assert!(
+            standalone_adds.is_empty(),
+            "mm1_bias must fuse into OptMatMul, got ops: {ops:?}"
+        );
+        let fused_bias = opt.nodes().iter().filter_map(|n| n.op_as::<OptMatMul>()).any(|mm| {
+            mm.micro_ops
+                .iter()
+                .any(|op| matches!(op, ProtoFusedSpec::BinPerRow(..) | ProtoFusedSpec::BinPerCol(..)))
+        });
+        assert!(fused_bias, "no OptMatMul carries a per-row/col bias, got ops: {ops:?}");
+        Ok(())
+    }
+
+    /// Each guard in `fp16_nodes_to_translate` keeps its node in f32, while the
+    /// matching positive case (`residual`) is promoted. Checked on the ids and on
+    /// the dtype the translator actually produced.
+    #[test]
+    fn fp16_propagation_guards_keep_unsafe_nodes_in_f32() -> Result<()> {
+        use tract_onnx::tract_core::ops::math::{add, mul};
+        use tract_onnx::tract_core::ops::scan::{InputMapping, OutputMapping, Scan, ScanInfo};
+
+        let mut model = TypedModel::default();
+        let x = model.add_source("x", TypedFact::dt_shape(f32::datum_type(), &[4, 8]))?;
+        let y = model.add_source("y", TypedFact::dt_shape(f32::datum_type(), &[4, 16]))?;
+        let w = model.add_const("w", Tensor::from_shape(&[16, 8], &vec![0.1f32; 16 * 8])?)?;
+        let w3 = model.add_const("w3", Tensor::from_shape(&[16, 16], &vec![0.1f32; 16 * 16])?)?;
+        let konst = |model: &mut TypedModel, name: &str, v: f32| -> TractResult<OutletId> {
+            model.add_const(name, Tensor::from_shape(&[1, 16], &vec![v; 16])?)
+        };
+        let b = konst(&mut model, "b", 0.25)?;
+        let big = konst(&mut model, "big", 1e6)?;
+        let inf = konst(&mut model, "inf", f32::INFINITY)?;
+        let scale = model.add_const("scale", Tensor::from_shape(&[1, 1], &[0.125f32])?)?;
+
+        let mm_a = model.wire_node("mm_a", gemm_nm(), &[x, w])?[0];
+        let mm_b = model.wire_node("mm_b", gemm_nm(), &[x, w])?[0];
+
+        // Two f16 inputs and no Scan consumer: promoted (Stage 2 residual Add).
+        let residual = model.wire_node("residual", add(), &[mm_a, mm_b])?[0];
+
+        // Two f16 inputs, but a Scan consumes the sum: stays f32 (Stage 1 BiLSTM gates).
+        let gate_sum = model.wire_node("gate_sum", add(), &[mm_a, mm_b])?[0];
+        let mut body = TypedModel::default();
+        let s = body.add_source("s", TypedFact::dt_shape(f32::datum_type(), &[1, 16]))?;
+        let o = body.wire_node("body_add", add(), &[s, s])?[0];
+        body.set_output_outlets(&[o])?;
+        let step = ScanInfo { axis: 0, chunk: 1 };
+        let scan = Scan {
+            body,
+            input_mapping: vec![InputMapping::Scan(step)],
+            output_mapping: vec![OutputMapping {
+                scan: Some((0, step)),
+                full_dim_hint: None,
+                last_value_slot: None,
+                state: false,
+            }],
+            ..Default::default()
+        };
+        let scan_out = model.wire_node("scan", scan, &[gate_sum])?[0];
+
+        // The constant operand does not fit f16: stays f32.
+        let overflow = model.wire_node("overflow_bias", add(), &[mm_a, big])?[0];
+        let infinite = model.wire_node("inf_bias", add(), &[mm_a, inf])?[0];
+        // The other operand is neither f16 nor a constant: stays f32.
+        let nonconst = model.wire_node("nonconst_add", add(), &[mm_a, y])?[0];
+        // The m_source harmonic subgraph is f32 end to end.
+        let source_bias = model.wire_node("/m_source/bias", add(), &[mm_a, b])?[0];
+
+        // A scale Mul is promoted only if *every* consumer is a GEMM.
+        let mul_mixed = model.wire_node("mul_mixed", mul(), &[mm_a, scale])?[0];
+        let mm_c = model.wire_node("mm_c", gemm_nm(), &[mul_mixed, w3])?[0];
+        let mixed_sink = model.wire_node("mixed_sink", add(), &[mul_mixed, y])?[0];
+        let mul_other = model.wire_node("mul_other", mul(), &[mm_b, scale])?[0];
+        let other_sink = model.wire_node("other_sink", add(), &[mul_other, y])?[0];
+
+        model.set_output_outlets(&[
+            scan_out, residual, overflow, infinite, nonconst, source_bias, mm_c, mixed_sink,
+            other_sink,
+        ])?;
+
+        let ids = fp16_nodes_to_translate(&model);
+        for name in ["mm_a", "mm_b", "mm_c", "residual"] {
+            assert!(ids.contains(&model.node_by_name(name)?.id), "{name} must be in f16");
+        }
+        let f32_nodes = [
+            "gate_sum",
+            "overflow_bias",
+            "inf_bias",
+            "nonconst_add",
+            "/m_source/bias",
+            "mul_mixed",
+            "mul_other",
+        ];
+        for name in f32_nodes {
+            assert!(!ids.contains(&model.node_by_name(name)?.id), "{name} must stay f32");
+        }
+
+        // The translator must honour the set: same answer on the produced graph.
+        apply_fp16(&mut model, Path::new("test.onnx"))?;
+        let dt = |name: &str| -> TractResult<DatumType> {
+            Ok(model.node_by_name(name)?.outputs[0].fact.datum_type)
+        };
+        assert_eq!(dt("residual")?, f16::datum_type());
+        for name in f32_nodes {
+            assert_eq!(dt(name)?, f32::datum_type(), "{name} must stay f32 after translation");
+        }
+        Ok(())
     }
 }

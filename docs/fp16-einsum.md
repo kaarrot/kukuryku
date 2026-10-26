@@ -192,7 +192,9 @@ profile shows these casts growing.
 
 A fixpoint pass that promoted `OptMulByScalar` etc. to f16 when it
 reduced boundary Casts was tried and gave zero measurable RTF
-improvement for ~75 lines of code. Reverted.
+improvement for ~75 lines of code. Reverted. (That version promoted scalar ops
+on their own. #15 landed a different one: it only extends an f16 region that a
+GEMM already started, and it fuses the bias into the GEMM.)
 
 ### 11. ConvTranspose (`Deconv`) in f16 (tested, not landed)
 
@@ -298,6 +300,68 @@ Not done, and where the rest is: f16 input (reading the conv output directly dro
 Cast in, about half of the 7% Cast share) and fusing the Snake / LeakyRelu that consumes
 the result and writing f16 (drops the Cast out and a pass). Those change the data path,
 not just the order of the same operations, so they need their own parity story.
+
+### 15. Grow the f16 region across biases, residual Adds, AxisOps and Q/K scale Muls (landed)
+
+`Stage::build` runs `declutter()` before `apply_fp16`. That lowers every 1x1 `Conv` and
+`Gemm` to an `EinSum` followed by a separate `Add(Const bias)` and a few `AxisOp`s
+(`Reshape`, `MoveAxis`, `AddAxis`, `RmAxis`). The filter only matched the GEMM, so the
+translator put a `Cast(f16 -> f32)` right after each `EinSum`. That Cast is what stopped
+`OptMatMul::fuse` from absorbing the bias (`BinPerRow` / `BinPerCol` / `BinScalar`) and
+the residual Add (`AddUnicast`) into the arm64fp16 microkernel epilogue.
+
+`fp16_nodes_to_translate` (`src/tract_backend.rs`) starts from the GEMM seeds
+(`fp16_translate_node`) and walks `eval_order()` once, adding:
+
+| Node | Added when |
+|---|---|
+| shape-only `AxisOp` | its input is already f16 |
+| `Add` | one input is f16 and the other is a constant whose values are all finite and `\|v\| <= 65504`: the GEMM / 1x1-Conv bias |
+| `Add` | both inputs are f16 and the Add does not feed a `Scan` directly: Stage 2 residual and skip Adds |
+| `Mul` | one input is f16, the other a finite-f16 constant, and *every* consumer is a GEMM: Stage 1 Q/K attention scaling |
+
+`m_source` nodes are never added. The Scan guard is what keeps Stage 1's BiLSTM gate sums
+in f32; without it the token durations are not exact. The Mul guard avoids the failure
+the `fp16_translate_node` comment describes: a scale Mul with an f32 consumer only moves
+the Cast. `KOKORO_FP16_FUSE_BIAS=0`
+skips the walk and restores the GEMM-only set (despite the name it controls all four rules).
+
+Measured in the commit (86 tokens, 5.50 s of audio, `KOKORO_GOVERNOR=off`):
+
+- Translated nodes: Stage 1 181 -> 324, Stage 2 247 -> 486.
+- Standalone Adds fused into `OptMatMul`: Stage 1 -80 (`OptAddUnicast` 180 -> 100),
+  Stage 2 -220 (`OptAddUnicast` 194 -> 41, `OptAddByScalar` 67 -> 0).
+- Casts: Stage 1 274 -> 197, Stage 2 353 -> 331.
+- Infer RTF 0.989 -> 0.917-0.935, wall RTF 1.024 -> 0.946-0.964.
+- Against the f32 run (`KOKORO_TRACT_FP16=0`): Stage 1 rounded durations match 88/88
+  tokens (main: 2/88 differ); the Stage 1 512-ch feature tensor is bit-identical to main;
+  Stage 2 spectral convergence 0.1360 (main 0.1696), LSD 4.78 dB (main 4.79 dB). The
+  baseline is main at the time of the commit, so do not compare these SC figures with the
+  table in #11.
+
+Limits that were not measured or not closed:
+
+- **One sentence.** The RTF gain is 0.05-0.07 against a wall-RTF noise of about +-0.03
+  (#13). Before trusting it, run alternating A/B rounds over several sentences, a long one
+  included. The residual stream now accumulates in f16, so also check for non-finite
+  values in the Stage 1 / Stage 2 outputs.
+- **The Scan guard looks one hop ahead.** `Add -> AxisOp -> Scan` is not caught: the Add
+  goes to f16 and a Cast lands in front of the Scan. It works on today's graphs (88/88
+  durations) but nothing enforces it.
+- **The constant check only bounds the top.** A value below f16's range (|v| under about
+  6e-8) flushes to zero and one under 6.1e-5 loses precision. Nobody has checked whether
+  any constant the rule accepts in the two stages is that small.
+
+Tests (`cpuset_tests` in `src/tract_backend.rs`):
+`fp16_propagates_to_gemm_bias_and_fuses_into_opt_matmul` checks that GEMM -> bias ->
+Reshape -> scale Mul -> GEMM goes to f16 and that the bias ends up inside an `OptMatMul`
+(`BinPerRow` / `BinPerCol`) with no standalone Add left.
+`fp16_propagation_guards_keep_unsafe_nodes_in_f32` checks that the Scan, non-fitting
+constant (too large, infinite), non-constant operand, `m_source` and
+Mul-with-a-non-GEMM-consumer cases stay f32, on both the id set and the dtype the
+translator produced. `fp16_filter_is_gemm_only` still pins only the seed predicate. The
+`KOKORO_FP16_FUSE_BIAS=0` path has no test: mutating the environment would race with the
+other tests.
 
 ### Low-value / dismissed
 
