@@ -383,6 +383,7 @@ fn fp16_enabled() -> Result<bool> {
 fn fp16_translate_node(op_type: &str, node_name: &str) -> bool {
     const DENY_OPS: &[&str] = &[
         "Snake",
+        "AdaIN",
         "SinSq",
         "InstanceNorm",
         "LayerNorm",

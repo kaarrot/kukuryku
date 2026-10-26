@@ -259,6 +259,46 @@ Estrin's scheme because Horner's FMA chain was latency-bound once vectorized
   vocoder then spreads, so waveform SNR (35 dB) is the wrong yardstick; listen
   to it before trusting it.
 
+### 14. Fused AdaIN: instance norm + affine in one op (landed)
+
+Stage 2 has 65 `Reduce<Sum>` nodes; 62 of them are the mean of an AdaIN instance norm
+that lowers to ten tract nodes and six full passes over the activation, all
+memory-bound at 11-15 GB/s:
+`Reduce<Sum>`, `Mul(1/F)`, `Sub`, `Reduce<SumOfSquares>`, `Mul(1/F)`, `Add(eps)`,
+`Rsqrt`, `Mul`, `Mul(1+gamma)`, `Add(beta)`. Together that was ~0.39 s of a
+~4.1 s stage-2 profile. The `AdaIN` op (`tract-core/src/ops/math/mod.rs`, hooked
+in `Add`'s declutter after Snake) does it per `(n, c)` row: read for the mean, read
+for the variance, write once. A row is at most 117 KB, so the second read and the
+write hit L2.
+
+- Matches `Add(Mul(g, Mul(Sub(x, Mul(Sum(x), d)), Rsqrt(Mul(SumSq, d) + eps))), beta)`
+  in either operand order, with single consumers throughout, `xc` read only by the
+  variance and the multiply, f32, a leading 1 and a known C, and nothing removed
+  being a model output. 62 of the 65 match; the other three (e.g. `F0.0/norm1`, whose
+  centred value has a second reader) have a different shape and stay unfused. The `1/F` factors are `Recip` nodes under the symbolic plan, so
+  they are inputs to the op and multiplied where the graph multiplied them, not
+  assumed to be 1/F.
+- **Numerics: bit-identical to the unfused graph.** The first version summed in f32
+  and the audio moved by 0.0416 spectral convergence / 2.8 dB LSD (Snake alone: 0.012):
+  tract's `SumOfSquares` accumulates in f64 and `Sum` is the tract-linalg `sum_f32`
+  kernel, so every row's mean and variance came out a few ulps different, and f16
+  spread that. Now the op calls the same `sum_f32` and the same f64 lane scheme (the
+  centred value formed on the fly), and applies `((x - mean) * rs) * g + beta` in the
+  graph's order. The WAV md5 equals the Snake-commit build's on four inputs (31,800 to
+  674,400 samples, 1 to 77 words). The f64 variance costs nothing measurable: `AdaIN`
+  is 0.121 s with it and 0.124 s with f32.
+- Stage 2, three alternating rounds, one 107-token sentence, cool phone: 4.09 s ->
+  3.82 s (-6.6%). `AdaIN` takes 0.12 s in place of ~0.39 s of separate ops. Infer RTF
+  1.041 -> 1.006, wall RTF 1.078 -> 1.044. Stage-2 node count 1892 -> 1334.
+- Standalone kernel (A76, one thread, `[1,128,29281]`): 9.3 ms for the six passes vs
+  5.6 ms fused.
+- `AdaIN` is in the FP16 deny list; it stays f32, so a Cast still sits on each side.
+
+Not done, and where the rest is: f16 input (reading the conv output directly drops the
+Cast in, about half of the 7% Cast share) and fusing the Snake / LeakyRelu that consumes
+the result and writing f16 (drops the Cast out and a pass). Those change the data path,
+not just the order of the same operations, so they need their own parity story.
+
 ### Low-value / dismissed
 
 - PGO: 1–4%, works in Termux.

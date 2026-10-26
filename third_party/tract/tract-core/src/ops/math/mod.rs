@@ -21,7 +21,7 @@ mod complex;
 pub use complex::{ComplexToInnerDim, InnerDimToComplex};
 
 bin_to_super_type!(add, Add,
-                   declutter: try_fuse_snake,
+                   declutter: try_fuse_add,
                    linalg: Add,
                    neutral_element: 0,
                    validation: Validation::Rounding,
@@ -961,6 +961,316 @@ fn const_f32s(t: &Tensor) -> Option<Vec<f32>> {
     Some(s.to_vec())
 }
 
+/// Instance norm with a per-channel affine, `((x - mean) * rsqrt(var + eps)) * g + beta`,
+/// over each `(n, c)` row of an `[N, C, F]` tensor, in one op. Bit-identical to the
+/// unfused graph (see [`adain_row`]).
+///
+/// Kokoro's vocoder has 62 of these (AdaIN: `g` is `1 + gamma`, `beta` comes from the
+/// style vector). Tract lowers each to `Reduce<Sum>`, `Mul`, `Sub`,
+/// `Reduce<SumOfSquares>`, `Mul`, `Add`, `Rsqrt`, `Mul`, `Mul`, `Add`: six full passes
+/// over the activation, memory-bound at 11-15 GB/s. Here a row (117 KB at most) is read
+/// for the mean, again for the variance, and written once while still in L2.
+///
+/// The `1/F` factors and eps arrive as inputs and are multiplied exactly where the
+/// unfused graph multiplies them, so the fusion does not have to prove anything about
+/// F (under the symbolic plan they are runtime `Recip` nodes).
+///
+/// Inputs: x `[N, C, F]`, g `[1, C, 1]`, beta `[1, C, 1]`, d_mean, d_var, eps (one
+/// element each). f32 only.
+#[derive(Debug, Clone)]
+struct AdaIn;
+
+impl Op for AdaIn {
+    fn name(&self) -> StaticName {
+        "AdaIN".into()
+    }
+
+    fn same_as(&self, other: &dyn Op) -> bool {
+        other.downcast_ref::<AdaIn>().is_some()
+    }
+
+    op_as_typed_op!();
+}
+
+const ADAIN_LANES: usize = 8;
+
+/// One row, in place. The two reductions are exactly what the unfused graph runs, so
+/// the result is bit-identical to it: `Reduce<Sum>` is tract-linalg's `sum_f32` kernel,
+/// and `Reduce<SumOfSquares>` (`sum_sq_f32` in nn/reduce.rs) squares in f32 and
+/// accumulates in 8 f64 lanes, remainder first. The centred value is formed on the fly
+/// instead of materialising `Sub`'s output. The apply keeps the unfused association,
+/// `((x - mean) * rs) * g + beta`. An f32 accumulation here moved the audio by 0.04
+/// spectral convergence for no speed worth that.
+#[inline(always)]
+fn adain_row(row: &mut [f32], d_mean: f32, d_var: f32, eps: f32, g: f32, beta: f32) {
+    let sum = (tract_linalg::ops().sum_f32)().run_with_params(&*row, ()).unwrap();
+    let mean = sum * d_mean;
+
+    let mut acc = [0f64; ADAIN_LANES];
+    let mut chunks = row.chunks_exact(ADAIN_LANES);
+    for c in &mut chunks {
+        for l in 0..ADAIN_LANES {
+            let d = c[l] - mean;
+            acc[l] += (d * d) as f64;
+        }
+    }
+    let mut sum_sq = 0f64;
+    for &x in chunks.remainder() {
+        let d = x - mean;
+        sum_sq += (d * d) as f64;
+    }
+    for l in 0..ADAIN_LANES {
+        sum_sq += acc[l];
+    }
+    let rs = ((sum_sq as f32) * d_var + eps).sqrt().recip();
+
+    for x in row.iter_mut() {
+        *x = ((*x - mean) * rs) * g + beta;
+    }
+}
+
+impl EvalOp for AdaIn {
+    fn is_stateless(&self) -> bool {
+        true
+    }
+
+    fn eval(&self, mut inputs: TVec<TValue>) -> TractResult<TVec<TValue>> {
+        ensure!(inputs.len() == 6, "AdaIN takes x, g, beta, d_mean, d_var, eps");
+        let x = inputs.remove(0);
+        ensure!(x.datum_type() == f32::datum_type(), "AdaIN only runs on f32");
+        ensure!(x.rank() == 3, "AdaIN needs [N, C, F], got {:?}", x.shape());
+        let (n, c, f) = (x.shape()[0], x.shape()[1], x.shape()[2]);
+        let scalar = |t: &TValue| -> TractResult<f32> { t.cast_to_scalar::<f32>() };
+        let (d_mean, d_var, eps) = (scalar(&inputs[2])?, scalar(&inputs[3])?, scalar(&inputs[4])?);
+        let g = inputs[0].cast_to::<f32>()?;
+        let g = g.as_slice::<f32>()?;
+        let beta = inputs[1].cast_to::<f32>()?;
+        let beta = beta.as_slice::<f32>()?;
+        ensure!(
+            (g.len() == c || g.len() == n * c) && beta.len() == g.len(),
+            "AdaIN: g/beta have {}/{} values for {n} x {c} rows",
+            g.len(),
+            beta.len()
+        );
+        let mut x = x.into_tensor();
+        if n * c * f > 0 {
+            let xs = x.as_slice_mut::<f32>()?;
+            for ni in 0..n {
+                let block = &mut xs[ni * c * f..(ni + 1) * c * f];
+                let off = if g.len() == c { 0 } else { ni * c };
+                tract_linalg::multithread::par_chunks_mut(block, f, |ci, row| {
+                    if ci >= c || row.len() != f {
+                        return;
+                    }
+                    adain_row(row, d_mean, d_var, eps, g[off + ci], beta[off + ci]);
+                });
+            }
+        }
+        Ok(tvec!(x.into_tvalue()))
+    }
+}
+
+impl TypedOp for AdaIn {
+    fn output_facts(&self, inputs: &[&TypedFact]) -> TractResult<TVec<TypedFact>> {
+        ensure!(inputs.len() == 6, "AdaIN takes x, g, beta, d_mean, d_var, eps");
+        ensure!(
+            inputs.iter().all(|f| f.datum_type == f32::datum_type()),
+            "AdaIN only runs on f32"
+        );
+        ensure!(inputs[0].rank() == 3, "AdaIN needs [N, C, F]");
+        Ok(tvec!(inputs[0].without_value()))
+    }
+
+    as_op!();
+}
+
+fn is_mul(node: &TypedNode) -> bool {
+    node.op_as::<TypedBinOp>().is_some_and(|b| b.0.is::<Mul>())
+}
+
+fn is_sub(node: &TypedNode) -> bool {
+    node.op_as::<TypedBinOp>().is_some_and(|b| b.0.is::<Sub>())
+}
+
+fn is_add(node: &TypedNode) -> bool {
+    node.op_as::<TypedBinOp>().is_some_and(|b| b.0.is::<Add>())
+}
+
+/// A reduction over the last axis of a rank-3 tensor.
+fn is_reduce_f(node: &TypedNode, reducer: crate::ops::nn::Reducer) -> bool {
+    node.op_as::<crate::ops::nn::Reduce>()
+        .is_some_and(|r| r.reducer == reducer && r.axes.len() == 1 && r.axes[0] == 2)
+}
+
+/// An f32 outlet holding exactly one element.
+fn is_f32_scalar(model: &TypedModel, o: OutletId) -> bool {
+    model.outlet_fact(o).is_ok_and(|f| {
+        f.datum_type == f32::datum_type() && f.shape.iter().all(|d| d.as_i64() == Some(1))
+    })
+}
+
+/// The instance-norm half of the pattern: `Mul(Sub(x, mean), Rsqrt(var + eps))`.
+struct NormParts {
+    x: OutletId,
+    d_mean: OutletId,
+    d_var: OutletId,
+    eps: OutletId,
+    /// Every node the fusion removes, bar the final `Mul(g, ·)` and `Add`.
+    inner: [usize; 8],
+}
+
+fn adain_norm(model: &TypedModel, n_out: OutletId) -> Option<NormParts> {
+    let n = model.node(n_out.node);
+    if n_out.slot != 0 || !is_mul(n) || !sole_consumer(model, n.id) {
+        return None;
+    }
+    [(n.inputs[0], n.inputs[1]), (n.inputs[1], n.inputs[0])]
+        .into_iter()
+        .find_map(|(xc_out, rs_out)| adain_norm_with(model, n, xc_out, rs_out))
+}
+
+fn adain_norm_with(
+    model: &TypedModel,
+    n: &TypedNode,
+    xc_out: OutletId,
+    rs_out: OutletId,
+) -> Option<NormParts> {
+    use crate::ops::nn::Reducer;
+    // xc = x - mean, read by the variance reduction and by `n` and nothing else.
+    let xc = model.node(xc_out.node);
+    if xc_out.slot != 0 || !is_sub(xc) {
+        return None;
+    }
+    let x = xc.inputs[0];
+    // mean = Sum(x) * d_mean
+    let mean_out = xc.inputs[1];
+    let mean = model.node(mean_out.node);
+    if mean_out.slot != 0 || !is_mul(mean) || !sole_consumer(model, mean.id) {
+        return None;
+    }
+    let (sum_id, d_mean) = [(mean.inputs[0], mean.inputs[1]), (mean.inputs[1], mean.inputs[0])]
+        .into_iter()
+        .find_map(|(s_out, d)| {
+            let s = model.node(s_out.node);
+            (s_out.slot == 0
+                && is_reduce_f(s, Reducer::Sum)
+                && s.inputs[0] == x
+                && sole_consumer(model, s.id))
+            .then_some((s.id, d))
+        })?;
+    // rs = Rsqrt(SumOfSquares(xc) * d_var + eps)
+    let rs = model.node(rs_out.node);
+    let ew = rs.op_as::<crate::ops::element_wise::ElementWiseOp>()?;
+    if rs_out.slot != 0 || !ew.0.is::<Rsqrt>() || ew.1.is_some() || !sole_consumer(model, rs.id) {
+        return None;
+    }
+    let e_out = rs.inputs[0];
+    let e = model.node(e_out.node);
+    if e_out.slot != 0 || !is_add(e) || !sole_consumer(model, e.id) {
+        return None;
+    }
+    let (v_out, eps) = [(e.inputs[0], e.inputs[1]), (e.inputs[1], e.inputs[0])]
+        .into_iter()
+        .find(|(v, eps)| {
+            is_mul(model.node(v.node))
+                && model.outlet_fact(*eps).is_ok_and(|f| f.konst.is_some())
+        })?;
+    let v = model.node(v_out.node);
+    if v_out.slot != 0 || !sole_consumer(model, v.id) {
+        return None;
+    }
+    let (ss_id, d_var) = [(v.inputs[0], v.inputs[1]), (v.inputs[1], v.inputs[0])]
+        .into_iter()
+        .find_map(|(ss_out, d)| {
+            let ss = model.node(ss_out.node);
+            (ss_out.slot == 0
+                && is_reduce_f(ss, Reducer::SumOfSquares)
+                && ss.inputs[0] == xc_out
+                && sole_consumer(model, ss.id))
+            .then_some((ss.id, d))
+        })?;
+    let readers = &xc.outputs[0].successors;
+    if readers.len() != 2
+        || !readers.iter().any(|r| r.node == ss_id)
+        || !readers.iter().any(|r| r.node == n.id)
+    {
+        return None;
+    }
+    Some(NormParts {
+        x,
+        d_mean,
+        d_var,
+        eps,
+        inner: [xc.id, mean.id, sum_id, rs.id, e.id, v.id, ss_id, n.id],
+    })
+}
+
+/// Fold `Add(Mul(g, Mul(Sub(x, mean), Rsqrt(var + eps))), beta)` into [`AdaIn`].
+/// Runs from `Add`'s declutter, once tract has lowered `InstanceNormalization`'s
+/// `ReduceMean`/`Div`/`Sqrt` to `Reduce`, `Mul(Recip)` and `Rsqrt`.
+fn try_fuse_adain(model: &TypedModel, add: &TypedNode) -> TractResult<Option<TypedModelPatch>> {
+    if add.inputs.len() != 2 || add.outputs[0].fact.datum_type != f32::datum_type() {
+        return Ok(None);
+    }
+    for (m_out, beta) in [(add.inputs[0], add.inputs[1]), (add.inputs[1], add.inputs[0])] {
+        let m = model.node(m_out.node);
+        if m_out.slot != 0 || !is_mul(m) || !sole_consumer(model, m.id) {
+            continue;
+        }
+        for (n_out, g) in [(m.inputs[0], m.inputs[1]), (m.inputs[1], m.inputs[0])] {
+            let Some(p) = adain_norm(model, n_out) else { continue };
+            // Gates the eval relies on: f32 x of rank 3 with a leading 1 and a known C,
+            // per-channel g and beta, one-element d_mean/d_var/eps.
+            let xf = model.outlet_fact(p.x)?;
+            let (gf, bf) = (model.outlet_fact(g)?, model.outlet_fact(beta)?);
+            let per_channel = |f: &TypedFact, c: i64| {
+                f.datum_type == f32::datum_type()
+                    && f.rank() == 3
+                    && f.shape[0].as_i64() == Some(1)
+                    && f.shape[1].as_i64() == Some(c)
+                    && f.shape[2].as_i64() == Some(1)
+            };
+            if xf.datum_type != f32::datum_type() || xf.rank() != 3 {
+                continue;
+            }
+            let Some(c) = xf.shape[1].as_i64() else { continue };
+            if xf.shape[0].as_i64() != Some(1)
+                || !per_channel(gf, c)
+                || !per_channel(bf, c)
+                || ![p.d_mean, p.d_var, p.eps].iter().all(|o| is_f32_scalar(model, *o))
+            {
+                continue;
+            }
+            // A removed node that is also a model output would lose its value.
+            let outputs = model.output_outlets()?;
+            if p.inner.iter().chain([&m.id]).any(|id| outputs.iter().any(|o| o.node == *id)) {
+                continue;
+            }
+            let mut patch = TypedModelPatch::default();
+            let mut taps = tvec!();
+            for o in [p.x, g, beta, p.d_mean, p.d_var, p.eps] {
+                taps.push(patch.tap_model(model, o)?);
+            }
+            let wire = patch.wire_node(&add.name, AdaIn, &taps)?[0];
+            patch.shunt_outside(model, add.id.into(), wire)?;
+            return Ok(Some(patch));
+        }
+    }
+    Ok(None)
+}
+
+/// `Add`'s declutter: Snake first, then AdaIN. Each only matches its own shape.
+fn try_fuse_add(
+    op: &Add,
+    model: &TypedModel,
+    node: &TypedNode,
+) -> TractResult<Option<TypedModelPatch>> {
+    if let Some(patch) = try_fuse_snake(op, model, node)? {
+        return Ok(Some(patch));
+    }
+    try_fuse_adain(model, node)
+}
+
 element_wise!(tan, Tan, [f16, f32, f64] => |_, xs| {
     xs.iter_mut().for_each(|x| *x = x.tan());
     Ok(())
@@ -1139,6 +1449,69 @@ mod tests {
         assert!(worst < 5e-7, "worst abs error {worst:e}");
         assert!(super::sin_sq_f32(f32::NAN).is_nan());
         assert_eq!(super::sin_sq_f32(0.0), 0.0);
+    }
+
+    /// The chain tract leaves for InstanceNormalization plus a style affine, on a
+    /// small concrete tensor. `d` (1/F) is a source so declutter cannot fold it, as
+    /// in the symbolic plan where it is a runtime `Recip`.
+    fn adain_chain(xc_is_output: bool) -> TractResult<TypedModel> {
+        use crate::ops::nn::{Reduce, Reducer};
+        let mut model = TypedModel::default();
+        let x = model.add_source("x", f32::fact([1, 2, 8]))?;
+        let d = model.add_source("d", f32::fact([1, 1, 1]))?;
+        let g = model.add_source("g", f32::fact([1, 2, 1]))?;
+        let b = model.add_source("b", f32::fact([1, 2, 1]))?;
+        let eps = model.add_const("eps", Tensor::from_shape(&[1, 1, 1], &[1e-5f32])?)?;
+        let sum = model.wire_node("sum", Reduce::new(tvec!(2), Reducer::Sum), &[x])?[0];
+        let mean = model.wire_node("mean", mul(), &[sum, d])?[0];
+        let xc = model.wire_node("xc", sub(), &[x, mean])?[0];
+        let ss = model.wire_node("ss", Reduce::new(tvec!(2), Reducer::SumOfSquares), &[xc])?[0];
+        let var = model.wire_node("var", mul(), &[ss, d])?[0];
+        let ve = model.wire_node("ve", add(), &[var, eps])?[0];
+        let rs = model.wire_node("rs", rsqrt(), &[ve])?[0];
+        let norm = model.wire_node("norm", mul(), &[xc, rs])?[0];
+        let scaled = model.wire_node("scaled", mul(), &[g, norm])?[0];
+        let y = model.wire_node("y", add(), &[scaled, b])?[0];
+        model.set_output_outlets(&if xc_is_output { vec![y, xc] } else { vec![y] })?;
+        Ok(model)
+    }
+
+    /// The whole chain becomes one AdaIN op, and it computes what the chain did.
+    #[test]
+    fn adain_fuses_and_matches_the_unfused_chain() -> TractResult<()> {
+        let model = adain_chain(false)?;
+        let fused = model.clone().into_decluttered()?;
+        let names: Vec<String> = fused.nodes.iter().map(|n| n.op().name().to_string()).collect();
+        assert!(names.iter().any(|n| n == "AdaIN"), "not fused: {names:?}");
+        for gone in ["Reduce<Sum>", "Reduce<SumOfSquares>", "Rsqrt"] {
+            assert!(!names.iter().any(|n| n == gone), "{gone} survived: {names:?}");
+        }
+        let xs: Vec<f32> = (0..16).map(|i| ((i * 7 % 11) as f32) * 0.3 - 1.2).collect();
+        let inputs = || -> TractResult<TVec<TValue>> {
+            Ok(tvec!(
+                Tensor::from_shape(&[1, 2, 8], &xs)?.into(),
+                Tensor::from_shape(&[1, 1, 1], &[1.0f32 / 8.0])?.into(),
+                Tensor::from_shape(&[1, 2, 1], &[1.3f32, 0.7])?.into(),
+                Tensor::from_shape(&[1, 2, 1], &[-0.2f32, 0.4])?.into(),
+            ))
+        };
+        let want = SimplePlan::new(&model)?.run(inputs()?)?;
+        let got = SimplePlan::new(&fused)?.run(inputs()?)?;
+        let (want, got) = (want[0].as_slice::<f32>()?, got[0].as_slice::<f32>()?);
+        for (i, (w, g)) in want.iter().zip(got).enumerate() {
+            assert!((w - g).abs() < 1e-5, "i={i} fused {g} unfused {w}");
+        }
+        Ok(())
+    }
+
+    /// If something else needs an intermediate (here `xc` is a model output), the
+    /// chain stays as it is.
+    #[test]
+    fn adain_skips_when_an_intermediate_is_an_output() -> TractResult<()> {
+        let fused = adain_chain(true)?.into_decluttered()?;
+        let names: Vec<String> = fused.nodes.iter().map(|n| n.op().name().to_string()).collect();
+        assert!(!names.iter().any(|n| n == "AdaIN"), "fused although xc is an output: {names:?}");
+        Ok(())
     }
 
     /// `Add(x, Mul(SinSq(Mul(x, α)), 1/α))` becomes one Snake pass, and the
