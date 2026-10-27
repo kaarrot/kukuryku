@@ -11,6 +11,9 @@
 //! speech, which is worse than leaving a stray marker in. In particular
 //! `3 * 4 = 12` and `snake_case_name` pass through untouched; see [`strip`].
 //!
+//! After the markup is gone, a last pass ([`strip_symbols`]) blanks the plain
+//! symbols espeak would still name aloud (`+ ~ = * # \ / :`, arrows, emoji).
+//!
 //! Not handled on purpose: 4-space indented code blocks. They are
 //! indistinguishable from a wrapped list continuation, so dropping them would
 //! silently eat prose.
@@ -101,8 +104,45 @@ fn finish_paragraph(lines: &[String]) -> Vec<String> {
         .lines()
         // Removing a marker leaves a hole (`text ![img](u) more`); collapse the
         // runs so the spoken text — and --show-text — reads cleanly.
-        .map(|l| l.split_whitespace().collect::<Vec<_>>().join(" "))
+        .map(|l| strip_symbols(l).split_whitespace().collect::<Vec<_>>().join(" "))
         .filter(|l| !l.is_empty())
+        .collect()
+}
+
+/// Blank out the symbols espeak names aloud ("plus", "tilde", "slash", "colon",
+/// "right arrow", a whole emoji description) that carry nothing when you listen to
+/// notes, keybindings or paths: `~/tasks/x.md`, `+/-`, `:w`, `td:2123`, `a → b`.
+///
+/// Each one becomes a space; the caller collapses the gaps. Two readings are
+/// kept because they are information, not decoration: an arithmetic operator
+/// (`+ = * /`) with a digit on both sides (`3 * 4 = 12`, `1/2`), and a colon with
+/// digits on both sides (`09:00`) or with whitespace after it (`Note: …`, where it
+/// is just a pause). `% $ & @ °` are left alone for the same reason.
+fn strip_symbols(line: &str) -> String {
+    let chars: Vec<char> = line.chars().collect();
+    let digit_beside = |i: usize| {
+        let before = chars[..i].iter().rev().find(|c| !c.is_whitespace());
+        let after = chars[i + 1..].iter().find(|c| !c.is_whitespace());
+        matches!((before, after), (Some(b), Some(a)) if b.is_ascii_digit() && a.is_ascii_digit())
+    };
+    chars
+        .iter()
+        .enumerate()
+        .map(|(i, &c)| {
+            let drop = match c {
+                '~' | '#' | '\\' => true,
+                '+' | '=' | '*' | '/' => !digit_beside(i),
+                ':' => chars.get(i + 1).is_some_and(|n| !n.is_whitespace()) && !digit_beside(i),
+                // Arrows, technical/geometric/misc symbols, dingbats, emoji.
+                '\u{2190}'..='\u{21FF}'
+                | '\u{2300}'..='\u{23FF}'
+                | '\u{25A0}'..='\u{27BF}'
+                | '\u{2B00}'..='\u{2BFF}'
+                | '\u{1F000}'..='\u{1FAFF}' => true,
+                _ => false,
+            };
+            if drop { ' ' } else { c }
+        })
         .collect()
 }
 
@@ -519,7 +559,7 @@ mod tests {
         assert_eq!(strip("## A heading"), "A heading.");
         assert_eq!(strip("### Closed heading ###"), "Closed heading.");
         assert_eq!(strip("# Already done."), "Already done.");
-        assert_eq!(strip("#hashtag not a heading"), "#hashtag not a heading");
+        assert_eq!(strip("#hashtag not a heading"), "hashtag not a heading");
     }
 
     /// Fenced code is unlistenable; the prose around it must still be spoken.
@@ -535,7 +575,7 @@ mod tests {
     /// so only the backticks go.
     #[test]
     fn inline_code_keeps_its_content() {
-        assert_eq!(strip("Call `Pipeline::new` first."), "Call Pipeline::new first.");
+        assert_eq!(strip("Call `Pipeline::new` first."), "Call Pipeline new first.");
         assert_eq!(strip("Use ``a ` b`` here."), "Use a ` b here.");
     }
 
@@ -595,14 +635,14 @@ mod tests {
     /// A backslash-escaped marker meant the literal character.
     #[test]
     fn escapes_yield_the_literal_character() {
-        assert_eq!(strip("a \\* b"), "a * b");
+        assert_eq!(strip("a \\_ b"), "a _ b");
     }
 
     /// Malformed input is common in real notes and must not panic or eat the file.
     #[test]
     fn unterminated_constructs_are_handled() {
         assert_eq!(strip("Before.\n```\nnever closed"), "Before.");
-        assert_eq!(strip("an *unclosed emphasis"), "an *unclosed emphasis");
+        assert_eq!(strip("an *unclosed emphasis"), "an unclosed emphasis");
         assert_eq!(strip("a `unclosed code"), "a `unclosed code");
     }
 
@@ -612,7 +652,28 @@ mod tests {
     fn emphasis_pairs_across_a_line_break() {
         assert_eq!(strip("they are **not shipped\nwith the repo**."), "they are not shipped\nwith the repo.");
         // ...but not across a paragraph break, where an unrelated `*` could match.
-        assert_eq!(strip("a **one\n\ntwo** b"), "a **one\ntwo** b");
+        // The unpaired markers are then left for the symbol pass to blank.
+        assert_eq!(strip("a **one\n\ntwo** b"), "a one\ntwo b");
+    }
+
+    /// Symbols espeak names aloud: keybindings, paths, `file:line`, arrows, emoji.
+    /// All of it is noise when listening, so the symbol goes and the words stay.
+    #[test]
+    fn named_symbols_are_not_spoken() {
+        assert_eq!(strip("keys q, s, +/-, :w, a"), "keys q, s, -, w, a");
+        assert_eq!(strip("see ~/tasks/x.md"), "see tasks x.md");
+        assert_eq!(strip("td:2123 and bin/td"), "td 2123 and bin td");
+        assert_eq!(strip("[fixture] = exact, i+O, ++Nu"), "[fixture] exact, i O, Nu");
+        assert_eq!(strip("a → b ✅ c"), "a b c");
+        assert_eq!(strip("path C:\\dir"), "path C dir");
+    }
+
+    /// The counterpart: where the symbol is the information, it stays.
+    #[test]
+    fn numeric_and_pause_symbols_survive() {
+        for text in ["at 09:00, 1/2 cup", "Note: this", "2 + 2 = 4", "50% of $5 & @home"] {
+            assert_eq!(strip(text), text, "{text:?} must pass through unchanged");
+        }
     }
 
     /// Running the pass twice must not keep eating characters — `--send` and the
