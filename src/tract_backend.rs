@@ -131,7 +131,9 @@ impl Stage {
         }
         if std::env::var_os("KOKORO_TRACT_NAN_TRACE").is_some() {
             nan_trace_run(&self.runnable, ordered, stage)
-        } else if std::env::var_os("KOKORO_TRACT_PROFILE").is_some() {
+        } else if std::env::var_os("KOKORO_TRACT_PROFILE").is_some()
+            || std::env::var_os("KOKORO_TRACT_PROFILE_JSON").is_some()
+        {
             profile_run(&self.runnable, ordered, stage)
         } else {
             self.runnable.run(ordered).with_context(|| format!("running {stage}"))
@@ -148,6 +150,9 @@ impl Stage {
 /// which shapes an aggregated op bucket (e.g. the raw `Mul` bucket) actually is,
 /// so a fusion-gate fix can be scoped correctly. Shapes are read from the live
 /// tensors at eval, so they're concrete even under the symbolic plan.
+/// `KOKORO_TRACT_PROFILE_JSON=<dir>` additionally saves all node timings,
+/// concrete tensor sizes/dtypes and graph edges for fusion investigations.
+/// Timing covers eval only; JSON collection/serialization is outside each timer.
 fn profile_run(
     runnable: &TypedRunnableModel<TypedModel>,
     inputs: TVec<TValue>,
@@ -158,6 +163,8 @@ fn profile_run(
     let top_nodes: Option<usize> = std::env::var("KOKORO_TRACT_PROFILE_NODES")
         .ok()
         .and_then(|v| v.parse().ok());
+    let json_dir = std::env::var_os("KOKORO_TRACT_PROFILE_JSON").map(PathBuf::from);
+    let mut json_nodes = Vec::new();
     let mut state = SimpleState::new(runnable)?;
     // (total secs, call count) keyed by op type name.
     let mut acc: HashMap<String, (f64, usize)> = HashMap::new();
@@ -166,9 +173,35 @@ fn profile_run(
     let mut per_node: HashMap<usize, (String, f64, usize, String, String)> = HashMap::new();
     let out = state.run_plan_with_eval(inputs, |session, op_state, node, input| {
         let in_shapes = top_nodes.map(|_| shape_tag(input.iter().map(|t| t.shape())));
+        let json_inputs = json_dir.as_ref().map(|_| {
+            input.iter().zip(&node.inputs).map(|(t, outlet)| {
+                serde_json::json!({
+                    "node": outlet.node, "slot": outlet.slot,
+                    "dtype": format!("{:?}", t.datum_type()), "shape": t.shape(),
+                    "bytes": t.len() * t.datum_type().size_of(),
+                })
+            }).collect::<Vec<_>>()
+        });
         let t = std::time::Instant::now();
         let r = eval(session, op_state, node, input);
         let dt = t.elapsed().as_secs_f64();
+        if let (Some(inputs), Ok(outputs)) = (json_inputs, &r) {
+            let outputs: Vec<_> = outputs.iter().enumerate().map(|(slot, t)| {
+                let successors: Vec<_> = node.outputs[slot].successors.iter().map(|s| {
+                    serde_json::json!({"node": s.node, "slot": s.slot})
+                }).collect();
+                serde_json::json!({
+                    "slot": slot, "dtype": format!("{:?}", t.datum_type()),
+                    "shape": t.shape(), "bytes": t.len() * t.datum_type().size_of(),
+                    "successors": successors,
+                    "model_output": runnable.model().outputs.contains(&OutletId::new(node.id, slot)),
+                })
+            }).collect();
+            json_nodes.push(serde_json::json!({
+                "id": node.id, "name": node.name, "op": node.op().name(),
+                "seconds": dt, "inputs": inputs, "outputs": outputs,
+            }));
+        }
         let e = acc.entry(node.op().name().into_owned());
         let slot = e.or_insert((0.0, 0));
         slot.0 += dt;
@@ -195,14 +228,27 @@ fn profile_run(
         eprintln!("[kokoro]     {op:<28} {secs:7.3}s  {calls:5}  {:4.1}%", 100.0 * secs / total);
     }
     if let Some(n) = top_nodes {
-        let mut nodes: Vec<_> = per_node.into_values().collect();
-        nodes.sort_by(|a, b| b.1.total_cmp(&a.1));
+        let mut nodes: Vec<_> = per_node.into_iter().collect();
+        nodes.sort_by(|a, b| b.1.1.total_cmp(&a.1.1));
         eprintln!("[kokoro]   {stage} top-{n} nodes (op  total_s  calls  in -> out):");
-        for (op, secs, calls, ins, outs) in nodes.iter().take(n) {
+        for (id, (op, secs, calls, ins, outs)) in nodes.iter().take(n) {
+            let name = &runnable.model().node(*id).name;
             eprintln!(
-                "[kokoro]     {op:<20} {secs:7.3}s  {calls:4}  {ins} -> {outs}",
+                "[kokoro]     {op:<20} {secs:7.3}s  {calls:4}  {ins} -> {outs}  #{id} {name}",
             );
         }
+    }
+    if let Some(dir) = json_dir {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static RUN: AtomicUsize = AtomicUsize::new(0);
+        std::fs::create_dir_all(&dir)?;
+        let run = RUN.fetch_add(1, Ordering::Relaxed);
+        let path = dir.join(format!("{stage}-{}-{run}.json", std::process::id()));
+        let profile = serde_json::json!({
+            "stage": stage, "op_wall_seconds": total, "nodes": json_nodes,
+        });
+        std::fs::write(&path, serde_json::to_vec_pretty(&profile)?)?;
+        eprintln!("[kokoro] {stage} node profile: {}", path.display());
     }
     Ok(out)
 }

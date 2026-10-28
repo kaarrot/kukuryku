@@ -229,8 +229,11 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 (`KOKORO_MODEL` — the HF-repo path of the monolithic model — applies to `kokoro-ort` only;
 `ryk` ignores it, since it runs the split stages, not `model.onnx`.)
 
-Diagnostics (rarely needed): `KOKORO_TRACT_PROFILE=1` prints a per-op stage-2 profile,
-`KOKORO_TRACT_PROFILE_NODES=N` the top-N individual nodes, `KOKORO_TRACT_DUMP=dir` dumps
+Diagnostics (rarely needed): `KOKORO_TRACT_PROFILE=1` prints per-op profiles,
+`KOKORO_TRACT_PROFILE_NODES=N` adds the top-N individual nodes with names and IDs.
+`KOKORO_TRACT_PROFILE_JSON=dir` enables profiling and saves every node's timing,
+tensor sizes/dtypes, and graph edges (inspect with `tools/analyze_fusion_profile.py`).
+`KOKORO_TRACT_DUMP=dir` dumps
 stage-boundary tensors. `tools/bench_conv.sh <label>` runs a fixed-sentence best-of-N timing +
 profile for A/B work.
 
