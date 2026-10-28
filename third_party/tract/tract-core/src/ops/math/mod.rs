@@ -812,6 +812,13 @@ element_wise!(sin_sq, SinSq,
     [f16, f64] => |_, xs| { par_elementwise(xs, |x| *x = x.sin().powi(2)); Ok(()) }
 );
 
+/// One Snake activation, `x + (1/a) * sin(a * x)^2`. Shared by [`Snake`] and the fused
+/// [`AdaIn`] apply loop so the two cannot drift apart.
+#[inline(always)]
+fn snake_f32(x: f32, a: f32, inv_a: f32) -> f32 {
+    x + inv_a * sin_sq_f32(a * x)
+}
+
 /// `x + (1/α) · sin(α · x)²` in one pass over `[1, C, F]`.
 ///
 /// α is per channel (the Snake const of shape `[1, C, 1]`). Fusing deletes the
@@ -843,9 +850,7 @@ impl ElementWiseMiniOp for Snake {
         let inv = &self.inv_alpha;
         if alpha.len() == 1 && inv.len() == 1 {
             let (a, inv_a) = (alpha[0], inv[0]);
-            par_elementwise(xs, |x| {
-                *x += inv_a * sin_sq_f32(a * *x);
-            });
+            par_elementwise(xs, |x| *x = snake_f32(*x, a, inv_a));
             return Ok(());
         }
         if shape.len() == 3 && shape[1] == alpha.len() && alpha.len() == inv.len() && shape[2] > 0 {
@@ -859,7 +864,7 @@ impl ElementWiseMiniOp for Snake {
                     }
                     let (a, inv_a) = (alpha[ci], inv[ci]);
                     for x in row.iter_mut() {
-                        *x += inv_a * sin_sq_f32(a * *x);
+                        *x = snake_f32(*x, a, inv_a);
                     }
                 });
             }
@@ -968,31 +973,77 @@ fn const_f32s(t: &Tensor) -> Option<Vec<f32>> {
 /// Kokoro's vocoder has 62 of these (AdaIN: `g` is `1 + gamma`, `beta` comes from the
 /// style vector). Tract lowers each to `Reduce<Sum>`, `Mul`, `Sub`,
 /// `Reduce<SumOfSquares>`, `Mul`, `Add`, `Rsqrt`, `Mul`, `Mul`, `Add`: six full passes
-/// over the activation, memory-bound at 11-15 GB/s. Here a row (117 KB at most) is read
-/// for the mean, again for the variance, and written once while still in L2.
+/// over the activation, memory-bound at 11-15 GB/s. Here a row (274 KiB for the longest
+/// benchmark sentence) is read for the mean, again for the variance, and written once while
+/// it is still in L2.
 ///
 /// The `1/F` factors and eps arrive as inputs and are multiplied exactly where the
 /// unfused graph multiplies them, so the fusion does not have to prove anything about
 /// F (under the symbolic plan they are runtime `Recip` nodes).
 ///
-/// Inputs: x `[N, C, F]`, g `[1, C, 1]`, beta `[1, C, 1]`, d_mean, d_var, eps (one
-/// element each). f32 only.
-#[derive(Debug, Clone)]
-struct AdaIn;
+/// Every one of the 62 feeds a single Snake or LeakyRelu, and under the FP16 translation
+/// most sit between a `Cast(f16 -> f32)` and a `Cast(f32 -> f16)` (41 of them between
+/// both). Declutter folds those neighbours in ([`AdaIn::declutter`]): the activation runs
+/// in the apply loop, and the casts become a widen into / a narrow out of a row buffer, so
+/// the f32 tensors the casts and the activation used to read and write never exist. Only
+/// the storage changes. The values entering and leaving each f32 step are the ones the
+/// separate nodes produced, and `half`'s slice conversions are the ones `Cast` uses.
+///
+/// Inputs: x `[N, C, F]` (f16 when `in_f16`), g `[1, C, 1]`, beta `[1, C, 1]`, d_mean,
+/// d_var, eps (one element each, f32). Output f16 when `out_f16`.
+#[derive(Debug, Clone, PartialEq)]
+struct AdaIn {
+    act: AdaInAct,
+    in_f16: bool,
+    out_f16: bool,
+}
+
+/// The activation the AdaIN node absorbed. Same arithmetic as the standalone ops.
+#[derive(Debug, Clone, PartialEq)]
+enum AdaInAct {
+    Identity,
+    LeakyRelu(f32),
+    /// Per-channel (or one shared) `alpha` and `1/alpha`, as in [`Snake`].
+    Snake { alpha: Vec<f32>, inv_alpha: Vec<f32> },
+}
+
+impl AdaIn {
+    fn plain() -> AdaIn {
+        AdaIn { act: AdaInAct::Identity, in_f16: false, out_f16: false }
+    }
+}
 
 impl Op for AdaIn {
     fn name(&self) -> StaticName {
-        "AdaIN".into()
+        match self.act {
+            AdaInAct::Identity => "AdaIN",
+            AdaInAct::LeakyRelu(_) => "AdaIN+LeakyRelu",
+            AdaInAct::Snake { .. } => "AdaIN+Snake",
+        }
+        .into()
+    }
+
+    fn info(&self) -> TractResult<Vec<String>> {
+        let dt = |f16: bool| if f16 { "f16" } else { "f32" };
+        Ok(vec![format!("{} -> {}", dt(self.in_f16), dt(self.out_f16))])
     }
 
     fn same_as(&self, other: &dyn Op) -> bool {
-        other.downcast_ref::<AdaIn>().is_some()
+        other.downcast_ref::<AdaIn>().is_some_and(|o| o == self)
     }
 
     op_as_typed_op!();
 }
 
 const ADAIN_LANES: usize = 8;
+
+/// What a row applies after normalising, with the channel's constants picked out.
+#[derive(Clone, Copy)]
+enum RowAct {
+    Identity,
+    LeakyRelu(f32),
+    Snake { a: f32, inv_a: f32 },
+}
 
 /// One row, in place. The two reductions are exactly what the unfused graph runs, so
 /// the result is bit-identical to it: `Reduce<Sum>` is tract-linalg's `sum_f32` kernel,
@@ -1001,8 +1052,24 @@ const ADAIN_LANES: usize = 8;
 /// instead of materialising `Sub`'s output. The apply keeps the unfused association,
 /// `((x - mean) * rs) * g + beta`. An f32 accumulation here moved the audio by 0.04
 /// spectral convergence for no speed worth that.
-#[inline(always)]
-fn adain_row(row: &mut [f32], d_mean: f32, d_var: f32, eps: f32, g: f32, beta: f32) {
+///
+/// `sum_f32` groups the row by the address it starts at (a 16-byte-aligned middle with
+/// padded head and tail, see `reduce_slice_with_alignment`), so a row's address modulo 16
+/// is part of what it computes. Callers must hand over rows with the address phase the
+/// unfused graph's row had ([`with_row_scratch`]).
+///
+/// The activation follows the apply: Snake inside the same loop (the unfused Snake is
+/// the same scalar expression per element), LeakyRelu through the very kernel the
+/// standalone op calls.
+fn adain_row(
+    row: &mut [f32],
+    d_mean: f32,
+    d_var: f32,
+    eps: f32,
+    g: f32,
+    beta: f32,
+    act: RowAct,
+) {
     let sum = (tract_linalg::ops().sum_f32)().run_with_params(&*row, ()).unwrap();
     let mean = sum * d_mean;
 
@@ -1024,9 +1091,43 @@ fn adain_row(row: &mut [f32], d_mean: f32, d_var: f32, eps: f32, g: f32, beta: f
     }
     let rs = ((sum_sq as f32) * d_var + eps).sqrt().recip();
 
-    for x in row.iter_mut() {
-        *x = ((*x - mean) * rs) * g + beta;
+    match act {
+        RowAct::Identity => {
+            for x in row.iter_mut() {
+                *x = ((*x - mean) * rs) * g + beta;
+            }
+        }
+        RowAct::Snake { a, inv_a } => {
+            for x in row.iter_mut() {
+                *x = snake_f32(((*x - mean) * rs) * g + beta, a, inv_a);
+            }
+        }
+        RowAct::LeakyRelu(alpha) => {
+            for x in row.iter_mut() {
+                *x = ((*x - mean) * rs) * g + beta;
+            }
+            (tract_linalg::ops().leaky_relu_f32)().run_with_params(row, alpha).unwrap();
+        }
     }
+}
+
+thread_local! {
+    static ADAIN_ROW: std::cell::RefCell<Vec<f32>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Run `f` on a reusable per-thread f32 row of `len` elements that starts `phase` f32s
+/// (0..4) past a 16-byte boundary, so `sum_f32` groups it the way it grouped the row of
+/// the f32 tensor this scratch stands in for.
+fn with_row_scratch<R>(len: usize, phase: usize, f: impl FnOnce(&mut [f32]) -> R) -> R {
+    debug_assert!(phase < 4);
+    ADAIN_ROW.with(|cell| {
+        let mut buf = cell.borrow_mut();
+        if buf.len() < len + 8 {
+            buf.resize(len + 8, 0.0);
+        }
+        let start = buf.as_ptr().align_offset(16) + phase;
+        f(&mut buf[start..start + len])
+    })
 }
 
 impl EvalOp for AdaIn {
@@ -1035,9 +1136,11 @@ impl EvalOp for AdaIn {
     }
 
     fn eval(&self, mut inputs: TVec<TValue>) -> TractResult<TVec<TValue>> {
+        use tract_data::half::slice::HalfFloatSliceExt;
         ensure!(inputs.len() == 6, "AdaIN takes x, g, beta, d_mean, d_var, eps");
         let x = inputs.remove(0);
-        ensure!(x.datum_type() == f32::datum_type(), "AdaIN only runs on f32");
+        let in_dt = if self.in_f16 { f16::datum_type() } else { f32::datum_type() };
+        ensure!(x.datum_type() == in_dt, "AdaIN expects {in_dt:?}, got {:?}", x.datum_type());
         ensure!(x.rank() == 3, "AdaIN needs [N, C, F], got {:?}", x.shape());
         let (n, c, f) = (x.shape()[0], x.shape()[1], x.shape()[2]);
         let scalar = |t: &TValue| -> TractResult<f32> { t.cast_to_scalar::<f32>() };
@@ -1052,36 +1155,190 @@ impl EvalOp for AdaIn {
             g.len(),
             beta.len()
         );
-        let mut x = x.into_tensor();
-        if n * c * f > 0 {
-            let xs = x.as_slice_mut::<f32>()?;
-            for ni in 0..n {
-                let block = &mut xs[ni * c * f..(ni + 1) * c * f];
-                let off = if g.len() == c { 0 } else { ni * c };
-                tract_linalg::multithread::par_chunks_mut(block, f, |ci, row| {
-                    if ci >= c || row.len() != f {
-                        return;
-                    }
-                    adain_row(row, d_mean, d_var, eps, g[off + ci], beta[off + ci]);
+        if let AdaInAct::Snake { alpha, inv_alpha } = &self.act {
+            ensure!(
+                alpha.len() == inv_alpha.len() && (alpha.len() == 1 || alpha.len() == c),
+                "AdaIN+Snake: {} alphas for {c} channels",
+                alpha.len()
+            );
+        }
+        let out_dt = if self.out_f16 { f16::datum_type() } else { f32::datum_type() };
+        if n * c * f == 0 {
+            return Ok(tvec!(Tensor::zero_dt(out_dt, x.shape())?.into_tvalue()));
+        }
+        // Row `r` is channel `r % c` of batch `r / c`. Every row is independent.
+        let run = |r: usize, row: &mut [f32]| {
+            let (ni, ci) = (r / c, r % c);
+            let off = if g.len() == c { 0 } else { ni * c };
+            let act = match &self.act {
+                AdaInAct::Identity => RowAct::Identity,
+                AdaInAct::LeakyRelu(alpha) => RowAct::LeakyRelu(*alpha),
+                AdaInAct::Snake { alpha, inv_alpha } => {
+                    let i = if alpha.len() == 1 { 0 } else { ci };
+                    RowAct::Snake { a: alpha[i], inv_a: inv_alpha[i] }
+                }
+            };
+            adain_row(row, d_mean, d_var, eps, g[off + ci], beta[off + ci], act);
+        };
+        use tract_linalg::multithread::par_chunks_mut;
+        match (self.in_f16, self.out_f16) {
+            // f32 in place.
+            (false, false) => {
+                let mut x = x.into_tensor();
+                par_chunks_mut(x.as_slice_mut::<f32>()?, f, |r, row| run(r, row));
+                Ok(tvec!(x.into_tvalue()))
+            }
+            // f16 in place; the widened row only ever exists in the scratch. The f32
+            // tensor `Cast` would have made starts 16-byte aligned (allocator), so row
+            // `r` sits `r * f` f32s into it.
+            (true, true) => {
+                let mut x = x.into_tensor();
+                par_chunks_mut(x.as_slice_mut::<f16>()?, f, |r, row| {
+                    with_row_scratch(f, (r * f) % 4, |s| {
+                        row.convert_to_f32_slice(s);
+                        run(r, s);
+                        row.convert_from_f32_slice(s);
+                    })
                 });
+                Ok(tvec!(x.into_tvalue()))
+            }
+            // Widen straight into the output rows, which are then normalised in place.
+            (true, false) => {
+                let src = x.as_slice::<f16>()?;
+                // SAFETY: every row of `out` is written by `convert_to_f32_slice`.
+                let mut out = unsafe { Tensor::uninitialized::<f32>(x.shape())? };
+                par_chunks_mut(out.as_slice_mut::<f32>()?, f, |r, row| {
+                    src[r * f..][..f].convert_to_f32_slice(row);
+                    run(r, row);
+                });
+                Ok(tvec!(out.into_tvalue()))
+            }
+            // The f32 input row stays untouched (it may be shared); the scratch takes its
+            // address phase, and is narrowed into the output.
+            (false, true) => {
+                let src = x.as_slice::<f32>()?;
+                // SAFETY: every row of `out` is written by `convert_from_f32_slice`.
+                let mut out = unsafe { Tensor::uninitialized::<f16>(x.shape())? };
+                par_chunks_mut(out.as_slice_mut::<f16>()?, f, |r, row| {
+                    let from = &src[r * f..][..f];
+                    with_row_scratch(f, (from.as_ptr() as usize & 15) / 4, |s| {
+                        s.copy_from_slice(from);
+                        run(r, s);
+                        row.convert_from_f32_slice(s);
+                    })
+                });
+                Ok(tvec!(out.into_tvalue()))
             }
         }
-        Ok(tvec!(x.into_tvalue()))
     }
 }
 
 impl TypedOp for AdaIn {
     fn output_facts(&self, inputs: &[&TypedFact]) -> TractResult<TVec<TypedFact>> {
         ensure!(inputs.len() == 6, "AdaIN takes x, g, beta, d_mean, d_var, eps");
+        let in_dt = if self.in_f16 { f16::datum_type() } else { f32::datum_type() };
+        ensure!(inputs[0].datum_type == in_dt, "AdaIN expects {in_dt:?} input");
         ensure!(
-            inputs.iter().all(|f| f.datum_type == f32::datum_type()),
-            "AdaIN only runs on f32"
+            inputs[1..].iter().all(|f| f.datum_type == f32::datum_type()),
+            "AdaIN side inputs must be f32"
         );
         ensure!(inputs[0].rank() == 3, "AdaIN needs [N, C, F]");
-        Ok(tvec!(inputs[0].without_value()))
+        let out_dt = if self.out_f16 { f16::datum_type() } else { f32::datum_type() };
+        Ok(tvec!(out_dt.fact(inputs[0].shape.clone())))
+    }
+
+    /// Absorb the neighbours, one per pass: the activation first, then the output cast,
+    /// then the input cast. Each needs its edge to have no other reader and not to be a
+    /// model output, or the value it would drop is still wanted.
+    fn declutter(
+        &self,
+        model: &TypedModel,
+        node: &TypedNode,
+    ) -> TractResult<Option<TypedModelPatch>> {
+        let me = OutletId::new(node.id, 0);
+        let c = model.outlet_fact(node.inputs[0])?.shape.get(1).and_then(|d| d.as_i64());
+        if !self.out_f16 {
+            if let Some(next) = sole_reader(model, me) {
+                if self.act == AdaInAct::Identity {
+                    if let Some(act) = absorbable_act(next, c) {
+                        let op = AdaIn { act, ..self.clone() };
+                        return rewire_adain(model, node, node.inputs[0], op, next.id);
+                    }
+                }
+                if is_cast_to(next, f16::datum_type()) {
+                    let op = AdaIn { out_f16: true, ..self.clone() };
+                    return rewire_adain(model, node, node.inputs[0], op, next.id);
+                }
+            }
+        }
+        if !self.in_f16 {
+            let prev = model.node(node.inputs[0].node);
+            if is_cast_to(prev, f32::datum_type())
+                && model.outlet_fact(prev.inputs[0])?.datum_type == f16::datum_type()
+                && sole_reader(model, node.inputs[0]).is_some_and(|r| r.id == node.id)
+            {
+                let op = AdaIn { in_f16: true, ..self.clone() };
+                return rewire_adain(model, node, prev.inputs[0], op, node.id);
+            }
+        }
+        Ok(None)
     }
 
     as_op!();
+}
+
+/// The one node reading `outlet`, unless it is a model output or has several readers.
+fn sole_reader(model: &TypedModel, outlet: OutletId) -> Option<&TypedNode> {
+    if model.output_outlets().ok()?.contains(&outlet) {
+        return None;
+    }
+    match model.node(outlet.node).outputs.get(outlet.slot)?.successors.as_slice() {
+        [only] => Some(model.node(only.node)),
+        _ => None,
+    }
+}
+
+/// A `Cast` to `to`.
+fn is_cast_to(node: &TypedNode, to: DatumType) -> bool {
+    node.op_as::<crate::ops::cast::Cast>().is_some_and(|cast| cast.to == to)
+}
+
+/// The activation `node` applies, if AdaIN can run it: a Snake or LeakyRelu on f32 whose
+/// alphas fit the `c` channels.
+fn absorbable_act(node: &TypedNode, c: Option<i64>) -> Option<AdaInAct> {
+    let ew = node.op_as::<crate::ops::element_wise::ElementWiseOp>()?;
+    if ew.1.is_some() || node.outputs[0].fact.datum_type != f32::datum_type() {
+        return None;
+    }
+    if let Some(s) = ew.0.downcast_ref::<Snake>() {
+        let fits = s.alpha.len() == s.inv_alpha.len()
+            && (s.alpha.len() == 1 || c == Some(s.alpha.len() as i64));
+        return fits.then(|| AdaInAct::Snake {
+            alpha: s.alpha.clone(),
+            inv_alpha: s.inv_alpha.clone(),
+        });
+    }
+    let leaky = ew.0.downcast_ref::<crate::ops::nn::LeakyRelu>()?;
+    Some(AdaInAct::LeakyRelu(leaky.alpha))
+}
+
+/// Replace `shunt` (the AdaIN itself, or the node absorbed after it) by `op` fed with `x`
+/// and the AdaIN's five side inputs.
+fn rewire_adain(
+    model: &TypedModel,
+    node: &TypedNode,
+    x: OutletId,
+    op: AdaIn,
+    shunt: usize,
+) -> TractResult<Option<TypedModelPatch>> {
+    let mut patch = TypedModelPatch::default();
+    let mut taps = tvec!(patch.tap_model(model, x)?);
+    for o in &node.inputs[1..] {
+        taps.push(patch.tap_model(model, *o)?);
+    }
+    let wire = patch.wire_node(&node.name, op, &taps)?[0];
+    patch.shunt_outside(model, shunt.into(), wire)?;
+    Ok(Some(patch))
 }
 
 fn is_mul(node: &TypedNode) -> bool {
@@ -1251,7 +1508,7 @@ fn try_fuse_adain(model: &TypedModel, add: &TypedNode) -> TractResult<Option<Typ
             for o in [p.x, g, beta, p.d_mean, p.d_var, p.eps] {
                 taps.push(patch.tap_model(model, o)?);
             }
-            let wire = patch.wire_node(&add.name, AdaIn, &taps)?[0];
+            let wire = patch.wire_node(&add.name, AdaIn::plain(), &taps)?[0];
             patch.shunt_outside(model, add.id.into(), wire)?;
             return Ok(Some(patch));
         }
@@ -1455,9 +1712,26 @@ mod tests {
     /// small concrete tensor. `d` (1/F) is a source so declutter cannot fold it, as
     /// in the symbolic plan where it is a runtime `Recip`.
     fn adain_chain(xc_is_output: bool) -> TractResult<TypedModel> {
-        use crate::ops::nn::{Reduce, Reducer};
+        adain_chain_io(xc_is_output, false, false)
+    }
+
+    /// With `f16_io`, the chain sits between `Cast(f16 -> f32)` and `LeakyRelu`,
+    /// `Cast(f32 -> f16)`, the shape the FP16 translation leaves in the vocoder.
+    /// `act_is_output` also makes the activation's output a model output.
+    fn adain_chain_io(
+        xc_is_output: bool,
+        f16_io: bool,
+        act_is_output: bool,
+    ) -> TractResult<TypedModel> {
+        use crate::ops::cast::cast;
+        use crate::ops::nn::{leaky_relu, Reduce, Reducer};
         let mut model = TypedModel::default();
-        let x = model.add_source("x", f32::fact([1, 2, 8]))?;
+        let x = if f16_io {
+            let x16 = model.add_source("x", f16::fact([1, 2, 8]))?;
+            model.wire_node("up", cast(f32::datum_type()), &[x16])?[0]
+        } else {
+            model.add_source("x", f32::fact([1, 2, 8]))?
+        };
         let d = model.add_source("d", f32::fact([1, 1, 1]))?;
         let g = model.add_source("g", f32::fact([1, 2, 1]))?;
         let b = model.add_source("b", f32::fact([1, 2, 1]))?;
@@ -1471,8 +1745,20 @@ mod tests {
         let rs = model.wire_node("rs", rsqrt(), &[ve])?[0];
         let norm = model.wire_node("norm", mul(), &[xc, rs])?[0];
         let scaled = model.wire_node("scaled", mul(), &[g, norm])?[0];
-        let y = model.wire_node("y", add(), &[scaled, b])?[0];
-        model.set_output_outlets(&if xc_is_output { vec![y, xc] } else { vec![y] })?;
+        let mut y = model.wire_node("y", add(), &[scaled, b])?[0];
+        let mut outputs = vec![];
+        if f16_io {
+            y = model.wire_node("act", leaky_relu(0.2), &[y])?[0];
+            if act_is_output {
+                outputs.push(y);
+            }
+            y = model.wire_node("down", cast(f16::datum_type()), &[y])?[0];
+        }
+        outputs.insert(0, y);
+        if xc_is_output {
+            outputs.push(xc);
+        }
+        model.set_output_outlets(&outputs)?;
         Ok(model)
     }
 
@@ -1512,6 +1798,154 @@ mod tests {
         let names: Vec<String> = fused.nodes.iter().map(|n| n.op().name().to_string()).collect();
         assert!(!names.iter().any(|n| n == "AdaIN"), "fused although xc is an output: {names:?}");
         Ok(())
+    }
+
+    /// Between f16 casts the chain, its LeakyRelu and both casts become one op, and it
+    /// reproduces the chain (to f16 rounding: the unfused reductions can differ in the last
+    /// f32 bits from the AdaIN op's).
+    #[test]
+    fn adain_absorbs_activation_and_casts() -> TractResult<()> {
+        let model = adain_chain_io(false, true, false)?;
+        let fused = model.clone().into_decluttered()?;
+        let names: Vec<String> = fused.nodes.iter().map(|n| n.op().name().to_string()).collect();
+        assert!(names.iter().any(|n| n == "AdaIN+LeakyRelu"), "not fused: {names:?}");
+        for gone in ["Cast", "LeakyRelu", "AdaIN"] {
+            assert!(!names.iter().any(|n| n == gone), "{gone} survived: {names:?}");
+        }
+        let xs: Vec<f16> =
+            (0..16).map(|i| f16::from_f32(((i * 7 % 11) as f32) * 0.3 - 1.2)).collect();
+        let inputs = || -> TractResult<TVec<TValue>> {
+            Ok(tvec!(
+                Tensor::from_shape(&[1, 2, 8], &xs)?.into(),
+                Tensor::from_shape(&[1, 1, 1], &[1.0f32 / 8.0])?.into(),
+                Tensor::from_shape(&[1, 2, 1], &[1.3f32, 0.7])?.into(),
+                Tensor::from_shape(&[1, 2, 1], &[-0.2f32, 0.4])?.into(),
+            ))
+        };
+        let want = SimplePlan::new(&model)?.run(inputs()?)?;
+        let got = SimplePlan::new(&fused)?.run(inputs()?)?;
+        assert_eq!(got[0].datum_type(), f16::datum_type());
+        let (want, got) = (want[0].as_slice::<f16>()?, got[0].as_slice::<f16>()?);
+        for (i, (w, g)) in want.iter().zip(got).enumerate() {
+            assert!((w.to_f32() - g.to_f32()).abs() < 2e-3, "i={i} fused {g} unfused {w}");
+        }
+        Ok(())
+    }
+
+    /// A model output on the activation's result keeps the output cast out of the fusion
+    /// (its input is still wanted), but the activation itself still folds in.
+    #[test]
+    fn adain_keeps_a_cast_whose_input_is_an_output() -> TractResult<()> {
+        let fused = adain_chain_io(false, true, true)?.into_decluttered()?;
+        let names: Vec<String> = fused.nodes.iter().map(|n| n.op().name().to_string()).collect();
+        assert!(names.iter().any(|n| n == "AdaIN+LeakyRelu"), "activation not folded: {names:?}");
+        assert!(names.iter().any(|n| n == "Cast"), "output cast was removed: {names:?}");
+        Ok(())
+    }
+
+    /// Every storage combination, activation and row length gives the very bits the
+    /// separate nodes (`Cast`, plain AdaIN, Snake / LeakyRelu, `Cast`) give. The lengths
+    /// walk every address phase of a row, which `sum_f32`'s grouping depends on.
+    #[test]
+    fn adain_fused_forms_match_the_separate_nodes_bit_for_bit() -> TractResult<()> {
+        use crate::ops::element_wise::ElementWiseOp;
+        use crate::ops::nn::leaky_relu;
+        let bits = |t: &Tensor| -> Vec<u32> {
+            let t = t.cast_to::<f32>().unwrap();
+            t.as_slice::<f32>().unwrap().iter().map(|v| v.to_bits()).collect()
+        };
+        let (n, c) = (2usize, 3usize);
+        let alpha = vec![0.5f32, 2.0, 1.5];
+        let inv_alpha: Vec<f32> = alpha.iter().map(|a| 1.0 / a).collect();
+        let acts = [
+            AdaInAct::Identity,
+            AdaInAct::LeakyRelu(0.2),
+            AdaInAct::Snake { alpha: alpha.clone(), inv_alpha: inv_alpha.clone() },
+            AdaInAct::Snake { alpha: vec![0.75], inv_alpha: vec![1.0 / 0.75] },
+        ];
+        for f in [1usize, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 33, 100, 257, 1001] {
+            let xs: Vec<f32> = (0..n * c * f)
+                .map(|i| ((i * 37 % 101) as f32 - 50.0) * 0.07 + (i / f) as f32 * 0.3)
+                .collect();
+            let x32 = Tensor::from_shape(&[n, c, f], &xs)?;
+            let x16 = x32.cast_to::<f16>()?.into_owned();
+            // The reference is built from the same f16-rounded values.
+            let x_up = x16.cast_to::<f32>()?.into_owned();
+            let side = || -> TVec<TValue> {
+                tvec!(
+                    Tensor::from_shape(&[n, c, 1], &[1.3f32, 0.7, 1.1, 0.9, 1.2, 0.8]).unwrap().into(),
+                    Tensor::from_shape(&[n, c, 1], &[-0.2f32, 0.4, 0.1, -0.3, 0.2, 0.0]).unwrap().into(),
+                    Tensor::from_shape(&[1, 1, 1], &[1.0f32 / f as f32]).unwrap().into(),
+                    Tensor::from_shape(&[1, 1, 1], &[1.0f32 / f as f32]).unwrap().into(),
+                    Tensor::from_shape(&[1, 1, 1], &[1e-5f32]).unwrap().into(),
+                )
+            };
+            let with_x = |x: &Tensor| -> TVec<TValue> {
+                let mut v = tvec!(x.clone().into_tvalue());
+                v.extend(side());
+                v
+            };
+            for act in &acts {
+                // Separate nodes, on the widened values.
+                let mut want = AdaIn::plain().eval(with_x(&x_up))?;
+                match act {
+                    AdaInAct::Identity => {}
+                    AdaInAct::LeakyRelu(a) => want = leaky_relu(*a).eval(want)?,
+                    AdaInAct::Snake { alpha, inv_alpha } => {
+                        let op = Snake { alpha: alpha.clone(), inv_alpha: inv_alpha.clone() };
+                        want = ElementWiseOp(Box::new(op), None).eval(want)?;
+                    }
+                }
+                let want32 = want[0].clone().into_tensor();
+                let want16 = want32.cast_to::<f16>()?.into_owned();
+                for (in_f16, out_f16) in [(false, false), (false, true), (true, false), (true, true)]
+                {
+                    let op = AdaIn { act: act.clone(), in_f16, out_f16 };
+                    let got = op.eval(with_x(if in_f16 { &x16 } else { &x_up }))?;
+                    let want = if out_f16 { &want16 } else { &want32 };
+                    assert_eq!(got[0].datum_type(), want.datum_type());
+                    assert_eq!(
+                        bits(&got[0]),
+                        bits(want),
+                        "f={f} {act:?} in_f16={in_f16} out_f16={out_f16}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The scratch row starts where it is told to, whatever the thread's buffer is.
+    #[test]
+    fn row_scratch_has_the_requested_address_phase() {
+        for len in [1usize, 5, 64, 1001, 70_201, 17] {
+            for phase in 0..4 {
+                super::with_row_scratch(len, phase, |s| {
+                    assert_eq!(s.len(), len);
+                    assert_eq!(s.as_ptr() as usize % 16, phase * 4, "len={len} phase={phase}");
+                });
+            }
+        }
+    }
+
+    /// The premise of the phase handling: `adain_row` really does depend on the address
+    /// its row starts at (through `sum_f32`'s grouping), so a fused kernel that moved rows
+    /// to differently-aligned scratch would not reproduce the unfused bits. If this ever
+    /// fails, the phase bookkeeping in `AdaIn::eval` is unnecessary on that CPU.
+    #[test]
+    fn adain_row_depends_on_the_row_address_phase() {
+        let f = 1001usize;
+        let xs: Vec<f32> = (0..f).map(|i| ((i * 37 % 101) as f32 - 50.0) * 0.0713 + 0.3).collect();
+        let run = |phase: usize| -> Vec<u32> {
+            super::with_row_scratch(f, phase, |s| {
+                s.copy_from_slice(&xs);
+                super::adain_row(s, 1.0 / f as f32, 1.0 / f as f32, 1e-5, 1.3, -0.2, super::RowAct::Identity);
+                s.iter().map(|v| v.to_bits()).collect()
+            })
+        };
+        let by_phase: Vec<Vec<u32>> = (0..4).map(run).collect();
+        let distinct = (1..4).filter(|p| by_phase[*p] != by_phase[0]).count();
+        assert!(distinct > 0, "all four address phases gave identical bits");
     }
 
     /// `Add(x, Mul(SinSq(Mul(x, α)), 1/α))` becomes one Snake pass, and the
