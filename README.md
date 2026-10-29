@@ -258,6 +258,15 @@ process first uses a multithreaded matmul. AdaIN/Snake row dispatch is unchanged
 See [the dispatch investigation](docs/tiny-dispatch-investigation.md) for the
 profiling data, latency results and measurement limits.
 
+Contiguous FP32 Resize operations use a specialized last-axis path for
+asymmetric nearest/floor and half-pixel linear interpolation. Six warm A/B pairs
+used about 1% less total inference CPU time, with roughly unchanged elapsed
+generation time and exact raw speech outputs. `TRACT_ONNX_RESIZE_FAST=0` restores
+the previous generic evaluator; the setting is read once per process. The
+linear position table is bounded at 16 KiB on this phone. See
+[the Resize investigation](docs/resize-investigation.md) for profiling data and
+validation. Battery-energy savings remain unmeasured.
+
 ### Markdown is stripped before speaking
 
 Listening to a `.md` file used to mean hearing its syntax: a nested `** bullet **` had every

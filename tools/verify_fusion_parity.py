@@ -81,7 +81,7 @@ def main():
                 env = os.environ.copy()
                 # Avoid inherited diagnostics or scheduler overrides changing a run.
                 for name in list(env):
-                    if name.startswith(("KOKORO_", "RYK_", "TRACT_CPU_")):
+                    if name.startswith(("KOKORO_", "RYK_", "TRACT_CPU_", "TRACT_ONNX_")):
                         del env[name]
                 env.update({
                     "PATH": str(fakebin) + os.pathsep + env["PATH"],

@@ -1,0 +1,75 @@
+{
+  "means": {
+    "A": {
+      "cpu_s": 35.755,
+      "cpu_s_per_audio_s": 1.568201754385965,
+      "infer_s": 18.123333333333335,
+      "infer_rtf": 0.7948333333333334,
+      "synthesis_wall_s": 14.1,
+      "little_cpu_s": 5.433333333333333,
+      "gold_cpu_s": 29.86,
+      "mean_sampled_peak_rss_bytes": 501824170.6666667,
+      "minor_faults": 231669.33333333334
+    },
+    "B": {
+      "cpu_s": 35.38166666666667,
+      "cpu_s_per_audio_s": 1.551827485380117,
+      "infer_s": 18.01833333333333,
+      "infer_rtf": 0.7901666666666667,
+      "synthesis_wall_s": 14.066666666666666,
+      "little_cpu_s": 5.478333333333333,
+      "gold_cpu_s": 29.438333333333333,
+      "mean_sampled_peak_rss_bytes": 511362389.3333333,
+      "minor_faults": 219983.83333333334
+    }
+  },
+  "pairs": [
+    {
+      "round": 1,
+      "cpu_delta_s": -0.2700000000000031,
+      "gold_cpu_delta_s": -0.28000000000000114,
+      "wall_delta_s": 0.10999999999999943
+    },
+    {
+      "round": 2,
+      "cpu_delta_s": -0.2600000000000051,
+      "gold_cpu_delta_s": -0.259999999999998,
+      "wall_delta_s": 0.11000000000000121
+    },
+    {
+      "round": 3,
+      "cpu_delta_s": -0.6599999999999682,
+      "gold_cpu_delta_s": -0.5500000000000043,
+      "wall_delta_s": -0.15000000000000036
+    },
+    {
+      "round": 4,
+      "cpu_delta_s": -0.410000000000025,
+      "gold_cpu_delta_s": -0.3999999999999915,
+      "wall_delta_s": 0.10999999999999943
+    },
+    {
+      "round": 5,
+      "cpu_delta_s": -0.30000000000001137,
+      "gold_cpu_delta_s": -0.5,
+      "wall_delta_s": -0.21999999999999886
+    },
+    {
+      "round": 6,
+      "cpu_delta_s": -0.339999999999975,
+      "gold_cpu_delta_s": -0.5400000000000134,
+      "wall_delta_s": -0.16000000000000014
+    }
+  ],
+  "relative_mean_percent": {
+    "cpu_s": -1.0441430103015903,
+    "cpu_s_per_audio_s": -1.0441430103015903,
+    "infer_s": -0.5793636196432028,
+    "infer_rtf": -0.5871251834766222,
+    "synthesis_wall_s": -0.23640661938534313,
+    "little_cpu_s": 0.8282208588957118,
+    "gold_cpu_s": -1.4121455682071904,
+    "mean_sampled_peak_rss_bytes": 1.900709297042269,
+    "minor_faults": -5.044042658501768
+  }
+}

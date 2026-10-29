@@ -279,9 +279,10 @@ Keep the vocoder kernel selection as it is. AdaIN/activation/precision fusion
 is committed, and existing FP16 tile selection has now been measured. The
 subsequent [tiny-dispatch investigation](tiny-dispatch-investigation.md) found
 3.3% less inference-process CPU time from running small matmuls on the caller;
-AdaIN/Snake row dispatch stays unchanged. The next original implementation item
-is a specialized contiguous one-dimensional Resize path, whose CPU and energy
-benefits remain unmeasured.
+AdaIN/Snake row dispatch stays unchanged. The subsequent
+[Resize investigation](resize-investigation.md) implements a specialized
+contiguous last-axis path, with about 1% less whole-inference CPU time and exact
+raw outputs. Its battery-energy benefit remains unmeasured.
 Parallel Cast tuning remains deferred because its latency improvement did not
 reduce total CPU work.
 

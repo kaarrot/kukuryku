@@ -1,0 +1,22 @@
+{
+  "command": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "--offline",
+    "--bin",
+    "ryk"
+  ],
+  "source_sha256": {
+    "src/tract_backend.rs": "b543db5a90b98345134a7dba33a0432d07a17b1cd5b5bbb6e0eabcbe4e007a1a",
+    "third_party/tract/tract-onnx/src/ops/resize.rs": "7da80a6d4ca77b9c331c1447f90ffc9130c0b57b6bf5f9667aad40f1980bc91e",
+    "third_party/tract/tract-onnx/src/ops/resize/contiguous.rs": "611ac354f34281667072eea2c57457d47ec29fdcf51a2804616b5ccd0f0ea24e",
+    "third_party/tract/tract-linalg/src/frame/mmm/mod.rs": "36d6a281c43c4c3e6c3ea8aa0ccb8b33d4f9cadae9d6e8bf3745c457c3ac052e",
+    "third_party/tract/tract-core/src/ops/einsum/kernel_selection.rs": "a8a0871e875f5852c5ef8b9466bccf5e004de5edb0e1f088d2cbd4cee537424e",
+    "third_party/tract/tract-core/src/ops/math/mod.rs": "2bcabbdb6d633605c017099baf571b7bbdf743df059d03c1ec6963878829966d"
+  },
+  "installed_sha256": "1bcec71b55e8e61f8937a62590c102455ca60938aaf12c24b4ee3352a18fc8cf",
+  "returncode": 0,
+  "elapsed_s": 927.0770416769956
+}

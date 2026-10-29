@@ -1,0 +1,13 @@
+{
+  "commit": "8f4cf95",
+  "binary_sha256": "fcbcb746ff17142e4675e0a3784aef397498623bbd257ff0f2fcc42a6940a90a",
+  "source_sha256": {
+    "src/tract_backend.rs": "b543db5a90b98345134a7dba33a0432d07a17b1cd5b5bbb6e0eabcbe4e007a1a",
+    "third_party/tract/tract-linalg/src/frame/mmm/mod.rs": "36d6a281c43c4c3e6c3ea8aa0ccb8b33d4f9cadae9d6e8bf3745c457c3ac052e",
+    "third_party/tract/tract-core/src/ops/einsum/kernel_selection.rs": "a8a0871e875f5852c5ef8b9466bccf5e004de5edb0e1f088d2cbd4cee537424e",
+    "third_party/tract/tract-core/src/ops/matmul/mod.rs": "79de940c9825a2b68a02588daa2d4a68d5ef609d2a54ec7a027d5687fcdb3731",
+    "third_party/tract/tract-core/src/ops/math/mod.rs": "2bcabbdb6d633605c017099baf571b7bbdf743df059d03c1ec6963878829966d"
+  },
+  "resize_source_sha256": "648bf98c4e212030abe8d11ed2ccc42407e295f68e99eb1154ed93fb8a8e7d7a",
+  "installed_sha256": "1bcec71b55e8e61f8937a62590c102455ca60938aaf12c24b4ee3352a18fc8cf"
+}

@@ -1,0 +1,424 @@
+{
+  "binaries": {
+    "A": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-baseline",
+      "sha256": "fcbcb746ff17142e4675e0a3784aef397498623bbd257ff0f2fcc42a6940a90a"
+    },
+    "B": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-resize-bounded",
+      "sha256": "7afe5677789c2d2a3bfb4d9c5d7c2a9e2804bcf8f64169ee36b46741cb31226f"
+    }
+  },
+  "baseline_environment": {},
+  "variant_environment": {},
+  "sink": "discard; CPU comparison only",
+  "stage1_cpuset": "1",
+  "stage2_cpuset": "4-6",
+  "governor": "off",
+  "warmup": "full corpus once per daemon",
+  "rounds": 4,
+  "runs": [
+    {
+      "label": "A",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 35.79,
+      "cpu_s_per_audio_s": 1.569736842105263,
+      "infer_s": 18.34,
+      "infer_rtf": 0.804,
+      "synthesis_wall_s": 14.3,
+      "elapsed_s": 15.050358848005999,
+      "estimated_gap_s": 4.72,
+      "start_gold_c": 40.5,
+      "end_gold_c": 49.7,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.37,
+            "voluntary_switches": 110,
+            "involuntary_switches": 81
+          },
+          "gold": {
+            "cpu_s": 29.970000000000002,
+            "voluntary_switches": 2617,
+            "involuntary_switches": 5044
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 529424384,
+        "minor_faults_delta": 235070,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.44,
+        "system_cpu_s_delta": 0.9000000000000001,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 35.18,
+      "cpu_s_per_audio_s": 1.542982456140351,
+      "infer_s": 17.83,
+      "infer_rtf": 0.782,
+      "synthesis_wall_s": 13.8,
+      "elapsed_s": 14.040393016010057,
+      "estimated_gap_s": 4.22,
+      "start_gold_c": 40.9,
+      "end_gold_c": 52.4,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.409999999999999,
+            "voluntary_switches": 109,
+            "involuntary_switches": 84
+          },
+          "gold": {
+            "cpu_s": 29.339999999999996,
+            "voluntary_switches": 2560,
+            "involuntary_switches": 5439
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 138,
+        "max_rss_bytes": 513695744,
+        "minor_faults_delta": 211700,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.88000000000001,
+        "system_cpu_s_delta": 0.8500000000000001,
+        "cpu1_reported_khz_range": [
+          1036800,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 35.41,
+      "cpu_s_per_audio_s": 1.5530701754385963,
+      "infer_s": 18.43,
+      "infer_rtf": 0.809,
+      "synthesis_wall_s": 14.39,
+      "elapsed_s": 15.058033848996274,
+      "estimated_gap_s": 4.79,
+      "start_gold_c": 40.2,
+      "end_gold_c": 49.4,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.490000000000001,
+            "voluntary_switches": 111,
+            "involuntary_switches": 86
+          },
+          "gold": {
+            "cpu_s": 29.439999999999998,
+            "voluntary_switches": 2599,
+            "involuntary_switches": 4186
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 490930176,
+        "minor_faults_delta": 227782,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.97999999999999,
+        "system_cpu_s_delta": 0.96,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 35.78,
+      "cpu_s_per_audio_s": 1.5692982456140352,
+      "infer_s": 18.62,
+      "infer_rtf": 0.817,
+      "synthesis_wall_s": 14.61,
+      "elapsed_s": 15.058042234013556,
+      "estimated_gap_s": 4.96,
+      "start_gold_c": 40.5,
+      "end_gold_c": 50.1,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.409999999999999,
+            "voluntary_switches": 108,
+            "involuntary_switches": 85
+          },
+          "gold": {
+            "cpu_s": 29.91,
+            "voluntary_switches": 2572,
+            "involuntary_switches": 6645
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 533491712,
+        "minor_faults_delta": 219114,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.290000000000006,
+        "system_cpu_s_delta": 1.0299999999999998,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 3,
+      "audio_s": 22.8,
+      "cpu_s": 35.82000000000001,
+      "cpu_s_per_audio_s": 1.5710526315789477,
+      "infer_s": 18.66,
+      "infer_rtf": 0.818,
+      "synthesis_wall_s": 14.63,
+      "elapsed_s": 15.03279259800911,
+      "estimated_gap_s": 5.01,
+      "start_gold_c": 40.5,
+      "end_gold_c": 50.9,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.44,
+            "voluntary_switches": 114,
+            "involuntary_switches": 93
+          },
+          "gold": {
+            "cpu_s": 29.9,
+            "voluntary_switches": 2554,
+            "involuntary_switches": 4980
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 487743488,
+        "minor_faults_delta": 210815,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.25,
+        "system_cpu_s_delta": 1.1099999999999999,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 3,
+      "audio_s": 22.8,
+      "cpu_s": 35.30000000000001,
+      "cpu_s_per_audio_s": 1.5482456140350882,
+      "infer_s": 17.87,
+      "infer_rtf": 0.784,
+      "synthesis_wall_s": 13.91,
+      "elapsed_s": 15.072785202006344,
+      "estimated_gap_s": 4.28,
+      "start_gold_c": 39.8,
+      "end_gold_c": 47.8,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.4799999999999995,
+            "voluntary_switches": 107,
+            "involuntary_switches": 88
+          },
+          "gold": {
+            "cpu_s": 29.34,
+            "voluntary_switches": 2571,
+            "involuntary_switches": 5370
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 514445312,
+        "minor_faults_delta": 236682,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.93000000000001,
+        "system_cpu_s_delta": 0.8899999999999997,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 4,
+      "audio_s": 22.8,
+      "cpu_s": 35.04999999999998,
+      "cpu_s_per_audio_s": 1.5372807017543852,
+      "infer_s": 17.7,
+      "infer_rtf": 0.776,
+      "synthesis_wall_s": 13.72,
+      "elapsed_s": 14.044440306985052,
+      "estimated_gap_s": 4.16,
+      "start_gold_c": 40.2,
+      "end_gold_c": 51.7,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.36,
+            "voluntary_switches": 107,
+            "involuntary_switches": 92
+          },
+          "gold": {
+            "cpu_s": 29.250000000000004,
+            "voluntary_switches": 2594,
+            "involuntary_switches": 4834
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 137,
+        "max_rss_bytes": 507179008,
+        "minor_faults_delta": 232957,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.579999999999984,
+        "system_cpu_s_delta": 1.0300000000000002,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 4,
+      "audio_s": 22.8,
+      "cpu_s": 35.73999999999998,
+      "cpu_s_per_audio_s": 1.567543859649122,
+      "infer_s": 18.26,
+      "infer_rtf": 0.801,
+      "synthesis_wall_s": 14.23,
+      "elapsed_s": 15.047100254014367,
+      "estimated_gap_s": 4.62,
+      "start_gold_c": 40.9,
+      "end_gold_c": 48.6,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.4099999999999975,
+            "voluntary_switches": 109,
+            "involuntary_switches": 92
+          },
+          "gold": {
+            "cpu_s": 29.900000000000006,
+            "voluntary_switches": 2568,
+            "involuntary_switches": 5076
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 511172608,
+        "minor_faults_delta": 210347,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.400000000000006,
+        "system_cpu_s_delta": 0.9100000000000001,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    }
+  ],
+  "thread_stats": true,
+  "cpu_telemetry": true
+}

@@ -1,0 +1,39 @@
+{
+  "means": {
+    "A": {
+      "cpu_s": 36.629999999999995,
+      "infer_s": 18.73,
+      "infer_rtf": 0.8214999999999999,
+      "synthesis_wall_s": 14.8,
+      "gold_cpu_s": 30.5
+    },
+    "B": {
+      "cpu_s": 36.739999999999995,
+      "infer_s": 19.57,
+      "infer_rtf": 0.8585,
+      "synthesis_wall_s": 15.309999999999999,
+      "gold_cpu_s": 30.5
+    }
+  },
+  "pairs": [
+    {
+      "round": 1,
+      "cpu_delta_s": -0.45000000000000284,
+      "gold_cpu_delta_s": -0.41999999999999815,
+      "wall_delta_s": -0.40000000000000036
+    },
+    {
+      "round": 2,
+      "cpu_delta_s": 0.6700000000000017,
+      "gold_cpu_delta_s": 0.4200000000000017,
+      "wall_delta_s": 1.4199999999999982
+    }
+  ],
+  "relative_mean_percent": {
+    "cpu_s": 0.30030030030030463,
+    "infer_s": 4.484783769353973,
+    "infer_rtf": 4.5039561777237,
+    "synthesis_wall_s": 3.4459459459459385,
+    "gold_cpu_s": 0.0
+  }
+}

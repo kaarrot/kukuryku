@@ -1,0 +1,14 @@
+{
+  "command": [
+    "probe/resize-tests",
+    "--test-threads=1"
+  ],
+  "passed": 10,
+  "failed": 0,
+  "elapsed_reported_s": 0.68,
+  "source_sha256": {
+    "tools/bench_resize.rs": "be518db541a903b12ecf97ad1241d07894d6a66df3836792a04542eecaea6e97",
+    "third_party/tract/tract-onnx/src/ops/resize/contiguous.rs": "611ac354f34281667072eea2c57457d47ec29fdcf51a2804616b5ccd0f0ea24e"
+  },
+  "test_binary_sha256": "45ca69ef24823b48ce4480b3307fc56bcfdbb53043d7c4433b62d006f18c0023"
+}

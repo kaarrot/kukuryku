@@ -1,0 +1,17 @@
+{
+  "binary_sha256": "7afe5677789c2d2a3bfb4d9c5d7c2a9e2804bcf8f64169ee36b46741cb31226f",
+  "build_s": 848.990151186008,
+  "source_sha256": {
+    "src/tract_backend.rs": "b543db5a90b98345134a7dba33a0432d07a17b1cd5b5bbb6e0eabcbe4e007a1a",
+    "third_party/tract/tract-onnx/src/ops/resize.rs": "7da80a6d4ca77b9c331c1447f90ffc9130c0b57b6bf5f9667aad40f1980bc91e",
+    "third_party/tract/tract-onnx/src/ops/resize/contiguous.rs": "75f3b38d7949549d4c280627cb687f6bf69371873a5684e501b7c7a42899b89b",
+    "third_party/tract/tract-linalg/src/frame/mmm/mod.rs": "36d6a281c43c4c3e6c3ea8aa0ccb8b33d4f9cadae9d6e8bf3745c457c3ac052e",
+    "third_party/tract/tract-core/src/ops/einsum/kernel_selection.rs": "a8a0871e875f5852c5ef8b9466bccf5e004de5edb0e1f088d2cbd4cee537424e",
+    "third_party/tract/tract-core/src/ops/math/mod.rs": "2bcabbdb6d633605c017099baf571b7bbdf743df059d03c1ec6963878829966d"
+  },
+  "parity_cases": 10,
+  "raw_tensors": 40,
+  "raw_outputs_match_saved_main_reference": true,
+  "profiled_resize_calls": 72,
+  "installed_binary_unchanged": true
+}

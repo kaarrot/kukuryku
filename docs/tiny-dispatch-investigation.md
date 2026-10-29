@@ -201,8 +201,10 @@ reason; the present data do not justify broader serialization.
 
 Benchmark work was performed on `main`; the installed `~/bin/ryk` remains on
 playback-control. Direct energy validation still needs warm unplugged comparisons
-with audio playback and controlled screen/background activity. The next original
-implementation item is the specialized one-dimensional Resize path.
+with audio playback and controlled screen/background activity. The subsequent
+[Resize investigation](resize-investigation.md) implements the specialized
+contiguous last-axis path and measures about 1% less whole-inference CPU time,
+with exact raw outputs and roughly unchanged elapsed generation time.
 
 ## Reproduction and artifacts
 

@@ -1,0 +1,18 @@
+{
+  "A": {
+    "cpu_s": 35.765,
+    "infer_s": 18.363333333333333,
+    "synthesis_wall_s": 14.33,
+    "gold_cpu_s": 29.921666666666667,
+    "max_rss_mean_bytes": 509984768,
+    "minor_faults_mean": 222816.33333333334
+  },
+  "B": {
+    "cpu_s": 35.54333333333333,
+    "infer_s": 18.086666666666666,
+    "synthesis_wall_s": 14.086666666666666,
+    "gold_cpu_s": 29.691666666666666,
+    "max_rss_mean_bytes": 554595669.3333334,
+    "minor_faults_mean": 257108.83333333334
+  }
+}

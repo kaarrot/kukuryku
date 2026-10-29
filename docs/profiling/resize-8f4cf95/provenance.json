@@ -1,0 +1,413 @@
+{
+  "baseline_commit": "8f4cf95",
+  "source_directory": "tools/bench_out/resize-8f4cf95",
+  "exports": {
+    "baseline.json": {
+      "source": "baseline.json",
+      "source_sha256": "71f0492f49152ff15e7e06c14abe13bd78ee744518ef0ad8271ee531ab4be158",
+      "normalization": "repository-relative paths"
+    },
+    "baseline-profile.json": {
+      "source": "baseline-profile/summary.json",
+      "source_sha256": "5c3ac18bd7c26d51cef1d7a46cc014ad75732dc0c7e46537c3f6c43461d746c5",
+      "normalization": "repository-relative paths"
+    },
+    "model-attributes.json": {
+      "source": "resize-attributes.json",
+      "source_sha256": "97ed6c2fedf60982e0d43991df0f312bf180097236482502d194590e5662d069",
+      "normalization": "repository-relative paths"
+    },
+    "numeric-tests-v1.json": {
+      "source": "unit-tests.json",
+      "source_sha256": "8312b649b710c536c48f9df7b000c1a6af4b4919b3e7d5608c5b38d003fa5a95",
+      "normalization": "repository-relative paths"
+    },
+    "probe-build-v1.json": {
+      "source": "probe/build.json",
+      "source_sha256": "03f0fefd2a84acc9fca8d19cc0086f0343b77444a0021909aa941534bd93db46",
+      "normalization": "repository-relative paths"
+    },
+    "v1-application-build.json": {
+      "source": "application-build/build.json",
+      "source_sha256": "5df59c2f5e5de469407c0c23a2f1d0145197c671fbd09f92d1ce37cb59c58d16",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-validation.json": {
+      "source": "validation/summary.json",
+      "source_sha256": "521436991e6707657d83f346473115d0c3d69d546786eaef8f7891f035288f94",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-raw-parity.json": {
+      "source": "parity/summary.json",
+      "source_sha256": "bf470c7cc9d43bd1b1f8c80c569c94efa99b778e320a56beb13fc6f57207995e",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-profile-ab.json": {
+      "source": "profile-ab/summary.json",
+      "source_sha256": "2de901c798d1262c407ea26bc666f43e6623ba545b55baafc2a680b69578ddab",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-micro.json": {
+      "source": "micro/summary.json",
+      "source_sha256": "6cd64415911f140ae933355ca8c25b5d1649d1704b96b50f0dbb8ba9c10a2b13",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-warm-initial.json": {
+      "source": "warm-inference/manifest.json",
+      "source_sha256": "59c429e120923f26631c24e2aa49486901faee4758a54dc0284e87cd06dc2740",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-warm-initial-analysis.json": {
+      "source": "warm-inference/analysis.json",
+      "source_sha256": "c015ccce869333da8902cd7b5d3ec96182d48c26ed4ca296492caf3505dcf777",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-warm-upgrade.json": {
+      "source": "warm-main-upgrade/manifest.json",
+      "source_sha256": "b6cc0541adcf617479558b7ad9161b307b7f2e2b886f6d770270c1028814447e",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-warm-upgrade-analysis.json": {
+      "source": "warm-main-upgrade/analysis.json",
+      "source_sha256": "ca08b6a964c00a6ee8a0b96c87dbe7509932a3b46a076e31320f354a2bdfa8b0",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-warm-confirmation.json": {
+      "source": "warm-confirmation/manifest.json",
+      "source_sha256": "d6720610ae38b8ffc9b8a033829f7316fc5a61868c0d555423bcbba8ca72830f",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-warm-confirmation-analysis.json": {
+      "source": "warm-confirmation/analysis.json",
+      "source_sha256": "fbf691e3467a5b10becf7e04283a9e7653bf09be7a03d28fc33674ac57c8ec12",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "v1-micro.csv": {
+      "source_files": [
+        {
+          "path": "micro/linear-c9-in1170-out351000.csv",
+          "sha256": "ed4f45688bb1833c56d0da0fb5ec43345c59ad4a3b59f8a46cd22c445526c54d"
+        },
+        {
+          "path": "micro/linear-c9-in118-out35400.csv",
+          "sha256": "645ec5a4e447dfb6bc494c87a13cd01be11933a422225f41f1ea44bd2790458a"
+        },
+        {
+          "path": "micro/linear-c9-in160800-out536.csv",
+          "sha256": "de4eff76b0fbd7e0ffcaf21cda805d3a81745fb2ee95be11583e92d70646dfbc"
+        },
+        {
+          "path": "micro/linear-c9-in351000-out1170.csv",
+          "sha256": "b2b077fddd3f77b842c5038a6c70f72c742bbaa2c858ab06d65032fd75800bae"
+        },
+        {
+          "path": "micro/linear-c9-in35400-out118.csv",
+          "sha256": "959b7f5ff8c118867843a88dcc6ee554e6399aaed8400f31f2f1b72870d5e460"
+        },
+        {
+          "path": "micro/linear-c9-in536-out160800.csv",
+          "sha256": "f030d056391be44aafd33be6c0969e9f6ebbd10231ba20387da92b7a6aa35e2b"
+        },
+        {
+          "path": "micro/nearest-c1-in1170-out351000.csv",
+          "sha256": "5c8fabc1933e89fc2efbb4089db1b6b608a68e284af5c4b2a137814798c9dcaa"
+        },
+        {
+          "path": "micro/nearest-c1-in118-out35400.csv",
+          "sha256": "c4b1753494a836beca8fc4468547174a27a4d39571f61880c416a74c6c6bd033"
+        },
+        {
+          "path": "micro/nearest-c1-in536-out160800.csv",
+          "sha256": "bf89c285a5492c7235217628e45d9954cb6fb838397267ba59404091bbc1b963"
+        },
+        {
+          "path": "micro/nearest-c1090-in268-out536.csv",
+          "sha256": "7433de44c1add3883dc015472ddc101182c46d3610b343cdfad64a519f6bb98c"
+        },
+        {
+          "path": "micro/nearest-c1090-in585-out1170.csv",
+          "sha256": "5a898df2c1138e0b5cf44d2c8e7eb6ca6e9cc27b50f85150a2bf7210ccec8e72"
+        },
+        {
+          "path": "micro/nearest-c1090-in59-out118.csv",
+          "sha256": "976210ccb061510dcf47a29a57f98366bce755d1492e04aede491a1020367e19"
+        },
+        {
+          "path": "micro/nearest-c512-in268-out536.csv",
+          "sha256": "fea30ae83fa82e2e13e509b868835de467ed407e9a73aab4f02d70861c85550f"
+        },
+        {
+          "path": "micro/nearest-c512-in585-out1170.csv",
+          "sha256": "0b5464a9fbb0bc83dbde29a3b44664d66d110c18314a3effd8bc067eac1f4fc6"
+        },
+        {
+          "path": "micro/nearest-c512-in59-out118.csv",
+          "sha256": "e69a49f6a11eb2d78f69a9ef0cdffea77bb3c502894b15ac32d8028a6b2677d5"
+        }
+      ],
+      "rows": 180,
+      "normalization": "case column added; original fields retained"
+    },
+    "v1-to-bounded.patch": {
+      "source": "prototype-v1/to-bounded.patch",
+      "source_sha256": "ab5f93bc719011ba73e3da7c689efeae224c62b77da89031e023e874eb5867d6",
+      "normalization": "final blank context line removed and hunk counts adjusted; reverse against bounded source to reconstruct v1 numeric module",
+      "export_sha256": "b002c6e224606e404be4886d60af7db2d839d0cce8f485931016dd006909dcea"
+    },
+    "bounded-application-build.json": {
+      "source": "application-build-bounded/build.json",
+      "source_sha256": "05fb94cac846d6d3a29527e71c5bc00b0d95985218ce31c9e79db8dad29078ae",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "numeric-tests.json": {
+      "source": "unit-tests-bounded.json",
+      "source_sha256": "71555788843a5a36f73568287029ee63ff15a0fe002501842a503f02a148e11c",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "probe-build.json": {
+      "source": "probe-bounded/build.json",
+      "source_sha256": "7503591003f7a11b3013097712e5d4f0d3dba66b0d41751b39d1f7547e0f93d3",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "bounded-validation.json": {
+      "source": "validation-bounded/summary.json",
+      "source_sha256": "058233e2a86048e0e2cf8cb5896c8f8d5da07e2c0ebece5332a76d2e15ec2069",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "bounded-raw-parity.json": {
+      "source": "parity-bounded/summary.json",
+      "source_sha256": "fb1ebf2c661f73dcd8d667e1b44bd8231393a1c9e4b1157e41941e3253a4c09e",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "bounded-profile-ab.json": {
+      "source": "profile-ab-bounded/summary.json",
+      "source_sha256": "e078da5f1654cd6a62ba3eeb94d0999964b93cb49c3c828a030cdc0d77be7f9b",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "bounded-micro.json": {
+      "source": "micro-bounded/summary.json",
+      "source_sha256": "4df36c5c535570d8f9670280601e193dc9db356dd03a2ba52267a65dc23d5fda",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-bounded.json": {
+      "source": "warm-bounded/manifest.json",
+      "source_sha256": "324611b30922c8e51539456217abf28d2db4a07323d49246cc9e413ee5bacd0d",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-bounded-analysis.json": {
+      "source": "warm-bounded/analysis.json",
+      "source_sha256": "e4f36b6d17e41bb74a9e0c47f9c0f6fd837487a30389342cbff3b7cf2e6fe931",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-upgrade.json": {
+      "source": "warm-bounded-upgrade/manifest.json",
+      "source_sha256": "d8d58cbf483c5809b5f66865cac60803125d682aa8f56111490551fd3bd45c9d",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-upgrade-analysis.json": {
+      "source": "warm-bounded-upgrade/analysis.json",
+      "source_sha256": "e3f340d0bdba178a25024ed9eb37787a1319cfecb4cdeb8e647e3c9727ed3f8c",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "bounded-micro.csv": {
+      "source_files": [
+        {
+          "path": "micro-bounded/linear-c9-in1170-out351000.csv",
+          "sha256": "e1a718e9ed0e4e3b3a5119b703a031d4fb5c383a2ac12960db2a6b7e5c53a595"
+        },
+        {
+          "path": "micro-bounded/linear-c9-in118-out35400.csv",
+          "sha256": "59ef866fa4865c41e0e527d4c097e94d9a96fb5bb343a7176d4ed5b10200eed6"
+        },
+        {
+          "path": "micro-bounded/linear-c9-in160800-out536.csv",
+          "sha256": "9b85ea5e562e77ead75c907cdebcfb08b225583ab39b42a28b25298968fa5abe"
+        },
+        {
+          "path": "micro-bounded/linear-c9-in351000-out1170.csv",
+          "sha256": "ea1d3787b011fc3f1c4a25a8dbc67515b411b78a2007807faaa4a12bb1d0806a"
+        },
+        {
+          "path": "micro-bounded/linear-c9-in35400-out118.csv",
+          "sha256": "2658101237cf6cd6b8af66a9b2a7bd08b36ea1aa55113986bfeb4b3be40a2dba"
+        },
+        {
+          "path": "micro-bounded/linear-c9-in536-out160800.csv",
+          "sha256": "f27db17df1c6776dcb489c7b4a0ac51dd2fdb162e04e1c0dd6713d5936d15a17"
+        },
+        {
+          "path": "micro-bounded/nearest-c1-in1170-out351000.csv",
+          "sha256": "a16d730df563f5ebb79cd407476fc537160b4521a4c86413d6a4b5087f258d65"
+        },
+        {
+          "path": "micro-bounded/nearest-c1-in118-out35400.csv",
+          "sha256": "0c7f4e94b8f9efdee13cb6ac2a09117fbba147f06375a58c6f52b76ea6f1d6b1"
+        },
+        {
+          "path": "micro-bounded/nearest-c1-in536-out160800.csv",
+          "sha256": "e632337b93dfe6496e6d3926aeb0d8cae22647933062d8c6605e2d472231f41d"
+        },
+        {
+          "path": "micro-bounded/nearest-c1090-in268-out536.csv",
+          "sha256": "6dcb004a40cca570debb11c60dc9287e590699bd858e7ce6153d8ef9fef3f192"
+        },
+        {
+          "path": "micro-bounded/nearest-c1090-in585-out1170.csv",
+          "sha256": "28fad3105e1f04bd8f8ab5bb741cf0f091f89cb6574d8bc085251260d384f2c4"
+        },
+        {
+          "path": "micro-bounded/nearest-c1090-in59-out118.csv",
+          "sha256": "006ef894d80e6760e2b7fcaeba2235c6053e2135d6e197a23cb4270fbdc11b2f"
+        },
+        {
+          "path": "micro-bounded/nearest-c512-in268-out536.csv",
+          "sha256": "515d6a74d4cccfd1779c7c45e4eecfe667062ef926a130ba4246708f36b639e2"
+        },
+        {
+          "path": "micro-bounded/nearest-c512-in585-out1170.csv",
+          "sha256": "7751c5b4e66ff908e78cedcdd6bb483a26a13fb265b81529da44baa07d2f5713"
+        },
+        {
+          "path": "micro-bounded/nearest-c512-in59-out118.csv",
+          "sha256": "7dd788f39f6aca02e46899903a51da67080581579e69e74b35001ce6e4cbbc18"
+        }
+      ],
+      "rows": 180,
+      "normalization": "case column added; original fields retained"
+    },
+    "cpu-telemetry.csv": {
+      "source_files": [
+        {
+          "path": "warm-confirmation/A-1-cpu.csv",
+          "sha256": "bb5c12878ebcc6f8b69d2ca504a5e47ef722ccbe90f38d381c0ae4bc43ddc9d0"
+        },
+        {
+          "path": "warm-confirmation/A-2-cpu.csv",
+          "sha256": "f05e42629db2274314d8932ac6821eaa8240769fb9348d9167e9caebe5fd5119"
+        },
+        {
+          "path": "warm-confirmation/A-3-cpu.csv",
+          "sha256": "79ad62cd7ef76da31d7608d96e9ff7e15b90f6222aa873522be797b8714ca349"
+        },
+        {
+          "path": "warm-confirmation/A-4-cpu.csv",
+          "sha256": "5e539b72ddad89f51400fd36a5c58cc3c7285e359b883e3ebfd05f4d33f809fb"
+        },
+        {
+          "path": "warm-confirmation/A-5-cpu.csv",
+          "sha256": "13ceef74dc171b0fd1e81dd867f2050b7b700ef7292c6c576d798f12b9587baf"
+        },
+        {
+          "path": "warm-confirmation/A-6-cpu.csv",
+          "sha256": "f0acfb68dce5ea049fb2d8332404067eeeba1d332f515542f0fbeb12f2da79c8"
+        },
+        {
+          "path": "warm-confirmation/B-1-cpu.csv",
+          "sha256": "dbcf267b969f972183719de442b2b2bb4a872ca9bb38f770cfba7c1830334e79"
+        },
+        {
+          "path": "warm-confirmation/B-2-cpu.csv",
+          "sha256": "631c912979dc4377334c9b1e30e302843b638d5269dc108ce054aebac0e549d1"
+        },
+        {
+          "path": "warm-confirmation/B-3-cpu.csv",
+          "sha256": "78a4a3be8d536faafc85bea834593914fdff6cfeffb36461ec0afa7b2f23e574"
+        },
+        {
+          "path": "warm-confirmation/B-4-cpu.csv",
+          "sha256": "cbb3847d13a4d903c8641e00a8ca006efe8b30d6024eb7c942812e18015553d3"
+        },
+        {
+          "path": "warm-confirmation/B-5-cpu.csv",
+          "sha256": "8e4c56bf6480076e0cfd9dfcbf16b86ee47ecd004277b1caa2eff43bf1a46b8c"
+        },
+        {
+          "path": "warm-confirmation/B-6-cpu.csv",
+          "sha256": "b2be5f902d878d03038c2bbe2ee924561d7578cbbbbe648797258e024bd52625"
+        },
+        {
+          "path": "warm-bounded/A-1-cpu.csv",
+          "sha256": "d17e625ca4bb6a378c4c429812757ddec226ece781a5d474d95c09310225d6c7"
+        },
+        {
+          "path": "warm-bounded/A-2-cpu.csv",
+          "sha256": "a0602e97d310384cfda87703d6060b3b135d0258808baf38689453d2d7d3fad2"
+        },
+        {
+          "path": "warm-bounded/A-3-cpu.csv",
+          "sha256": "6aef700c407164275e52aa51be2f987a549b81212d28f9d8d72c772f7c2c79c3"
+        },
+        {
+          "path": "warm-bounded/A-4-cpu.csv",
+          "sha256": "cce36ad57084dcb4fd083e1785f6b94716a6b7a84f77dcf9ad8ad3fbb9aedb15"
+        },
+        {
+          "path": "warm-bounded/A-5-cpu.csv",
+          "sha256": "1aa1ba6dd8d0d28cc6abf844cea2c6624b9a79d5e9ea89e47c8f54140de14839"
+        },
+        {
+          "path": "warm-bounded/A-6-cpu.csv",
+          "sha256": "9855dde1b31b27736d9f8aaca8537c4f58200e06544c5f8541eec56267c5bbb5"
+        },
+        {
+          "path": "warm-bounded/B-1-cpu.csv",
+          "sha256": "64e915d3c0075fa393469f6ff4755d682a64cef5618c828fba82cc7051f609db"
+        },
+        {
+          "path": "warm-bounded/B-2-cpu.csv",
+          "sha256": "ba612b586ca98c25ff34068ca7cd2efa136db737d702a004e5739dc770d010a1"
+        },
+        {
+          "path": "warm-bounded/B-3-cpu.csv",
+          "sha256": "4d600a5bfe063eb74110629a3d9a1ddd9ea15ed8e6e8d643a892602a6c42b714"
+        },
+        {
+          "path": "warm-bounded/B-4-cpu.csv",
+          "sha256": "1ce1a50277f23955be403c93f51a7ea8fdca4d76f04d3c6e2f509b69f57c5e28"
+        },
+        {
+          "path": "warm-bounded/B-5-cpu.csv",
+          "sha256": "bfdfe1b6f71f6bb307aa4d654fc0306cd2185a1ad1b7723c0784fb371911b60c"
+        },
+        {
+          "path": "warm-bounded/B-6-cpu.csv",
+          "sha256": "4968d0116158c88cc64eeb76df11e616e9c8859517d5349251d671cd58ecf668"
+        },
+        {
+          "path": "warm-bounded-upgrade/A-1-cpu.csv",
+          "sha256": "72d6d43d81a6e9f3492462feaa4409609ed73ce39f0adc17d39ba8d4ba38b4c1"
+        },
+        {
+          "path": "warm-bounded-upgrade/A-2-cpu.csv",
+          "sha256": "2a549ea1de1be89dd2f28c9ec898a35d62c2f6884b4e1ed0e82e234e32bb77ea"
+        },
+        {
+          "path": "warm-bounded-upgrade/A-3-cpu.csv",
+          "sha256": "8123dd422fe73a94bd5d9e3cafa5ec6539525d21c240087d098af0417aca4fd5"
+        },
+        {
+          "path": "warm-bounded-upgrade/A-4-cpu.csv",
+          "sha256": "80c032bedb35d7ebd1472ce48e35e2dcbbe77a1d3339cf8d0dc1c5aa0caf5437"
+        },
+        {
+          "path": "warm-bounded-upgrade/B-1-cpu.csv",
+          "sha256": "09630df951a0f1bb83ca0cd77f2da85e73929f9093df24fd080315d9a84ade4e"
+        },
+        {
+          "path": "warm-bounded-upgrade/B-2-cpu.csv",
+          "sha256": "35d9a5974db74291170b85a794e1a63ba4265fbe761a4d3a587c160c017acbdf"
+        },
+        {
+          "path": "warm-bounded-upgrade/B-3-cpu.csv",
+          "sha256": "eba51de98a9a72c59afdc8513aeaad2075b93d4950b6eeddb6b1ef9dc485866f"
+        },
+        {
+          "path": "warm-bounded-upgrade/B-4-cpu.csv",
+          "sha256": "3136b27bf111328099fbe36b14a817957ec73766827d0ac5fca37ed8fc9ee965"
+        }
+      ],
+      "rows": 4693,
+      "normalization": "campaign and run columns added; original fields retained"
+    }
+  }
+}

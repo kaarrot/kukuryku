@@ -4,6 +4,9 @@ use std::hash::Hash;
 use tract_hir::internal::*;
 use tract_nnef::tract_num_traits::Zero;
 
+mod contiguous;
+use contiguous::{CoordTransformer, Interpolator, Nearest, resize_axis_generic, resize_last_axis};
+
 pub fn resize(
     ctx: &ParsingContext,
     node: &NodeProto,
@@ -69,65 +72,23 @@ fn resize_18(node: &NodeProto) -> TractResult<Resize> {
     })
 }
 
-#[derive(Clone, Debug, Hash)]
-enum CoordTransformer {
-    HalfPixel,
-    AlignCorners,
-    Asymmetric,
-}
-
 impl CoordTransformer {
-    fn transform(&self, x_out: usize, scale: f32, len_in: usize, len_out: usize) -> f32 {
-        match self {
-            CoordTransformer::HalfPixel => (x_out as f32 + 0.5) / scale - 0.5,
-            CoordTransformer::AlignCorners => {
-                (x_out as f32 * (len_in as f32 - 1.0)) / (len_out as f32 - 1.0)
-            }
-            CoordTransformer::Asymmetric => (x_out as f32) / scale,
-        }
-    }
-
     fn from_node(node: &NodeProto) -> TractResult<CoordTransformer> {
-        Ok(match node.get_attr_opt("coordinate_transformation_mode")?.unwrap_or("half_pixel") {
-            "align_corners" => CoordTransformer::AlignCorners,
-            "half_pixel" => CoordTransformer::HalfPixel,
-            "asymmetric" => CoordTransformer::Asymmetric,
-            s => bail!("coordinate_transformation_mode: {}", s),
-        })
+        Ok(
+            match node
+                .get_attr_opt("coordinate_transformation_mode")?
+                .unwrap_or("half_pixel")
+            {
+                "align_corners" => CoordTransformer::AlignCorners,
+                "half_pixel" => CoordTransformer::HalfPixel,
+                "asymmetric" => CoordTransformer::Asymmetric,
+                s => bail!("coordinate_transformation_mode: {}", s),
+            },
+        )
     }
-}
-
-#[derive(Clone, Debug, Hash)]
-enum Interpolator {
-    Linear,
-    Nearest,
 }
 
 impl Interpolator {
-    fn interpolate(&self, y_left: f32, y_right: f32, x_ratio: f32, nearest_mode: Nearest) -> f32 {
-        match self {
-            Interpolator::Linear => y_left * (1.0 - x_ratio) + y_right * x_ratio,
-            Interpolator::Nearest => match nearest_mode {
-                Nearest::Floor => y_left,
-                Nearest::Ceil => y_right,
-                Nearest::RoundPreferFloor => {
-                    if x_ratio <= 0.5 {
-                        y_left
-                    } else {
-                        y_right
-                    }
-                }
-                Nearest::RoundPreferCeil => {
-                    if x_ratio < 0.5 {
-                        y_left
-                    } else {
-                        y_right
-                    }
-                }
-            },
-        }
-    }
-
     fn from_node(node: &NodeProto) -> TractResult<Interpolator> {
         Ok(match node.get_attr_opt("mode")?.unwrap_or("nearest") {
             "nearest" => Interpolator::Nearest,
@@ -137,23 +98,20 @@ impl Interpolator {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash)]
-enum Nearest {
-    Floor,
-    Ceil,
-    RoundPreferFloor,
-    RoundPreferCeil,
-}
-
 impl Nearest {
     fn from_node(node: &NodeProto) -> TractResult<Nearest> {
-        Ok(match node.get_attr_opt("nearest_mode")?.unwrap_or("round_prefer_floor") {
-            "floor" => Nearest::Floor,
-            "ceil" => Nearest::Ceil,
-            "round_prefer_floor" => Nearest::RoundPreferFloor,
-            "round_prefer_ceil" => Nearest::RoundPreferCeil,
-            s => bail!("nearest_mode: {}", s),
-        })
+        Ok(
+            match node
+                .get_attr_opt("nearest_mode")?
+                .unwrap_or("round_prefer_floor")
+            {
+                "floor" => Nearest::Floor,
+                "ceil" => Nearest::Ceil,
+                "round_prefer_floor" => Nearest::RoundPreferFloor,
+                "round_prefer_ceil" => Nearest::RoundPreferCeil,
+                s => bail!("nearest_mode: {}", s),
+            },
+        )
     }
 }
 
@@ -173,6 +131,16 @@ impl Op for Resize {
         "Resize".into()
     }
 
+    fn info(&self) -> TractResult<Vec<String>> {
+        Ok(vec![format!(
+            "coord={:?} mode={:?} nearest={:?} fast_last_axis={}",
+            self.coord_transformer,
+            self.interpolator,
+            self.nearest,
+            contiguous::fast_enabled()
+        )])
+    }
+
     op_as_typed_op!();
 }
 
@@ -186,8 +154,9 @@ impl Resize {
         if let Some(scale) = input_scale {
             if scale.len() == input_shape.len() {
                 let mut shape = tvec!();
-                for (i, s) in
-                    input_shape.iter().zip(scale.cast_to::<f32>()?.as_slice::<f32>()?.iter())
+                for (i, s) in input_shape
+                    .iter()
+                    .zip(scale.cast_to::<f32>()?.as_slice::<f32>()?.iter())
                 {
                     if s.round() == *s {
                         shape.push(i.clone() * (*s as usize));
@@ -201,7 +170,9 @@ impl Resize {
                         // plan serves all frame counts. See docs/tract-support-plan.md.
                         shape.push(i.clone() / (1.0 / s).round() as usize);
                     } else {
-                        bail!("Can not compute output shape. inputs are {input_shape:?} and scale {scale:?}")
+                        bail!(
+                            "Can not compute output shape. inputs are {input_shape:?} and scale {scale:?}"
+                        )
                     }
                 }
                 return Ok(shape);
@@ -242,30 +213,65 @@ impl EvalOp for Resize {
         let scales: TVec<f32> = if let Some(scales) = scales {
             scales.as_slice::<f32>()?.into()
         } else {
-            output_shape.iter().zip(inputs[0].shape()).map(|(o, i)| *o as f32 / *i as f32).collect()
+            output_shape
+                .iter()
+                .zip(inputs[0].shape())
+                .map(|(o, i)| *o as f32 / *i as f32)
+                .collect()
         };
-        let mut data = inputs.remove(0).into_tensor().into_array::<f32>()?;
+        let input = inputs.remove(0);
+        if contiguous::fast_enabled() {
+            let mut changed = scales
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, s)| *s != 1.0);
+            if let Some((axis, scale)) = changed.next() {
+                if changed.next().is_none() && axis + 1 == input.rank() {
+                    // A single eligible axis can borrow the input directly. In
+                    // particular, downsampling the harmonic source need not copy
+                    // its much larger input tensor into an intermediate ndarray.
+                    if let Some(resized) = resize_last_axis(
+                        &input.to_array_view::<f32>()?,
+                        &output_shape,
+                        axis,
+                        scale,
+                        &self.coord_transformer,
+                        &self.interpolator,
+                        self.nearest,
+                    )? {
+                        return Ok(tvec!(resized.into_tvalue()));
+                    }
+                }
+            }
+        }
+        let mut data = input.into_tensor().into_array::<f32>()?;
         for (axis, scale) in scales.into_iter().enumerate().filter(|(_, s)| *s != 1.0) {
             let mut new_shape: TVec<usize> = data.shape().into();
             new_shape[axis] = output_shape[axis];
-            data = tract_ndarray::ArrayD::from_shape_fn(&*new_shape, |co_o| -> f32 {
-                let x_out = co_o[axis];
-                let x_in = self.coord_transformer.transform(
-                    x_out,
+            if contiguous::fast_enabled() {
+                if let Some(resized) = resize_last_axis(
+                    &data,
+                    &new_shape,
+                    axis,
                     scale,
-                    data.shape()[axis],
-                    new_shape[axis],
-                );
-                let mut co_i = co_o;
-                let x_left = (x_in as usize).clamp(0, data.shape()[axis] - 1);
-                co_i[axis] = x_left;
-                let y_left = data[&co_i];
-                let x_right = (x_left + 1).min(data.shape()[axis] - 1);
-                co_i[axis] = x_right;
-                let y_right = data[&co_i];
-                let x_frac = x_in - x_left as f32;
-                self.interpolator.interpolate(y_left, y_right, x_frac, self.nearest)
-            })
+                    &self.coord_transformer,
+                    &self.interpolator,
+                    self.nearest,
+                )? {
+                    data = resized;
+                    continue;
+                }
+            }
+            data = resize_axis_generic(
+                &data,
+                &new_shape,
+                axis,
+                scale,
+                &self.coord_transformer,
+                &self.interpolator,
+                self.nearest,
+            );
         }
         Ok(tvec!(data.into_tvalue()))
     }

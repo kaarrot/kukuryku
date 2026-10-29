@@ -1,0 +1,44 @@
+--- prototype-v1/contiguous.rs
++++ bounded/contiguous.rs
+@@ -179,9 +179,25 @@
+                 if rows == 1 {
+                     output.extend((0..len_out).map(|x| sample(source, position(x))));
+                 } else {
+-                    let positions: Vec<_> = (0..len_out).map(position).collect();
+-                    for row in source.chunks_exact(len_in) {
+-                        output.extend(positions.iter().map(|&p| sample(row, p)));
++                    // Reuse a small map across all rows before moving to the next
++                    // block. A 300x upsample must not allocate a multi-megabyte
++                    // position table or stream it repeatedly through the caches.
++                    const BLOCK: usize = 1024;
++                    let mut positions = Vec::with_capacity(len_out.min(BLOCK));
++                    output.resize(total, 0.0);
++                    for start in (0..len_out).step_by(BLOCK) {
++                        let width = (len_out - start).min(BLOCK);
++                        let end = start + width;
++                        positions.clear();
++                        positions.extend((start..end).map(position));
++                        for (r, row) in source.chunks_exact(len_in).enumerate() {
++                            let offset = r * len_out + start;
++                            for (dst, &p) in
++                                output[offset..offset + width].iter_mut().zip(&positions)
++                            {
++                                *dst = sample(row, p);
++                            }
++                        }
+                     }
+                 }
+             }
+@@ -271,5 +287,12 @@
+             check(&[1, 1, 2 * frames], 600 * frames, 300.0, false);
+             check(&[1, 9, 600 * frames], 2 * frames, 1.0 / 300.0, true);
+             check(&[1, 9, 2 * frames], 600 * frames, 300.0, true);
++        }
++    }
++
++    #[test]
++    fn linear_block_boundaries_are_bit_exact() {
++        for out_len in [1023, 1024, 1025, 2048, 2049] {
++            check(&[3, 7], out_len, out_len as f32 / 7.0, true);
+         }
+     }

@@ -1,0 +1,122 @@
+[
+  {
+    "stage": "stage2",
+    "name": "/encoder/F0.1/upsample/Resize",
+    "attributes": {
+      "coordinate_transformation_mode": "asymmetric",
+      "cubic_coeff_a": -0.75,
+      "mode": "nearest",
+      "nearest_mode": "floor"
+    },
+    "inputs": [
+      "/encoder/F0.0/Div_2_output_0",
+      "",
+      "/encoder/F0.1/upsample/Constant_output_0"
+    ],
+    "scales": [
+      1.0,
+      1.0,
+      2.0
+    ]
+  },
+  {
+    "stage": "stage2",
+    "name": "/encoder/N.1/upsample/Resize",
+    "attributes": {
+      "coordinate_transformation_mode": "asymmetric",
+      "cubic_coeff_a": -0.75,
+      "mode": "nearest",
+      "nearest_mode": "floor"
+    },
+    "inputs": [
+      "/encoder/N.0/Div_2_output_0",
+      "",
+      "/encoder/F0.1/upsample/Constant_output_0"
+    ],
+    "scales": [
+      1.0,
+      1.0,
+      2.0
+    ]
+  },
+  {
+    "stage": "stage2",
+    "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+    "attributes": {
+      "coordinate_transformation_mode": "asymmetric",
+      "cubic_coeff_a": -0.75,
+      "mode": "nearest",
+      "nearest_mode": "floor"
+    },
+    "inputs": [
+      "/decoder/decoder/Unsqueeze_output_0",
+      "",
+      "/decoder/decoder/generator/f0_upsamp/Constant_output_0"
+    ],
+    "scales": [
+      1.0,
+      1.0,
+      300.0
+    ]
+  },
+  {
+    "stage": "stage2",
+    "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+    "attributes": {
+      "coordinate_transformation_mode": "half_pixel",
+      "cubic_coeff_a": -0.75,
+      "mode": "linear",
+      "nearest_mode": "floor"
+    },
+    "inputs": [
+      "/decoder/decoder/generator/m_source/l_sin_gen/Transpose_output_0",
+      "",
+      "/decoder/decoder/generator/m_source/l_sin_gen/Constant_4_output_0"
+    ],
+    "scales": [
+      1.0,
+      1.0,
+      0.0033333334140479565
+    ]
+  },
+  {
+    "stage": "stage2",
+    "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+    "attributes": {
+      "coordinate_transformation_mode": "half_pixel",
+      "cubic_coeff_a": -0.75,
+      "mode": "linear",
+      "nearest_mode": "floor"
+    },
+    "inputs": [
+      "/decoder/decoder/generator/m_source/l_sin_gen/Mul_4_output_0",
+      "",
+      "/decoder/decoder/generator/f0_upsamp/Constant_output_0"
+    ],
+    "scales": [
+      1.0,
+      1.0,
+      300.0
+    ]
+  },
+  {
+    "stage": "stage2",
+    "name": "/decoder/decoder/decode.3/upsample/Resize",
+    "attributes": {
+      "coordinate_transformation_mode": "asymmetric",
+      "cubic_coeff_a": -0.75,
+      "mode": "nearest",
+      "nearest_mode": "floor"
+    },
+    "inputs": [
+      "/decoder/decoder/Concat_4_output_0",
+      "",
+      "/encoder/F0.1/upsample/Constant_output_0"
+    ],
+    "scales": [
+      1.0,
+      1.0,
+      2.0
+    ]
+  }
+]

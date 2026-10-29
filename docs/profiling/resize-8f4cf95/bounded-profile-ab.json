@@ -1,0 +1,3758 @@
+[
+  {
+    "label": "A",
+    "round": 1,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/A-1/profiles/stage2-25123-5.json",
+    "op_wall_seconds": 8.555520332000006,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.027257239
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 4680,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1404000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.013529062
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001791666
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.131161718
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.023955677
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 2550600,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5101200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.050003125
+      }
+    ]
+  },
+  {
+    "label": "A",
+    "round": 1,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/A-1/profiles/stage2-25123-4.json",
+    "op_wall_seconds": 3.8630174910000004,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.011559844
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 2144,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 643200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.006239843
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000821719
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.06163625
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.010575156
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1168480,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2336960,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.023995781
+      }
+    ]
+  },
+  {
+    "label": "A",
+    "round": 1,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/A-1/profiles/stage2-25123-1.json",
+    "op_wall_seconds": 0.929450778,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002773802
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 472,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 141600,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001444531
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000167239
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.012911928
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002605157
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 257240,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 514480,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.005640885
+      }
+    ]
+  },
+  {
+    "label": "B",
+    "round": 1,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/B-1/profiles/stage2-25140-5.json",
+    "op_wall_seconds": 8.188869243999997,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002260417
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 4680,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1404000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001809896
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000283489
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.012499271
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.004314323
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 2550600,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5101200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.006833541
+      }
+    ]
+  },
+  {
+    "label": "B",
+    "round": 1,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/B-1/profiles/stage2-25140-4.json",
+    "op_wall_seconds": 3.7291739260000005,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002068593
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 2144,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 643200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000730104
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000171718
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.005452969
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001037708
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1168480,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2336960,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002082657
+      }
+    ]
+  },
+  {
+    "label": "B",
+    "round": 1,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/B-1/profiles/stage2-25140-1.json",
+    "op_wall_seconds": 0.916323183,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000608334
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 472,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 141600,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000267136
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 4.2656e-05
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001167917
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000232604
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 257240,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 514480,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000928958
+      }
+    ]
+  },
+  {
+    "label": "B",
+    "round": 2,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/B-2/profiles/stage2-25163-5.json",
+    "op_wall_seconds": 7.946432572000001,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002569948
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 4680,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1404000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001478229
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000275468
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.027385573
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002128594
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 2550600,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5101200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.005337969
+      }
+    ]
+  },
+  {
+    "label": "B",
+    "round": 2,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/B-2/profiles/stage2-25163-1.json",
+    "op_wall_seconds": 0.8756191180000001,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000556927
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 472,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 141600,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000269635
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 4.1197e-05
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001162031
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000453646
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 257240,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 514480,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.00089651
+      }
+    ]
+  },
+  {
+    "label": "B",
+    "round": 2,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/B-2/profiles/stage2-25163-4.json",
+    "op_wall_seconds": 3.7676174920000003,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001679166
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 2144,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 643200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000763282
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000180365
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.005422083
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001064323
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=true"
+        ],
+        "inputs": [
+          {
+            "bytes": 1168480,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2336960,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.003794584
+      }
+    ]
+  },
+  {
+    "label": "A",
+    "round": 2,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/A-2/profiles/stage2-25177-1.json",
+    "op_wall_seconds": 0.8862967830000003,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002590677
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 472,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 141600,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001469375
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000201355
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 4248,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              118
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1274400,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              35400
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.013104583
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 120832,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 241664,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.002312135
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 257240,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              59
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 514480,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              118
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.005394792
+      }
+    ]
+  },
+  {
+    "label": "A",
+    "round": 2,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/A-2/profiles/stage2-25177-4.json",
+    "op_wall_seconds": 3.732045677000001,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.011122187
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 2144,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 643200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.006130677
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.000856354
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 19296,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              536
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5788800,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              160800
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.06078927
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 548864,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1097728,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.010470468
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1168480,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              268
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2336960,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              536
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.023078177
+      }
+    ]
+  },
+  {
+    "label": "A",
+    "round": 2,
+    "stage": "stage2",
+    "file": "profile-ab-bounded/A-2/profiles/stage2-25177-5.json",
+    "op_wall_seconds": 8.126578869000003,
+    "resize_nodes": [
+      {
+        "id": 126,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 90,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/F0.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 127,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.025908646
+      },
+      {
+        "id": 561,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 4680,
+            "dtype": "F32",
+            "node": 559,
+            "shape": [
+              1,
+              1,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/f0_upsamp/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 1404000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 563,
+                "slot": 1
+              },
+              {
+                "node": 577,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.013359062
+      },
+      {
+        "id": 567,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "node": 565,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 566,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 569,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.001828489
+      },
+      {
+        "id": 572,
+        "info": [
+          "coord=HalfPixel mode=Linear nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 42120,
+            "dtype": "F32",
+            "node": 571,
+            "shape": [
+              1,
+              9,
+              1170
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 560,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 12636000,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              9,
+              351000
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 573,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.129690052
+      },
+      {
+        "id": 240,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 1198080,
+            "dtype": "F32",
+            "node": 208,
+            "shape": [
+              1,
+              512,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/encoder/N.1/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 2396160,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              512,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 241,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.023352448
+      },
+      {
+        "id": 542,
+        "info": [
+          "coord=Asymmetric mode=Nearest nearest=Floor fast_last_axis=false"
+        ],
+        "inputs": [
+          {
+            "bytes": 2550600,
+            "dtype": "F32",
+            "node": 510,
+            "shape": [
+              1,
+              1090,
+              585
+            ],
+            "slot": 0
+          },
+          {
+            "bytes": 12,
+            "dtype": "F32",
+            "node": 125,
+            "shape": [
+              3
+            ],
+            "slot": 0
+          }
+        ],
+        "name": "/decoder/decoder/decode.3/upsample/Resize",
+        "op": "Resize",
+        "outputs": [
+          {
+            "bytes": 5101200,
+            "dtype": "F32",
+            "model_output": false,
+            "shape": [
+              1,
+              1090,
+              1170
+            ],
+            "slot": 0,
+            "successors": [
+              {
+                "node": 543,
+                "slot": 0
+              }
+            ]
+          }
+        ],
+        "seconds": 0.050814896
+      }
+    ]
+  }
+]

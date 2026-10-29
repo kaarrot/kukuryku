@@ -1,0 +1,159 @@
+{
+  "binaries": {
+    "A": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-baseline",
+      "sha256": "fcbcb746ff17142e4675e0a3784aef397498623bbd257ff0f2fcc42a6940a90a"
+    },
+    "B": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-resize",
+      "sha256": "06b70ccbd21d9d50d76387afd5a8dbe147106758907fe7a68e2a6a76ad1ac7a8"
+    }
+  },
+  "baseline_environment": {},
+  "variant_environment": {},
+  "sink": "discard; CPU comparison only",
+  "stage1_cpuset": "1",
+  "stage2_cpuset": "4-6",
+  "governor": "off",
+  "warmup": "full corpus once per daemon",
+  "rounds": 2,
+  "runs": [
+    {
+      "label": "A",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 36.24,
+      "cpu_s_per_audio_s": 1.5894736842105264,
+      "infer_s": 18.78,
+      "infer_rtf": 0.824,
+      "synthesis_wall_s": 14.69,
+      "elapsed_s": 15.061329838004895,
+      "estimated_gap_s": 5.08,
+      "start_gold_c": 44.8,
+      "end_gold_c": 55.5,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.64,
+            "voluntary_switches": 109,
+            "involuntary_switches": 155
+          },
+          "gold": {
+            "cpu_s": 30.15,
+            "voluntary_switches": 2497,
+            "involuntary_switches": 6337
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      }
+    },
+    {
+      "label": "B",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 35.79,
+      "cpu_s_per_audio_s": 1.569736842105263,
+      "infer_s": 18.24,
+      "infer_rtf": 0.8,
+      "synthesis_wall_s": 14.29,
+      "elapsed_s": 15.043184526002733,
+      "estimated_gap_s": 4.62,
+      "start_gold_c": 45.5,
+      "end_gold_c": 54.3,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.589999999999999,
+            "voluntary_switches": 109,
+            "involuntary_switches": 189
+          },
+          "gold": {
+            "cpu_s": 29.73,
+            "voluntary_switches": 2600,
+            "involuntary_switches": 4289
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      }
+    },
+    {
+      "label": "B",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 37.69,
+      "cpu_s_per_audio_s": 1.6530701754385964,
+      "infer_s": 20.9,
+      "infer_rtf": 0.917,
+      "synthesis_wall_s": 16.33,
+      "elapsed_s": 17.064554212003713,
+      "estimated_gap_s": 6.71,
+      "start_gold_c": 46.3,
+      "end_gold_c": 57.8,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.919999999999999,
+            "voluntary_switches": 117,
+            "involuntary_switches": 509
+          },
+          "gold": {
+            "cpu_s": 31.270000000000003,
+            "voluntary_switches": 2606,
+            "involuntary_switches": 11770
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      }
+    },
+    {
+      "label": "A",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 37.019999999999996,
+      "cpu_s_per_audio_s": 1.6236842105263156,
+      "infer_s": 18.68,
+      "infer_rtf": 0.819,
+      "synthesis_wall_s": 14.91,
+      "elapsed_s": 16.056479525985196,
+      "estimated_gap_s": 5.01,
+      "start_gold_c": 50.1,
+      "end_gold_c": 63.9,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.460000000000002,
+            "voluntary_switches": 122,
+            "involuntary_switches": 110
+          },
+          "gold": {
+            "cpu_s": 30.85,
+            "voluntary_switches": 2609,
+            "involuntary_switches": 7479
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      }
+    }
+  ],
+  "thread_stats": true
+}

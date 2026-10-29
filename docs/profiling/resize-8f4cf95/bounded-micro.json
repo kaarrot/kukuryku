@@ -1,0 +1,491 @@
+{
+  "probe_sha256": "3c5318766aae16e963aac6327d7c5d2f2a47f11ec1a90ddc733b2ca45536a014",
+  "profile_sha256": "5c3ac18bd7c26d51cef1d7a46cc014ad75732dc0c7e46537c3f6c43461d746c5",
+  "attributes_sha256": "97ed6c2fedf60982e0d43991df0f312bf180097236482502d194590e5662d069",
+  "rounds": 6,
+  "cases": [
+    {
+      "label": "nearest-c512-in59-out118",
+      "arguments": [
+        "nearest",
+        512,
+        59,
+        118,
+        2.0,
+        8,
+        6
+      ],
+      "model_nodes": [
+        "/encoder/F0.1/upsample/Resize",
+        "/encoder/N.1/upsample/Resize"
+      ],
+      "start_gold_c": 39.4,
+      "end_gold_c": 40.9,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0022443098750000003,
+          "cpu_s": 0.002223834625
+        },
+        "fast": {
+          "wall_s": 0.000196155625,
+          "cpu_s": 0.000196471375
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -91.25986891627433,
+        "cpu_s": -91.16519849132216
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c1-in118-out35400",
+      "arguments": [
+        "nearest",
+        1,
+        118,
+        35400,
+        300.0,
+        8,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/f0_upsamp/Resize"
+      ],
+      "start_gold_c": 40.5,
+      "end_gold_c": 40.9,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0013263704375,
+          "cpu_s": 0.0013112171874999998
+        },
+        "fast": {
+          "wall_s": 0.000127874375,
+          "cpu_s": 0.00012810225
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -90.35907530923087,
+        "cpu_s": -90.23027983302728
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "linear-c9-in35400-out118",
+      "arguments": [
+        "linear",
+        9,
+        35400,
+        118,
+        0.0033333334140479565,
+        2,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/Resize"
+      ],
+      "start_gold_c": 40.5,
+      "end_gold_c": 40.5,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0009316147499999999,
+          "cpu_s": 0.00091377625
+        },
+        "fast": {
+          "wall_s": 1.1159e-05,
+          "cpu_s": 1.16145e-05
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -98.80218727752002,
+        "cpu_s": -98.72895580291127
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "linear-c9-in118-out35400",
+      "arguments": [
+        "linear",
+        9,
+        118,
+        35400,
+        300.0,
+        2,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1"
+      ],
+      "start_gold_c": 40.5,
+      "end_gold_c": 42.8,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.012927981750000001,
+          "cpu_s": 0.01277019575
+        },
+        "fast": {
+          "wall_s": 0.001677448,
+          "cpu_s": 0.001662565
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -87.02467227724854,
+        "cpu_s": -86.98089651444849
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c1090-in59-out118",
+      "arguments": [
+        "nearest",
+        1090,
+        59,
+        118,
+        2.0,
+        8,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/decode.3/upsample/Resize"
+      ],
+      "start_gold_c": 41.7,
+      "end_gold_c": 41.7,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.00495817375,
+          "cpu_s": 0.0049207091875000004
+        },
+        "fast": {
+          "wall_s": 0.000575071625,
+          "cpu_s": 0.0005637144375000001
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -88.40154351186261,
+        "cpu_s": -88.5440407872102
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c512-in268-out536",
+      "arguments": [
+        "nearest",
+        512,
+        268,
+        536,
+        2.0,
+        2,
+        6
+      ],
+      "model_nodes": [
+        "/encoder/F0.1/upsample/Resize",
+        "/encoder/N.1/upsample/Resize"
+      ],
+      "start_gold_c": 41.3,
+      "end_gold_c": 41.7,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.011413372500000001,
+          "cpu_s": 0.011310143750000001
+        },
+        "fast": {
+          "wall_s": 0.00146757825,
+          "cpu_s": 0.00141386725
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -87.14158983245312,
+        "cpu_s": -87.49912219285454
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c1-in536-out160800",
+      "arguments": [
+        "nearest",
+        1,
+        536,
+        160800,
+        300.0,
+        8,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/f0_upsamp/Resize"
+      ],
+      "start_gold_c": 41.3,
+      "end_gold_c": 42.8,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0061731705625,
+          "cpu_s": 0.006122330625
+        },
+        "fast": {
+          "wall_s": 0.0008037141875,
+          "cpu_s": 0.0007934050000000001
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -86.9805284114082,
+        "cpu_s": -87.04080114915388
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "linear-c9-in160800-out536",
+      "arguments": [
+        "linear",
+        9,
+        160800,
+        536,
+        0.0033333334140479565,
+        1,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/Resize"
+      ],
+      "start_gold_c": 42.1,
+      "end_gold_c": 42.1,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0036237755,
+          "cpu_s": 0.0036008075
+        },
+        "fast": {
+          "wall_s": 0.0001216145,
+          "cpu_s": 0.000123125
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -96.64398360218507,
+        "cpu_s": -96.58062809522586
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "linear-c9-in536-out160800",
+      "arguments": [
+        "linear",
+        9,
+        536,
+        160800,
+        300.0,
+        1,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1"
+      ],
+      "start_gold_c": 41.3,
+      "end_gold_c": 40.9,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0612815105,
+          "cpu_s": 0.0607339355
+        },
+        "fast": {
+          "wall_s": 0.008623906,
+          "cpu_s": 0.00854297
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -85.92739322246308,
+        "cpu_s": -85.93377832398166
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c1090-in268-out536",
+      "arguments": [
+        "nearest",
+        1090,
+        268,
+        536,
+        2.0,
+        2,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/decode.3/upsample/Resize"
+      ],
+      "start_gold_c": 41.3,
+      "end_gold_c": 41.7,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0239946355,
+          "cpu_s": 0.023801576
+        },
+        "fast": {
+          "wall_s": 0.0032566405,
+          "cpu_s": 0.00321954475
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -86.42763087607645,
+        "cpu_s": -86.4733967616262
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c512-in585-out1170",
+      "arguments": [
+        "nearest",
+        512,
+        585,
+        1170,
+        2.0,
+        2,
+        6
+      ],
+      "model_nodes": [
+        "/encoder/F0.1/upsample/Resize",
+        "/encoder/N.1/upsample/Resize"
+      ],
+      "start_gold_c": 41.3,
+      "end_gold_c": 41.7,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0247983725,
+          "cpu_s": 0.024543086
+        },
+        "fast": {
+          "wall_s": 0.003175534,
+          "cpu_s": 0.0031601175000000002
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -87.19458706413093,
+        "cpu_s": -87.12420475566928
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c1-in1170-out351000",
+      "arguments": [
+        "nearest",
+        1,
+        1170,
+        351000,
+        300.0,
+        2,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/f0_upsamp/Resize"
+      ],
+      "start_gold_c": 41.3,
+      "end_gold_c": 41.7,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.01381625,
+          "cpu_s": 0.013702408249999999
+        },
+        "fast": {
+          "wall_s": 0.0019595570000000002,
+          "cpu_s": 0.0019017312500000001
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -85.81701257577127,
+        "cpu_s": -86.121189682113
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "linear-c9-in351000-out1170",
+      "arguments": [
+        "linear",
+        9,
+        351000,
+        1170,
+        0.0033333334140479565,
+        1,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/Resize"
+      ],
+      "start_gold_c": 41.7,
+      "end_gold_c": 41.3,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.0083180205,
+          "cpu_s": 0.008206536
+        },
+        "fast": {
+          "wall_s": 0.000327916,
+          "cpu_s": 0.00033145850000000003
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -96.05776398363048,
+        "cpu_s": -95.96104251538043
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "linear-c9-in1170-out351000",
+      "arguments": [
+        "linear",
+        9,
+        1170,
+        351000,
+        300.0,
+        1,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/generator/m_source/l_sin_gen/Resize_1"
+      ],
+      "start_gold_c": 40.9,
+      "end_gold_c": 41.3,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.132902578,
+          "cpu_s": 0.131766844
+        },
+        "fast": {
+          "wall_s": 0.018443698,
+          "cpu_s": 0.0182607805
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -86.12239259948741,
+        "cpu_s": -86.14159681930305
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "nearest-c1090-in585-out1170",
+      "arguments": [
+        "nearest",
+        1090,
+        585,
+        1170,
+        2.0,
+        1,
+        6
+      ],
+      "model_nodes": [
+        "/decoder/decoder/decode.3/upsample/Resize"
+      ],
+      "start_gold_c": 40.9,
+      "end_gold_c": 42.5,
+      "median_per_call_s": {
+        "generic": {
+          "wall_s": 0.052493906,
+          "cpu_s": 0.052035652
+        },
+        "fast": {
+          "wall_s": 0.006709505,
+          "cpu_s": 0.006611172
+        }
+      },
+      "fast_change_percent": {
+        "wall_s": -87.21850684915692,
+        "cpu_s": -87.29491849165261
+      },
+      "initial_bit_parity": true
+    }
+  ]
+}

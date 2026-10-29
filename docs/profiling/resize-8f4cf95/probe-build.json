@@ -1,0 +1,60 @@
+{
+  "commit": "8f4cf95aa0d18cbc74e1663569169ff382e4740a",
+  "source_sha256": {
+    "tools/bench_resize.rs": "be518db541a903b12ecf97ad1241d07894d6a66df3836792a04542eecaea6e97",
+    "third_party/tract/tract-onnx/src/ops/resize/contiguous.rs": "75f3b38d7949549d4c280627cb687f6bf69371873a5684e501b7c7a42899b89b"
+  },
+  "libraries": {
+    "tract_data": "target/release/deps/libtract_data-ef3a48497db85dcf.rlib",
+    "libc": "target/release/deps/liblibc-05d94420b69a32a3.rlib"
+  },
+  "commands": [
+    {
+      "command": [
+        "rustc",
+        "--edition=2024",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "lto=thin",
+        "-C",
+        "codegen-units=1",
+        "-L",
+        "dependency=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps",
+        "--extern",
+        "tract_data=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/libtract_data-ef3a48497db85dcf.rlib",
+        "--extern",
+        "libc=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/liblibc-05d94420b69a32a3.rlib",
+        "--test",
+        "tools/bench_resize.rs",
+        "-o",
+        "tools/bench_out/resize-8f4cf95/probe-bounded/resize-tests"
+      ],
+      "elapsed_s": 15.135039941989817,
+      "returncode": 0
+    },
+    {
+      "command": [
+        "rustc",
+        "--edition=2024",
+        "-C",
+        "opt-level=3",
+        "-C",
+        "lto=thin",
+        "-C",
+        "codegen-units=1",
+        "-L",
+        "dependency=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps",
+        "--extern",
+        "tract_data=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/libtract_data-ef3a48497db85dcf.rlib",
+        "--extern",
+        "libc=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/liblibc-05d94420b69a32a3.rlib",
+        "tools/bench_resize.rs",
+        "-o",
+        "tools/bench_out/resize-8f4cf95/probe-bounded/resize-probe"
+      ],
+      "elapsed_s": 8.118411976000061,
+      "returncode": 0
+    }
+  ]
+}

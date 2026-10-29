@@ -1,0 +1,626 @@
+{
+  "binaries": {
+    "A": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-resize-bounded",
+      "sha256": "7afe5677789c2d2a3bfb4d9c5d7c2a9e2804bcf8f64169ee36b46741cb31226f"
+    },
+    "B": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-resize-bounded",
+      "sha256": "7afe5677789c2d2a3bfb4d9c5d7c2a9e2804bcf8f64169ee36b46741cb31226f"
+    }
+  },
+  "baseline_environment": {
+    "TRACT_ONNX_RESIZE_FAST": "0"
+  },
+  "variant_environment": {},
+  "sink": "discard; CPU comparison only",
+  "stage1_cpuset": "1",
+  "stage2_cpuset": "4-6",
+  "governor": "off",
+  "warmup": "full corpus once per daemon",
+  "rounds": 6,
+  "runs": [
+    {
+      "label": "A",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 35.67,
+      "cpu_s_per_audio_s": 1.5644736842105262,
+      "infer_s": 17.95,
+      "infer_rtf": 0.787,
+      "synthesis_wall_s": 13.89,
+      "elapsed_s": 15.072337910998613,
+      "estimated_gap_s": 4.33,
+      "start_gold_c": 39.0,
+      "end_gold_c": 47.1,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.44,
+            "voluntary_switches": 106,
+            "involuntary_switches": 90
+          },
+          "gold": {
+            "cpu_s": 29.759999999999998,
+            "voluntary_switches": 2537,
+            "involuntary_switches": 4374
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 490450944,
+        "minor_faults_delta": 226789,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.25999999999999,
+        "system_cpu_s_delta": 0.95,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 35.4,
+      "cpu_s_per_audio_s": 1.5526315789473684,
+      "infer_s": 17.97,
+      "infer_rtf": 0.788,
+      "synthesis_wall_s": 14.0,
+      "elapsed_s": 15.077819318015827,
+      "estimated_gap_s": 4.4,
+      "start_gold_c": 39.0,
+      "end_gold_c": 45.9,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.4399999999999995,
+            "voluntary_switches": 108,
+            "involuntary_switches": 91
+          },
+          "gold": {
+            "cpu_s": 29.479999999999997,
+            "voluntary_switches": 2577,
+            "involuntary_switches": 4561
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 523087872,
+        "minor_faults_delta": 216458,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.940000000000005,
+        "system_cpu_s_delta": 0.9900000000000002,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 35.44,
+      "cpu_s_per_audio_s": 1.5543859649122806,
+      "infer_s": 18.01,
+      "infer_rtf": 0.79,
+      "synthesis_wall_s": 14.06,
+      "elapsed_s": 15.042167493986199,
+      "estimated_gap_s": 4.49,
+      "start_gold_c": 39.0,
+      "end_gold_c": 47.4,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.4300000000000015,
+            "voluntary_switches": 108,
+            "involuntary_switches": 81
+          },
+          "gold": {
+            "cpu_s": 29.560000000000002,
+            "voluntary_switches": 2569,
+            "involuntary_switches": 4840
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 488468480,
+        "minor_faults_delta": 214800,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.00999999999999,
+        "system_cpu_s_delta": 0.9699999999999998,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 35.7,
+      "cpu_s_per_audio_s": 1.5657894736842106,
+      "infer_s": 17.93,
+      "infer_rtf": 0.786,
+      "synthesis_wall_s": 13.95,
+      "elapsed_s": 15.076394681993406,
+      "estimated_gap_s": 4.29,
+      "start_gold_c": 38.6,
+      "end_gold_c": 47.1,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.42,
+            "voluntary_switches": 111,
+            "involuntary_switches": 93
+          },
+          "gold": {
+            "cpu_s": 29.82,
+            "voluntary_switches": 2596,
+            "involuntary_switches": 4376
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 496156672,
+        "minor_faults_delta": 226406,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.22,
+        "system_cpu_s_delta": 1.0100000000000002,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 3,
+      "audio_s": 22.8,
+      "cpu_s": 35.859999999999985,
+      "cpu_s_per_audio_s": 1.5728070175438589,
+      "infer_s": 17.94,
+      "infer_rtf": 0.787,
+      "synthesis_wall_s": 14.01,
+      "elapsed_s": 15.070778171007987,
+      "estimated_gap_s": 4.35,
+      "start_gold_c": 39.0,
+      "end_gold_c": 46.3,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.46,
+            "voluntary_switches": 107,
+            "involuntary_switches": 81
+          },
+          "gold": {
+            "cpu_s": 29.92,
+            "voluntary_switches": 2713,
+            "involuntary_switches": 4045
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 494477312,
+        "minor_faults_delta": 224151,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.46000000000001,
+        "system_cpu_s_delta": 0.9099999999999997,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 3,
+      "audio_s": 22.8,
+      "cpu_s": 35.20000000000002,
+      "cpu_s_per_audio_s": 1.5438596491228078,
+      "infer_s": 17.81,
+      "infer_rtf": 0.781,
+      "synthesis_wall_s": 13.86,
+      "elapsed_s": 15.089195620006649,
+      "estimated_gap_s": 4.31,
+      "start_gold_c": 39.8,
+      "end_gold_c": 46.7,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.37,
+            "voluntary_switches": 109,
+            "involuntary_switches": 95
+          },
+          "gold": {
+            "cpu_s": 29.369999999999997,
+            "voluntary_switches": 2547,
+            "involuntary_switches": 4792
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 516935680,
+        "minor_faults_delta": 212131,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.81000000000002,
+        "system_cpu_s_delta": 0.9500000000000002,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 4,
+      "audio_s": 22.8,
+      "cpu_s": 35.41,
+      "cpu_s_per_audio_s": 1.5530701754385963,
+      "infer_s": 18.38,
+      "infer_rtf": 0.806,
+      "synthesis_wall_s": 14.42,
+      "elapsed_s": 15.054998953011818,
+      "estimated_gap_s": 4.78,
+      "start_gold_c": 38.6,
+      "end_gold_c": 48.6,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.52,
+            "voluntary_switches": 110,
+            "involuntary_switches": 93
+          },
+          "gold": {
+            "cpu_s": 29.430000000000007,
+            "voluntary_switches": 2549,
+            "involuntary_switches": 5998
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 514965504,
+        "minor_faults_delta": 229273,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.879999999999995,
+        "system_cpu_s_delta": 1.0599999999999996,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 4,
+      "audio_s": 22.8,
+      "cpu_s": 35.82000000000002,
+      "cpu_s_per_audio_s": 1.5710526315789484,
+      "infer_s": 18.31,
+      "infer_rtf": 0.803,
+      "synthesis_wall_s": 14.31,
+      "elapsed_s": 15.05812223398243,
+      "estimated_gap_s": 4.7,
+      "start_gold_c": 39.0,
+      "end_gold_c": 48.2,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.519999999999998,
+            "voluntary_switches": 110,
+            "involuntary_switches": 92
+          },
+          "gold": {
+            "cpu_s": 29.83,
+            "voluntary_switches": 2490,
+            "involuntary_switches": 5870
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 491438080,
+        "minor_faults_delta": 232801,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.24000000000001,
+        "system_cpu_s_delta": 1.1100000000000003,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 5,
+      "audio_s": 22.8,
+      "cpu_s": 35.78,
+      "cpu_s_per_audio_s": 1.5692982456140352,
+      "infer_s": 18.44,
+      "infer_rtf": 0.809,
+      "synthesis_wall_s": 14.37,
+      "elapsed_s": 15.06119311900693,
+      "estimated_gap_s": 4.81,
+      "start_gold_c": 39.8,
+      "end_gold_c": 48.6,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.3999999999999995,
+            "voluntary_switches": 112,
+            "involuntary_switches": 89
+          },
+          "gold": {
+            "cpu_s": 29.939999999999994,
+            "voluntary_switches": 2568,
+            "involuntary_switches": 5168
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 515293184,
+        "minor_faults_delta": 234984,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.359999999999985,
+        "system_cpu_s_delta": 0.9900000000000002,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 5,
+      "audio_s": 22.8,
+      "cpu_s": 35.47999999999999,
+      "cpu_s_per_audio_s": 1.5561403508771925,
+      "infer_s": 18.08,
+      "infer_rtf": 0.793,
+      "synthesis_wall_s": 14.15,
+      "elapsed_s": 15.044407546025468,
+      "estimated_gap_s": 4.5,
+      "start_gold_c": 39.8,
+      "end_gold_c": 47.4,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.569999999999998,
+            "voluntary_switches": 110,
+            "involuntary_switches": 88
+          },
+          "gold": {
+            "cpu_s": 29.439999999999994,
+            "voluntary_switches": 2639,
+            "involuntary_switches": 3759
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 513347584,
+        "minor_faults_delta": 228215,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.04999999999998,
+        "system_cpu_s_delta": 0.9500000000000002,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "B",
+      "round": 6,
+      "audio_s": 22.8,
+      "cpu_s": 35.360000000000014,
+      "cpu_s_per_audio_s": 1.5508771929824567,
+      "infer_s": 17.86,
+      "infer_rtf": 0.783,
+      "synthesis_wall_s": 13.91,
+      "elapsed_s": 15.077077234018361,
+      "estimated_gap_s": 4.32,
+      "start_gold_c": 39.8,
+      "end_gold_c": 46.7,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.539999999999998,
+            "voluntary_switches": 107,
+            "involuntary_switches": 93
+          },
+          "gold": {
+            "cpu_s": 29.35,
+            "voluntary_switches": 2619,
+            "involuntary_switches": 5865
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 511369216,
+        "minor_faults_delta": 219026,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 33.96000000000001,
+        "system_cpu_s_delta": 0.9400000000000004,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    },
+    {
+      "label": "A",
+      "round": 6,
+      "audio_s": 22.8,
+      "cpu_s": 35.69999999999999,
+      "cpu_s_per_audio_s": 1.56578947368421,
+      "infer_s": 18.17,
+      "infer_rtf": 0.797,
+      "synthesis_wall_s": 14.07,
+      "elapsed_s": 15.049165150994668,
+      "estimated_gap_s": 4.52,
+      "start_gold_c": 39.8,
+      "end_gold_c": 47.8,
+      "persistent_threads": {
+        "groups": {
+          "little": {
+            "cpu_s": 5.36,
+            "voluntary_switches": 111,
+            "involuntary_switches": 91
+          },
+          "gold": {
+            "cpu_s": 29.890000000000015,
+            "voluntary_switches": 2632,
+            "involuntary_switches": 5806
+          },
+          "other": {
+            "cpu_s": 0,
+            "voluntary_switches": 0,
+            "involuntary_switches": 0
+          }
+        },
+        "unmatched_threads": 0
+      },
+      "cpu_telemetry": {
+        "samples": 147,
+        "max_rss_bytes": 523128832,
+        "minor_faults_delta": 244885,
+        "major_faults_delta": 0,
+        "user_cpu_s_delta": 34.390000000000015,
+        "system_cpu_s_delta": 0.8700000000000001,
+        "cpu1_reported_khz_range": [
+          672000,
+          1785600
+        ],
+        "cpu4_reported_khz_range": [
+          710400,
+          2016000
+        ]
+      }
+    }
+  ],
+  "thread_stats": true,
+  "cpu_telemetry": true
+}

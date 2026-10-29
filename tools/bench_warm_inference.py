@@ -6,6 +6,7 @@ for the measured request's own sink work. No battery-energy claim is made.
 """
 
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -15,6 +16,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 sys.dont_write_bytecode = True
@@ -67,6 +69,54 @@ def thread_delta(before, after):
     return {"groups": totals, "unmatched_threads": len(before.keys() ^ after.keys())}
 
 
+class CpuTelemetry:
+    """Observe reported frequency, CPU counters and faults without changing policy."""
+
+    def __init__(self, pid, path):
+        self.pid, self.path = pid, path
+        self.rows = []
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+
+    def sample(self):
+        fields = Path(f"/proc/{self.pid}/stat").read_text().rsplit(")", 1)[1].split()
+        ticks = os.sysconf("SC_CLK_TCK")
+        row = {"monotonic_s": time.monotonic(), "user_cpu_s": int(fields[11]) / ticks,
+               "system_cpu_s": int(fields[12]) / ticks, "minor_faults": int(fields[7]),
+               "major_faults": int(fields[9]), "rss_bytes": int(fields[21]) * os.sysconf("SC_PAGE_SIZE"),
+               "effective_cpus": ",".join(map(str, sorted(os.sched_getaffinity(self.pid))))}
+        for core in [1, 4]:
+            try:
+                row[f"cpu{core}_reported_khz"] = int(Path(
+                    f"/sys/devices/system/cpu/cpu{core}/cpufreq/scaling_cur_freq").read_text())
+            except OSError:
+                row[f"cpu{core}_reported_khz"] = None
+        return row
+
+    def run(self):
+        while not self.stop_event.is_set():
+            self.rows.append(self.sample())
+            self.stop_event.wait(0.1)
+
+    def start(self):
+        self.thread.start()
+
+    def finish(self):
+        self.stop_event.set()
+        self.thread.join()
+        self.rows.append(self.sample())
+        with self.path.open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(self.rows[0]), lineterminator="\n")
+            writer.writeheader(); writer.writerows(self.rows)
+        summary = {"samples": len(self.rows), "max_rss_bytes": max(r["rss_bytes"] for r in self.rows)}
+        for key in ["minor_faults", "major_faults", "user_cpu_s", "system_cpu_s"]:
+            summary[key + "_delta"] = self.rows[-1][key] - self.rows[0][key]
+        for core in [1, 4]:
+            values = sorted(r[f"cpu{core}_reported_khz"] for r in self.rows if r[f"cpu{core}_reported_khz"] is not None)
+            summary[f"cpu{core}_reported_khz_range"] = [values[0], values[-1]] if values else None
+        return summary
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", type=Path, required=True)
@@ -81,6 +131,8 @@ def main():
     parser.add_argument("--supervisor-pid", type=int)
     parser.add_argument("--thread-stats", action="store_true",
                         help="also record persistent-thread CPU and context switches by affinity")
+    parser.add_argument("--cpu-telemetry", action="store_true",
+                        help="sample reported CPU frequency, process faults and RSS every 100ms")
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error("rounds must be positive")
@@ -110,6 +162,7 @@ def main():
         "stage1_cpuset":"1", "stage2_cpuset":"4-6", "governor":"off",
         "warmup":"full corpus once per daemon", "rounds":args.rounds, "runs":[],
         "thread_stats": args.thread_stats,
+        "cpu_telemetry": args.cpu_telemetry,
     }
     path = out/"manifest.json"
     path.write_text(json.dumps(manifest,indent=2)+"\n")
@@ -133,7 +186,7 @@ def main():
             for label,binary in binaries.items():
                 env=os.environ.copy()
                 for name in list(env):
-                    if name.startswith(("KOKORO_","RYK_","TRACT_CPU_")):
+                    if name.startswith(("KOKORO_","RYK_","TRACT_CPU_","TRACT_ONNX_")):
                         del env[name]
                 sock=Path(tempfile.gettempdir())/f"ryk-mm-{os.getpid()}-{label}.sock"
                 logpath=out/(label+"-daemon.log")
@@ -170,10 +223,16 @@ def main():
                     proc=processes[label];log=logs[label]
                     offset=len(log.read_text())
                     threads_before = thread_stats(proc.pid) if args.thread_stats else None
+                    telemetry = CpuTelemetry(proc.pid, out / f"{label}-{rnd}-cpu.csv") if args.cpu_telemetry else None
+                    if telemetry:
+                        telemetry.start()
                     before=proc_cpu(proc.pid); started=time.monotonic(); start_c=gold()
-                    send(sockets[label],text)
-                    tail,_=wait_idle(proc,log,offset,180)
-                    cpu=proc_cpu(proc.pid)-before; elapsed=time.monotonic()-started
+                    try:
+                        send(sockets[label],text)
+                        tail,_=wait_idle(proc,log,offset,180)
+                        cpu=proc_cpu(proc.pid)-before; elapsed=time.monotonic()-started
+                    finally:
+                        telemetry_summary = telemetry.finish() if telemetry else None
                     matches=list(DONE.finditer(tail))
                     if len(matches)!=1 or "synth error" in tail or "write failed" in tail:
                         raise RuntimeError(f"Failed request: {label} round {rnd}")
@@ -184,6 +243,8 @@ def main():
                             "start_gold_c":start_c,"end_gold_c":gold()}
                     if args.thread_stats:
                         result["persistent_threads"] = thread_delta(threads_before, thread_stats(proc.pid))
+                    if telemetry:
+                        result["cpu_telemetry"] = telemetry_summary
                     (out/f"{label}-{rnd}.log").write_text(tail)
                     manifest["runs"].append(result)
                     path.write_text(json.dumps(manifest,indent=2)+"\n")
