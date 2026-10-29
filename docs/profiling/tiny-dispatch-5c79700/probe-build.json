@@ -1,0 +1,35 @@
+{
+  "command": [
+    "rustc",
+    "--edition=2024",
+    "-C",
+    "opt-level=3",
+    "-C",
+    "lto=thin",
+    "-C",
+    "codegen-units=1",
+    "-L",
+    "dependency=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps",
+    "--extern",
+    "tract_data=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/libtract_data-ef3a48497db85dcf.rlib",
+    "--extern",
+    "tract_linalg=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/libtract_linalg-fe2ba331ab69b352.rlib",
+    "--extern",
+    "libc=/data/data/com.termux/files/home/PRJ/kukuryku/target/release/deps/liblibc-05d94420b69a32a3.rlib",
+    "tools/bench_tiny_dispatch.rs",
+    "-o",
+    "tools/bench_out/dispatch-5c79700/probe/matmul-probe"
+  ],
+  "libraries": {
+    "tract_data": "target/release/deps/libtract_data-ef3a48497db85dcf.rlib",
+    "tract_linalg": "target/release/deps/libtract_linalg-fe2ba331ab69b352.rlib",
+    "libc": "target/release/deps/liblibc-05d94420b69a32a3.rlib"
+  },
+  "backend_source_sha256": "b543db5a90b98345134a7dba33a0432d07a17b1cd5b5bbb6e0eabcbe4e007a1a",
+  "probe_source_sha256": "fe29b312d24d19112e24c0e5b89b53aa5b5657772c560563f37bcb1a3cd42007",
+  "commit": "5c7970031d48dac7da595e3061368d1dfd2cf097",
+  "math_source_sha256": "2bcabbdb6d633605c017099baf571b7bbdf743df059d03c1ec6963878829966d",
+  "row_source_sha256": "5d206f553bc0987b919b0b8af83d72f6d911d33fe1e4f63ab7d67c6eaf577211",
+  "build_s": 58.53124633099651,
+  "returncode": 0
+}

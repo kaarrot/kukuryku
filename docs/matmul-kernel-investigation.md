@@ -276,10 +276,12 @@ CPUs. The warm runs record both the masks and successful restoration in
 ## Remaining optimization work
 
 Keep the vocoder kernel selection as it is. AdaIN/activation/precision fusion
-is committed, and existing FP16 tile selection has now been measured. Two
-implementation items from the original review remain: measure and avoid
-thread-pool dispatch for tiny operations, then consider a specialized contiguous
-one-dimensional Resize path. Neither has a demonstrated CPU or energy gain yet.
+is committed, and existing FP16 tile selection has now been measured. The
+subsequent [tiny-dispatch investigation](tiny-dispatch-investigation.md) found
+3.3% less inference-process CPU time from running small matmuls on the caller;
+AdaIN/Snake row dispatch stays unchanged. The next original implementation item
+is a specialized contiguous one-dimensional Resize path, whose CPU and energy
+benefits remain unmeasured.
 Parallel Cast tuning remains deferred because its latency improvement did not
 reduce total CPU work.
 

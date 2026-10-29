@@ -1,0 +1,704 @@
+{
+  "probe_sha256": "eb16490ba1c5bed9b1d05d39c08a413838020c2b704f4fef39eecd78075ae1f3",
+  "pinning": "probe/caller/workers=4-6; observer/supervisor=0",
+  "method": "100ms park before arm; 30ms worker tail counted in process CPU; prepacked matmuls",
+  "rounds": 6,
+  "cases": [
+    {
+      "label": "f16vec-128",
+      "arguments": [
+        "matmul",
+        "f16vec",
+        128,
+        128,
+        1,
+        256,
+        6
+      ],
+      "start_gold_c": 41.7,
+      "end_gold_c": 36.3,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 3.434447265625e-06,
+          "cpu_including_tail_s": 3.4582500000000003e-06
+        },
+        "pool3": {
+          "work_wall_s": 3.2441302734375e-05,
+          "cpu_including_tail_s": 6.26671328125e-05
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -89.41334972351206,
+        "cpu_including_tail_s": -94.48155700637034
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16vec-256",
+      "arguments": [
+        "matmul",
+        "f16vec",
+        256,
+        128,
+        1,
+        256,
+        6
+      ],
+      "start_gold_c": 36.3,
+      "end_gold_c": 35.6,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 4.705302734375e-06,
+          "cpu_including_tail_s": 4.966736328125e-06
+        },
+        "pool3": {
+          "work_wall_s": 3.111623046875e-05,
+          "cpu_including_tail_s": 7.5330310546875e-05
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -84.87830092690524,
+        "cpu_including_tail_s": -93.40672261660941
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16vec-512",
+      "arguments": [
+        "matmul",
+        "f16vec",
+        512,
+        128,
+        1,
+        256,
+        6
+      ],
+      "start_gold_c": 35.6,
+      "end_gold_c": 35.2,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 1.5356546875e-05,
+          "cpu_including_tail_s": 1.5537617187499998e-05
+        },
+        "pool3": {
+          "work_wall_s": 5.535023828125e-05,
+          "cpu_including_tail_s": 0.00010757069921875
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -72.25568064048957,
+        "cpu_including_tail_s": -85.55590202504537
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16vec-1024",
+      "arguments": [
+        "matmul",
+        "f16vec",
+        1024,
+        128,
+        1,
+        256,
+        6
+      ],
+      "start_gold_c": 34.8,
+      "end_gold_c": 34.8,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 3.1600953124999995e-05,
+          "cpu_including_tail_s": 3.1468599609375e-05
+        },
+        "pool3": {
+          "work_wall_s": 5.4114583984374995e-05,
+          "cpu_including_tail_s": 0.00010299976953125
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -41.60362919148666,
+        "cpu_including_tail_s": -69.44789318210323
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16vec-1090",
+      "arguments": [
+        "matmul",
+        "f16vec",
+        1090,
+        128,
+        1,
+        256,
+        6
+      ],
+      "start_gold_c": 34.4,
+      "end_gold_c": 34.4,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 3.6248474609375004e-05,
+          "cpu_including_tail_s": 3.6102296875e-05
+        },
+        "pool3": {
+          "work_wall_s": 9.11131796875e-05,
+          "cpu_including_tail_s": 0.000169804869140625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -60.21599209499654,
+        "cpu_including_tail_s": -78.73895073933267
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16vec-dynamic",
+      "arguments": [
+        "matmul",
+        "f16vec",
+        2340,
+        256,
+        1,
+        128,
+        6
+      ],
+      "start_gold_c": 34.4,
+      "end_gold_c": 33.7,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.00016632934765625,
+          "cpu_including_tail_s": 0.00016460187109374998
+        },
+        "pool3": {
+          "work_wall_s": 0.00013259867578125002,
+          "cpu_including_tail_s": 0.000255483578125
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 25.438166464532408,
+        "cpu_including_tail_s": -35.57242610199568
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f32vec-256-256",
+      "arguments": [
+        "matmul",
+        "f32vec",
+        256,
+        256,
+        1,
+        128,
+        6
+      ],
+      "start_gold_c": 33.7,
+      "end_gold_c": 40.2,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 2.5104578125e-05,
+          "cpu_including_tail_s": 2.52823828125e-05
+        },
+        "pool3": {
+          "work_wall_s": 8.516723828124999e-05,
+          "cpu_including_tail_s": 0.00013194296875
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -70.52319808457743,
+        "cpu_including_tail_s": -80.83840082421975
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f32vec-1024-256",
+      "arguments": [
+        "matmul",
+        "f32vec",
+        1024,
+        256,
+        1,
+        64,
+        6
+      ],
+      "start_gold_c": 39.4,
+      "end_gold_c": 35.2,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.00011121135156250001,
+          "cpu_including_tail_s": 0.0001075988671875
+        },
+        "pool3": {
+          "work_wall_s": 0.00014380859375,
+          "cpu_including_tail_s": 0.0002445467265625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -22.667103082982475,
+        "cpu_including_tail_s": -56.000692096771765
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f32vec-128-128",
+      "arguments": [
+        "matmul",
+        "f32vec",
+        128,
+        128,
+        1,
+        256,
+        6
+      ],
+      "start_gold_c": 34.8,
+      "end_gold_c": 33.7,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 6.5393046875e-06,
+          "cpu_including_tail_s": 6.558837890625e-06
+        },
+        "pool3": {
+          "work_wall_s": 4.037383984375e-05,
+          "cpu_including_tail_s": 7.8760482421875e-05
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -83.80311431162447,
+        "cpu_including_tail_s": -91.67242544872562
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f32vec-single-tile",
+      "arguments": [
+        "matmul",
+        "f32vec",
+        32,
+        128,
+        1,
+        512,
+        6
+      ],
+      "start_gold_c": 33.7,
+      "end_gold_c": 33.7,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 1.8018095703125e-06,
+          "cpu_including_tail_s": 1.8771875e-06
+        },
+        "pool3": {
+          "work_wall_s": 2.8940886718749998e-05,
+          "cpu_including_tail_s": 5.191024609375e-05
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -93.77417289310227,
+        "cpu_including_tail_s": -96.38378231417012
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16mat-one-row-tile",
+      "arguments": [
+        "matmul",
+        "f16mat",
+        64,
+        128,
+        13,
+        128,
+        6
+      ],
+      "start_gold_c": 33.3,
+      "end_gold_c": 32.9,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 1.362365625e-05,
+          "cpu_including_tail_s": 1.3823226562499999e-05
+        },
+        "pool3": {
+          "work_wall_s": 5.70056171875e-05,
+          "cpu_including_tail_s": 9.756653125e-05
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -76.10120384243932,
+        "cpu_including_tail_s": -85.83199957464922
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16mat-256-128-13",
+      "arguments": [
+        "matmul",
+        "f16mat",
+        256,
+        128,
+        13,
+        128,
+        6
+      ],
+      "start_gold_c": 32.9,
+      "end_gold_c": 32.9,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 5.34503203125e-05,
+          "cpu_including_tail_s": 5.317709765625e-05
+        },
+        "pool3": {
+          "work_wall_s": 7.78558359375e-05,
+          "cpu_including_tail_s": 0.0001464719765625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -31.347060025907258,
+        "cpu_including_tail_s": -63.69469511899487
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "f16mat-control",
+      "arguments": [
+        "matmul",
+        "f16mat",
+        512,
+        512,
+        59,
+        16,
+        6
+      ],
+      "start_gold_c": 32.5,
+      "end_gold_c": 32.5,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.00164602540625,
+          "cpu_including_tail_s": 0.00163147465625
+        },
+        "pool3": {
+          "work_wall_s": 0.00068645346875,
+          "cpu_including_tail_s": 0.0012072770625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 139.78688741238878,
+        "cpu_including_tail_s": 35.13672270651627
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "leaky16-512-59",
+      "arguments": [
+        "rows",
+        "leaky16",
+        512,
+        59,
+        0,
+        32,
+        6
+      ],
+      "start_gold_c": 32.9,
+      "end_gold_c": 32.5,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.0004862475625,
+          "cpu_including_tail_s": 0.000483435875
+        },
+        "pool3": {
+          "work_wall_s": 0.000308069671875,
+          "cpu_including_tail_s": 0.00058838946875
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 57.83688135886877,
+        "cpu_including_tail_s": -17.837435801318456
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "leaky16-1024-59",
+      "arguments": [
+        "rows",
+        "leaky16",
+        1024,
+        59,
+        0,
+        32,
+        6
+      ],
+      "start_gold_c": 32.1,
+      "end_gold_c": 32.9,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.00097083984375,
+          "cpu_including_tail_s": 0.000962435703125
+        },
+        "pool3": {
+          "work_wall_s": 0.00054878090625,
+          "cpu_including_tail_s": 0.001079146390625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 76.90845885730013,
+        "cpu_including_tail_s": -10.815093161957911
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "leaky16-256-118",
+      "arguments": [
+        "rows",
+        "leaky16",
+        256,
+        118,
+        0,
+        32,
+        6
+      ],
+      "start_gold_c": 32.5,
+      "end_gold_c": 32.5,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.000341321609375,
+          "cpu_including_tail_s": 0.00034087315625
+        },
+        "pool3": {
+          "work_wall_s": 0.000239122703125,
+          "cpu_including_tail_s": 0.000455563171875
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 42.73910628911557,
+        "cpu_including_tail_s": -25.175436186590883
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "leaky16-512-13",
+      "arguments": [
+        "rows",
+        "leaky16",
+        512,
+        13,
+        0,
+        128,
+        6
+      ],
+      "start_gold_c": 32.1,
+      "end_gold_c": 32.1,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.00024988158984375,
+          "cpu_including_tail_s": 0.000247152109375
+        },
+        "pool3": {
+          "work_wall_s": 0.00012605651953124998,
+          "cpu_including_tail_s": 0.00024466937890625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 98.2298026099342,
+        "cpu_including_tail_s": 1.014728724881131
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "adain16-128-13",
+      "arguments": [
+        "rows",
+        "adain16",
+        128,
+        13,
+        0,
+        128,
+        6
+      ],
+      "start_gold_c": 32.1,
+      "end_gold_c": 32.1,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 8.710428515625e-05,
+          "cpu_including_tail_s": 8.610065625e-05
+        },
+        "pool3": {
+          "work_wall_s": 8.992024609375001e-05,
+          "cpu_including_tail_s": 0.00016902853515624998
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -3.1316205858290425,
+        "cpu_including_tail_s": -49.06146694674449
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "adain16-256-1180",
+      "arguments": [
+        "rows",
+        "adain16",
+        256,
+        1180,
+        0,
+        8,
+        6
+      ],
+      "start_gold_c": 32.1,
+      "end_gold_c": 32.1,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.0041816015625,
+          "cpu_including_tail_s": 0.0041363311875
+        },
+        "pool3": {
+          "work_wall_s": 0.0020139193125,
+          "cpu_including_tail_s": 0.003794219125
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 107.63500983111007,
+        "cpu_including_tail_s": 9.016665912778565
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "adain16-128-7081",
+      "arguments": [
+        "rows",
+        "adain16",
+        128,
+        7081,
+        0,
+        4,
+        6
+      ],
+      "start_gold_c": 32.1,
+      "end_gold_c": 33.7,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.011014225249999999,
+          "cpu_including_tail_s": 0.0108923435
+        },
+        "pool3": {
+          "work_wall_s": 0.006597128875,
+          "cpu_including_tail_s": 0.013395163875000001
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 66.9548292703316,
+        "cpu_including_tail_s": -18.684507321863585
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "snake-256-1180",
+      "arguments": [
+        "rows",
+        "snake",
+        256,
+        1180,
+        0,
+        16,
+        6
+      ],
+      "start_gold_c": 33.7,
+      "end_gold_c": 32.9,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.0021036328125,
+          "cpu_including_tail_s": 0.002076398375
+        },
+        "pool3": {
+          "work_wall_s": 0.00066513671875,
+          "cpu_including_tail_s": 0.00122421540625
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 216.27073851123177,
+        "cpu_including_tail_s": 69.61054111877216
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "snake-128-7081",
+      "arguments": [
+        "rows",
+        "snake",
+        128,
+        7081,
+        0,
+        8,
+        6
+      ],
+      "start_gold_c": 32.9,
+      "end_gold_c": 35.2,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.0054315136875,
+          "cpu_including_tail_s": 0.0053023438125
+        },
+        "pool3": {
+          "work_wall_s": 0.002331975875,
+          "cpu_including_tail_s": 0.00444623375
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 132.91466029853333,
+        "cpu_including_tail_s": 19.25472457447832
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "leaky-512-59",
+      "arguments": [
+        "rows",
+        "leaky",
+        512,
+        59,
+        0,
+        64,
+        6
+      ],
+      "start_gold_c": 34.8,
+      "end_gold_c": 35.6,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 0.00031972534375,
+          "cpu_including_tail_s": 0.0003167883125
+        },
+        "pool3": {
+          "work_wall_s": 0.00018495809375,
+          "cpu_including_tail_s": 0.00045417764062500004
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": 72.86366725976275,
+        "cpu_including_tail_s": -30.250130309351363
+      },
+      "initial_bit_parity": true
+    },
+    {
+      "label": "leaky16-1-59",
+      "arguments": [
+        "rows",
+        "leaky16",
+        1,
+        59,
+        0,
+        512,
+        6
+      ],
+      "start_gold_c": 35.2,
+      "end_gold_c": 34.8,
+      "median_per_call_s": {
+        "serial": {
+          "work_wall_s": 7.5251171875e-07,
+          "cpu_including_tail_s": 8.640537109375e-07
+        },
+        "pool3": {
+          "work_wall_s": 3.3221537109375e-05,
+          "cpu_including_tail_s": 6.979268164062499e-05
+        }
+      },
+      "serial_change_percent": {
+        "work_wall_s": -97.7348678471062,
+        "cpu_including_tail_s": -98.76197089633743
+      },
+      "initial_bit_parity": true
+    }
+  ]
+}

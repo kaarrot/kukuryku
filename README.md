@@ -248,6 +248,16 @@ multiply in the probe); these results do not establish battery-energy savings.
 See [the matmul investigation](docs/matmul-kernel-investigation.md) for measurements
 and probe commands.
 
+ARM64 Android also runs small matmuls directly on the caller, avoiding pool
+dispatch for a single outer tile or at most 262,144 multiply-accumulates. Larger
+calls with multiple outer tiles still use the pool. Six warm A/B pairs used
+3.3% less inference-process CPU time, with roughly unchanged elapsed generation
+time. `TRACT_CPU_MMM_MIN_WORK=0` restores the previous pool
+dispatch; a positive integer sets the cutoff. The value is read once when the
+process first uses a multithreaded matmul. AdaIN/Snake row dispatch is unchanged.
+See [the dispatch investigation](docs/tiny-dispatch-investigation.md) for the
+profiling data, latency results and measurement limits.
+
 ### Markdown is stripped before speaking
 
 Listening to a `.md` file used to mean hearing its syntax: a nested `** bullet **` had every

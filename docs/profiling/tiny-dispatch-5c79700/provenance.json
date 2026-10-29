@@ -1,0 +1,152 @@
+{
+  "baseline_commit": "5c79700",
+  "source_directory": "tools/bench_out/dispatch-5c79700",
+  "baseline_linalg_source_sha256": "38418d490f13dba35a5ab838a1b72a98f79135f526dc400189112131efb67d6f",
+  "rows": 288,
+  "source_csvs": [
+    {
+      "path": "micro/adain16-128-13.csv",
+      "sha256": "5c31f0541bb1995ace891a5a801274f0592e3e19351ccfdd6cd5ad41915a7fdf"
+    },
+    {
+      "path": "micro/adain16-128-7081.csv",
+      "sha256": "bd9b10e271c82c228e07a65e8da3c8537e54e20ea899bc57cf4cbe20b91f2e9b"
+    },
+    {
+      "path": "micro/adain16-256-1180.csv",
+      "sha256": "9842944f27da80a5286180d6ea2682f5200e101d3128c4fe071903f40d33031d"
+    },
+    {
+      "path": "micro/f16mat-256-128-13.csv",
+      "sha256": "13f4bd8df131f0b7becf8579be607a14b9b9a83120ae0d40b9fcc9a6180fab33"
+    },
+    {
+      "path": "micro/f16mat-control.csv",
+      "sha256": "a739d033a164463dab7216d0c76728d93bc3837f39a128036bc2385d3b311fb0"
+    },
+    {
+      "path": "micro/f16mat-one-row-tile.csv",
+      "sha256": "d18d5ee0100b5248f53f87365fa3b4a5a78d6a02a6036c6a0139128da442c9d6"
+    },
+    {
+      "path": "micro/f16vec-1024.csv",
+      "sha256": "29077eeef87bb3cd33a5e3d917a51700e8ac081cc14bb12ee8b1219c9d20a9fe"
+    },
+    {
+      "path": "micro/f16vec-1090.csv",
+      "sha256": "45be80f65b79693a95fdd8b292e16d5e85d84adb1a830f0f9e332fc5f7599829"
+    },
+    {
+      "path": "micro/f16vec-128.csv",
+      "sha256": "21a6a40ecfdb0bb8609abdb5fc928492d75281147df5e9f37732675077bcabbe"
+    },
+    {
+      "path": "micro/f16vec-256.csv",
+      "sha256": "d612a3a1da992e039c0d55b0e256dfab890ed719183e0c76b68cfc303db44527"
+    },
+    {
+      "path": "micro/f16vec-512.csv",
+      "sha256": "3991a1436ab0de44651d831ad1aee64a85f34252acf3fff14863e3f0982a0444"
+    },
+    {
+      "path": "micro/f16vec-dynamic.csv",
+      "sha256": "6bb01f8cd46cccd0cee390ff03f96b4a34d9ac1b30546d9f18cba69d7b7680d0"
+    },
+    {
+      "path": "micro/f32vec-1024-256.csv",
+      "sha256": "8e1f21749f3117f7e6bc62dedf2d312069a0b0d46f76e8ccf770a308446a5cc5"
+    },
+    {
+      "path": "micro/f32vec-128-128.csv",
+      "sha256": "bd9183db79ae9885a5b1481918dad12a67b8288b35dd42665cf4e2a8d5eec212"
+    },
+    {
+      "path": "micro/f32vec-256-256.csv",
+      "sha256": "58e949c24afb3b65598fb226349844fca56b35b79bc7f72d30ab79d3c82529af"
+    },
+    {
+      "path": "micro/f32vec-single-tile.csv",
+      "sha256": "68049c5dc453206446d2cc5237a98ab9a84d2541d84fbe25510668f983baa969"
+    },
+    {
+      "path": "micro/leaky-512-59.csv",
+      "sha256": "7454a3fb90e1f180cfbcb79da3cd5100e0ca339d65bb5e106e5d329ff4d9d4cf"
+    },
+    {
+      "path": "micro/leaky16-1-59.csv",
+      "sha256": "2f4b2b7fa2cb688f276bdd5e4fb150c8061897084c4b19513e4cb4e015e8a743"
+    },
+    {
+      "path": "micro/leaky16-1024-59.csv",
+      "sha256": "44d6509aec28efdc933e8eb8e502fce2686c6e910658baa9bbce0f0d7bf2c75c"
+    },
+    {
+      "path": "micro/leaky16-256-118.csv",
+      "sha256": "6a2113ad7c5735a04cf75ed5dcb0744e183ed2bad2a055bd68623ebf29aa79c2"
+    },
+    {
+      "path": "micro/leaky16-512-13.csv",
+      "sha256": "927eb177e15ff10fadd6cef22b28566aea5c3321437f4100b24f200439b7264d"
+    },
+    {
+      "path": "micro/leaky16-512-59.csv",
+      "sha256": "462942c774c9dbed9c1d13315dc24a132ee6dc034157a12b3172c0c619003b18"
+    },
+    {
+      "path": "micro/snake-128-7081.csv",
+      "sha256": "6b4aafc57afa7f94b872646f596505f25235b19584f52340f0ccf78b8dc05cea"
+    },
+    {
+      "path": "micro/snake-256-1180.csv",
+      "sha256": "1543ca05c33609d5ff38866c3d07a3f4a35ae1b8bc78c0a930a3d9cb2df38509"
+    }
+  ],
+  "notes": "Initial microbenchmark binary links the pre-policy baseline libraries. Rebuilding the probe later requires TRACT_CPU_MMM_MIN_WORK=0; the harness now sets it explicitly.",
+  "exports": {
+    "baseline.json": {
+      "source": "baseline.json",
+      "source_sha256": "6c7185c504202748caa32d9e13bbff7b4ec694a5911ea1894ae41b1b0d659709",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "application-build.json": {
+      "source": "application-build/build.json",
+      "source_sha256": "97bd1831ebd4e485391bdd454007f6ca293c3fa63825c5fc9acc040e4dd5f809",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "validation.json": {
+      "source": "validation/summary.json",
+      "source_sha256": "e77c4e69efdaa7b80f56613e830d67daa067144bfdfff2527f60e0c7f7045f51",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "dispatch-geometries.json": {
+      "source": "validation/dispatch-geometries.json",
+      "source_sha256": "2e7eb3c314291a4dfe598b8ba822ab308dc086678b37caea1c7303d1be5c486a",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "raw-parity.json": {
+      "source": "parity/summary.json",
+      "source_sha256": "16a4c1632aeed0f1d00cadf41a354b18c31392ccef920e29cbd31843ab754650",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-same-binary.json": {
+      "source": "warm-inference/manifest.json",
+      "source_sha256": "13090b33e2914dfe6b1d608b6547b1f47539652be62978dc4e4a1a9223e2af00",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-same-binary-analysis.json": {
+      "source": "warm-inference/analysis.json",
+      "source_sha256": "262050aa1ed66c6c818d9a85ad544cc995524ecb04c31c4c7f2cad6f6d35c91c",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-main-upgrade.json": {
+      "source": "warm-main-upgrade/manifest.json",
+      "source_sha256": "6e70219f8ea4adafb1dd6ce14ca77051bdd9394129e8c69cdeddb5c759a7fd22",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    },
+    "warm-main-upgrade-analysis.json": {
+      "source": "warm-main-upgrade/analysis.json",
+      "source_sha256": "868821d59fff514940732cc467e8ccef1ecc111455e2564866fe008cee3eab09",
+      "normalization": "repository-relative paths; assets as ASSETS"
+    }
+  }
+}

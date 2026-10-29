@@ -62,7 +62,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--no-inventory", action="store_true", help="omit the ONNX plan inventory mode")
-    parser.add_argument("--dense-only", action="store_true", help="build the smaller stage-1 dense probe")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dense-only", action="store_true", help="build the smaller stage-1 dense probe")
+    mode.add_argument("--dispatch-only", action="store_true", help="build the small-operation dispatch probe")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     deps = repo / "target/release/deps"
@@ -81,6 +83,18 @@ def main():
     generated = out / "backend_probe.rs"
     generated.write_text(backend + "\n")
     env["MATMUL_BACKEND_PROBE"] = str(generated)
+    if args.dispatch_only:
+        math_source = (repo / "third_party/tract/tract-core/src/ops/math/mod.rs").read_text()
+        def function(name):
+            start = math_source.index("fn " + name + "(")
+            end = math_source.index("\n}\n", start) + 3
+            return math_source[start:end]
+        rows_start = math_source.index("const ADAIN_LANES:")
+        rows_end = math_source.index("\nimpl EvalOp for AdaIn", rows_start)
+        rows = function("sin_sq_f32") + function("snake_f32") + math_source[rows_start:rows_end]
+        row_path = out / "row_probe.rs"
+        row_path.write_text(rows)
+        env["TRACT_DISPATCH_ROW_PROBE"] = str(row_path)
 
     def profile(path, crate):
         tag = path.stem.removeprefix("lib" + crate + "-")
@@ -92,8 +106,9 @@ def main():
     if len(data) != 1:
         raise RuntimeError("Expected one cached tract-data release build")
     wanted_profile = profile(data[0], "tract_data")
-    names = ["tract_data", "tract_linalg", "libc"] if args.dense_only else ["tract_core", "tract_data", "tract_linalg", "libc", "num_integer", "anyhow", "serde_json"]
-    inventory = not args.no_inventory and not args.dense_only
+    small = args.dense_only or args.dispatch_only
+    names = ["tract_data", "tract_linalg", "libc"] if small else ["tract_core", "tract_data", "tract_linalg", "libc", "num_integer", "anyhow", "serde_json"]
+    inventory = not args.no_inventory and not small
     if inventory:
         names.append("tract_onnx")
     command = ["rustc", "--edition=2024", "-C", "opt-level=3", "-C", "lto=thin",
@@ -109,12 +124,16 @@ def main():
             raise RuntimeError(f"Expected one matching cached release library for {name}: {paths}")
         selected[name] = str(paths[0])
         command.extend(["--extern", name + "=" + str(paths[0])])
-    bench_source = repo / "tools" / ("bench_dense_matmul.rs" if args.dense_only else "bench_matmul.rs")
+    filename = "bench_tiny_dispatch.rs" if args.dispatch_only else "bench_dense_matmul.rs" if args.dense_only else "bench_matmul.rs"
+    bench_source = repo / "tools" / filename
     command.extend([str(bench_source), "-o", str(out / "matmul-probe")])
     manifest = {"command": command, "libraries": selected,
                 "backend_source_sha256": hashlib.sha256(source.encode()).hexdigest(),
                 "probe_source_sha256": hashlib.sha256(bench_source.read_bytes()).hexdigest(),
                 "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()}
+    if args.dispatch_only:
+        manifest["math_source_sha256"] = hashlib.sha256(math_source.encode()).hexdigest()
+        manifest["row_source_sha256"] = hashlib.sha256(row_path.read_bytes()).hexdigest()
     (out / "build.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Building separate matmul probe; log: {out / 'build.log'}", flush=True)
     start = time.monotonic()

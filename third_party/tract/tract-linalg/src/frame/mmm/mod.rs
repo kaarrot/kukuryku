@@ -220,6 +220,48 @@ impl<K: MatMatMulKer> MatMatMul for K {
     }
 }
 
+/// Keep small matrix work on the calling core rather than waking the pool.
+/// The estimate counts multiply-accumulates, including every fused product.
+/// A zero override restores the previous dispatch path for controlled A/B runs.
+fn matmul_executor(m: usize, n: usize, outer_tiles: usize, ops: &[FusedSpec]) -> Executor {
+    let executor = crate::multithread::current_tract_executor();
+    #[cfg(feature = "multithread-mm")]
+    if let Executor::MultiThread(_) = &executor {
+        struct Policy { minimum_work: usize, trace: bool }
+        static POLICY: std::sync::OnceLock<Policy> = std::sync::OnceLock::new();
+        let policy = POLICY.get_or_init(|| Policy {
+            minimum_work: std::env::var("TRACT_CPU_MMM_MIN_WORK").ok()
+                .and_then(|v| v.parse().ok()).unwrap_or_else(|| {
+                    if cfg!(all(target_arch = "aarch64", target_os = "android")) { 1 << 18 } else { 0 }
+                }),
+            trace: std::env::var("TRACT_CPU_MMM_TRACE").is_ok_and(|v| v == "1"),
+        });
+        if policy.minimum_work != 0 || policy.trace {
+            let k = ops.iter().filter_map(|op| match op {
+                FusedSpec::AddMatMul { a, .. } => Some(a.k()),
+                _ => None,
+            }).fold(0usize, usize::saturating_add);
+            let work = m.saturating_mul(n).saturating_mul(k);
+            let serial = policy.minimum_work != 0
+                && (outer_tiles <= 1 || (k > 0 && work <= policy.minimum_work));
+            if policy.trace {
+                type Shape = (usize, usize, usize, usize, bool);
+                static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<Shape>>> = std::sync::OnceLock::new();
+                let first = SEEN.get_or_init(Default::default).lock().unwrap()
+                    .insert((m, n, k, outer_tiles, serial));
+                if first {
+                    eprintln!("tract-mmm-dispatch m={m} n={n} k={k} outer={outer_tiles} work={work} route={} threshold={}",
+                        if serial { "serial" } else { "pool" }, policy.minimum_work);
+                }
+            }
+            if serial { return Executor::SingleThread; }
+        }
+    }
+    #[cfg(not(feature = "multithread-mm"))]
+    let _ = (m, n, outer_tiles, ops);
+    executor
+}
+
 unsafe fn run_with_scratch_space_vec<K: MatMatMulKer>(
     ker: &K,
     m: usize,
@@ -227,7 +269,7 @@ unsafe fn run_with_scratch_space_vec<K: MatMatMulKer>(
     non_linear: &[FusedSpec],
 ) -> TractResult<()> {
     unsafe {
-        match crate::multithread::current_tract_executor() {
+        match matmul_executor(m, 1, m.div_ceil(ker.mr()), non_linear) {
             Executor::SingleThread => {
                 for ia in 0..m.divceil(ker.mr()) {
                     scratch.run(ker, non_linear, ia, 0)?;
@@ -252,7 +294,7 @@ unsafe fn run_with_scratch_space_col_outer<K: MatMatMulKer>(
     non_linear: &[FusedSpec],
 ) -> TractResult<()> {
     unsafe {
-        match crate::multithread::current_tract_executor() {
+        match matmul_executor(m, n, n.div_ceil(ker.nr()), non_linear) {
             Executor::SingleThread => {
                 for ib in 0..n.divceil(ker.nr()) {
                     for ia in 0..m.divceil(ker.mr()) {
@@ -282,7 +324,7 @@ unsafe fn run_with_scratch_space_row_outer<K: MatMatMulKer>(
     non_linear: &[FusedSpec],
 ) -> TractResult<()> {
     unsafe {
-        match crate::multithread::current_tract_executor() {
+        match matmul_executor(m, n, m.div_ceil(ker.mr()), non_linear) {
             Executor::SingleThread => {
                 for ia in 0..m.divceil(ker.mr()) {
                     for ib in 0..n.divceil(ker.nr()) {

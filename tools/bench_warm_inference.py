@@ -18,7 +18,7 @@ import tempfile
 import time
 
 sys.dont_write_bytecode = True
-from bench_warm_playback import DONE, isolate_supervisor, proc_cpu, send, wait_idle
+from bench_warm_playback import DONE, isolate_supervisor, proc_cpu, requested_affinity, send, wait_idle
 
 
 TEXT = (
@@ -34,6 +34,39 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def thread_stats(pid):
+    """Persistent daemon threads only; child CPU remains in the process total."""
+    result = {}
+    for task in Path(f"/proc/{pid}/task").glob("*"):
+        try:
+            tid = int(task.name)
+            fields = (task / "stat").read_text().rsplit(")", 1)[1].split()
+            status = dict(line.split(":", 1) for line in (task / "status").read_text().splitlines() if ":" in line)
+            cpus = requested_affinity(tid)
+            group = "little" if cpus and cpus <= {0, 1, 2, 3} else "gold" if cpus and cpus <= {4, 5, 6} else "other"
+            result[tid] = {
+                "start": int(fields[19]), "group": group,
+                "cpu_s": (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK"),
+                "voluntary_switches": int(status["voluntary_ctxt_switches"]),
+                "involuntary_switches": int(status["nonvoluntary_ctxt_switches"]),
+            }
+        except (FileNotFoundError, ProcessLookupError):
+            pass
+    return result
+
+
+def thread_delta(before, after):
+    totals = {group: {k: 0 for k in ["cpu_s", "voluntary_switches", "involuntary_switches"]}
+              for group in ["little", "gold", "other"]}
+    common = {tid for tid in before.keys() & after.keys()
+              if before[tid]["start"] == after[tid]["start"]}
+    for tid in common:
+        group = after[tid]["group"] if before[tid]["group"] == after[tid]["group"] else "other"
+        for key in totals[group]:
+            totals[group][key] += after[tid][key] - before[tid][key]
+    return {"groups": totals, "unmatched_threads": len(before.keys() ^ after.keys())}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", type=Path, required=True)
@@ -46,6 +79,8 @@ def main():
     parser.add_argument("--rounds", type=int, default=4)
     parser.add_argument("--cool-c", type=float, default=50)
     parser.add_argument("--supervisor-pid", type=int)
+    parser.add_argument("--thread-stats", action="store_true",
+                        help="also record persistent-thread CPU and context switches by affinity")
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error("rounds must be positive")
@@ -74,6 +109,7 @@ def main():
         "sink":"discard; CPU comparison only",
         "stage1_cpuset":"1", "stage2_cpuset":"4-6", "governor":"off",
         "warmup":"full corpus once per daemon", "rounds":args.rounds, "runs":[],
+        "thread_stats": args.thread_stats,
     }
     path = out/"manifest.json"
     path.write_text(json.dumps(manifest,indent=2)+"\n")
@@ -133,6 +169,7 @@ def main():
                         time.sleep(5)
                     proc=processes[label];log=logs[label]
                     offset=len(log.read_text())
+                    threads_before = thread_stats(proc.pid) if args.thread_stats else None
                     before=proc_cpu(proc.pid); started=time.monotonic(); start_c=gold()
                     send(sockets[label],text)
                     tail,_=wait_idle(proc,log,offset,180)
@@ -145,6 +182,8 @@ def main():
                             "cpu_s_per_audio_s":cpu/audio,"infer_s":infer,"infer_rtf":rtf,
                             "synthesis_wall_s":wall,"elapsed_s":elapsed,"estimated_gap_s":gap,
                             "start_gold_c":start_c,"end_gold_c":gold()}
+                    if args.thread_stats:
+                        result["persistent_threads"] = thread_delta(threads_before, thread_stats(proc.pid))
                     (out/f"{label}-{rnd}.log").write_text(tail)
                     manifest["runs"].append(result)
                     path.write_text(json.dumps(manifest,indent=2)+"\n")

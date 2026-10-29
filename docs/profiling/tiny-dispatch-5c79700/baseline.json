@@ -1,0 +1,10 @@
+{
+  "commit": "5c79700",
+  "binary_sha256": "4325720bbbdb3f61141cb279c515796cc74d13479845d436312d60c281f9e3ab",
+  "source_sha256": {
+    "src/tract_backend.rs": "b543db5a90b98345134a7dba33a0432d07a17b1cd5b5bbb6e0eabcbe4e007a1a",
+    "third_party/tract/tract-core/src/ops/einsum/kernel_selection.rs": "a8a0871e875f5852c5ef8b9466bccf5e004de5edb0e1f088d2cbd4cee537424e",
+    "third_party/tract/tract-core/src/ops/matmul/mod.rs": "79de940c9825a2b68a02588daa2d4a68d5ef609d2a54ec7a027d5687fcdb3731"
+  },
+  "installed_binary_sha256": "1bcec71b55e8e61f8937a62590c102455ca60938aaf12c24b4ee3352a18fc8cf"
+}

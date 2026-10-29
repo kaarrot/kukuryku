@@ -1,0 +1,39 @@
+{
+  "means": {
+    "A": {
+      "cpu_s": 37.025000000000006,
+      "cpu_s_per_audio_s": 1.6239035087719298,
+      "infer_s": 18.365000000000002,
+      "infer_rtf": 0.8055,
+      "synthesis_wall_s": 14.2
+    },
+    "B": {
+      "cpu_s": 35.87,
+      "cpu_s_per_audio_s": 1.5732456140350877,
+      "infer_s": 18.34,
+      "infer_rtf": 0.8045,
+      "synthesis_wall_s": 14.370000000000001
+    }
+  },
+  "pairs": [
+    {
+      "round": 1,
+      "cpu_delta_s": -1.2800000000000082,
+      "cpu_change_percent": -3.4445640473627748,
+      "wall_delta_s": 0.0600000000000005
+    },
+    {
+      "round": 2,
+      "cpu_delta_s": -1.0300000000000011,
+      "cpu_change_percent": -2.7920845757657964,
+      "wall_delta_s": 0.27999999999999936
+    }
+  ],
+  "relative_mean_percent": {
+    "cpu_s": -3.1195138419986668,
+    "cpu_s_per_audio_s": -3.1195138419986557,
+    "infer_s": -0.13612850530901888,
+    "infer_rtf": -0.12414649286157653,
+    "synthesis_wall_s": 1.1971830985915588
+  }
+}
