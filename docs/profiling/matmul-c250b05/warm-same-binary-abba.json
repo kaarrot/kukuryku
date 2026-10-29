@@ -1,0 +1,79 @@
+{
+  "binaries": {
+    "A": {
+      "path": "tools/bench_out/matmul-c250b05/ryk-s1-kernel",
+      "sha256": "ce98e9f771f90ef230c2900bdb6033bdfcb8da06c0803a2d192b4b5845fb88b1"
+    },
+    "B": {
+      "path": "tools/bench_out/matmul-c250b05/ryk-s1-kernel",
+      "sha256": "ce98e9f771f90ef230c2900bdb6033bdfcb8da06c0803a2d192b4b5845fb88b1"
+    }
+  },
+  "variant_environment": {
+    "KOKORO_TRACT_S1_DENSE_KERNEL": "16x8-a55"
+  },
+  "sink": "discard; CPU comparison only",
+  "stage1_cpuset": "1",
+  "stage2_cpuset": "4-6",
+  "governor": "off",
+  "warmup": "full corpus once per daemon",
+  "rounds": 2,
+  "runs": [
+    {
+      "label": "A",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 39.349999999999994,
+      "cpu_s_per_audio_s": 1.725877192982456,
+      "infer_s": 21.29,
+      "infer_rtf": 0.934,
+      "synthesis_wall_s": 16.72,
+      "elapsed_s": 17.060938638984226,
+      "estimated_gap_s": 6.98,
+      "start_gold_c": 47.4,
+      "end_gold_c": 51.3
+    },
+    {
+      "label": "B",
+      "round": 1,
+      "audio_s": 22.8,
+      "cpu_s": 36.980000000000004,
+      "cpu_s_per_audio_s": 1.6219298245614036,
+      "infer_s": 18.31,
+      "infer_rtf": 0.803,
+      "synthesis_wall_s": 14.26,
+      "elapsed_s": 15.068529525015038,
+      "estimated_gap_s": 4.64,
+      "start_gold_c": 40.5,
+      "end_gold_c": 48.2
+    },
+    {
+      "label": "B",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 37.47,
+      "cpu_s_per_audio_s": 1.643421052631579,
+      "infer_s": 18.69,
+      "infer_rtf": 0.82,
+      "synthesis_wall_s": 14.57,
+      "elapsed_s": 15.04953114100499,
+      "estimated_gap_s": 4.97,
+      "start_gold_c": 48.6,
+      "end_gold_c": 51.3
+    },
+    {
+      "label": "A",
+      "round": 2,
+      "audio_s": 22.8,
+      "cpu_s": 39.28,
+      "cpu_s_per_audio_s": 1.7228070175438597,
+      "infer_s": 20.62,
+      "infer_rtf": 0.904,
+      "synthesis_wall_s": 16.31,
+      "elapsed_s": 17.04662087900215,
+      "estimated_gap_s": 6.64,
+      "start_gold_c": 40.9,
+      "end_gold_c": 50.1
+    }
+  ]
+}

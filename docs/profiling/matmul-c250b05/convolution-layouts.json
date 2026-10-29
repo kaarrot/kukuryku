@@ -1,0 +1,2556 @@
+[
+  {
+    "dtype": "F16",
+    "id": 1116,
+    "info": [
+      "c_shape:1,N,512,F16, c_m_axis:Some(2) c_n_axis:Some(1) m:512 n:N",
+      "Mult: m:512 k:2560 n:N with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2560, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.lazyIm2col",
+      "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.prep_kernel.pack",
+      "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 2,
+    "n_axis": 1,
+    "name": "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2560"
+      }
+    ],
+    "shape": [
+      "1",
+      "N",
+      "512"
+    ],
+    "stage": "stage1"
+  },
+  {
+    "dtype": "F16",
+    "id": 1134,
+    "info": [
+      "c_shape:1,N,512,F16, c_m_axis:Some(2) c_n_axis:Some(1) m:512 n:N",
+      "Mult: m:512 k:2560 n:N with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2560, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.lazyIm2col",
+      "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.prep_kernel.pack",
+      "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 2,
+    "n_axis": 1,
+    "name": "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2560"
+      }
+    ],
+    "shape": [
+      "1",
+      "N",
+      "512"
+    ],
+    "stage": "stage1"
+  },
+  {
+    "dtype": "F16",
+    "id": 1152,
+    "info": [
+      "c_shape:1,N,512,F16, c_m_axis:Some(2) c_n_axis:Some(1) m:512 n:N",
+      "Mult: m:512 k:2560 n:N with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2560, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.lazyIm2col",
+      "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.prep_kernel.pack",
+      "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 2,
+    "n_axis": 1,
+    "name": "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2560"
+      }
+    ],
+    "shape": [
+      "1",
+      "N",
+      "512"
+    ],
+    "stage": "stage1"
+  },
+  {
+    "dtype": "F16",
+    "id": 73,
+    "info": [
+      "c_shape:1,512,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:512 n:F",
+      "Mult: m:512 k:1536 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/F0.0/conv1/Conv.lazyIm2col",
+      "/encoder/F0.0/conv1/Conv.prep_kernel.pack",
+      "/encoder/F0.0/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/F0.0/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "512",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 86,
+    "info": [
+      "c_shape:1,512,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:512 n:F",
+      "Mult: m:512 k:1536 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/F0.0/conv2/Conv.lazyIm2col",
+      "/encoder/F0.0/conv2/Conv.prep_kernel.pack",
+      "/encoder/F0.0/conv2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/F0.0/conv2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "512",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 192,
+    "info": [
+      "c_shape:1,512,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:512 n:F",
+      "Mult: m:512 k:1536 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/N.0/conv1/Conv.lazyIm2col",
+      "/encoder/N.0/conv1/Conv.prep_kernel.pack",
+      "/encoder/N.0/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/N.0/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "512",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 205,
+    "info": [
+      "c_shape:1,512,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:512 n:F",
+      "Mult: m:512 k:1536 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/N.0/conv2/Conv.lazyIm2col",
+      "/encoder/N.0/conv2/Conv.prep_kernel.pack",
+      "/encoder/N.0/conv2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/N.0/conv2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "512",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 111,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:1536 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/F0.1/conv1/Conv.lazyIm2col",
+      "/encoder/F0.1/conv1/Conv.prep_kernel.pack",
+      "/encoder/F0.1/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/F0.1/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 229,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:1536 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/N.1/conv1/Conv.lazyIm2col",
+      "/encoder/N.1/conv1/Conv.prep_kernel.pack",
+      "/encoder/N.1/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/N.1/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 133,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:768 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/F0.1/conv2/Conv.lazyIm2col",
+      "/encoder/F0.1/conv2/Conv.prep_kernel.pack",
+      "/encoder/F0.1/conv2/Conv.reformat_bias",
+      "/encoder/F0.1/conv1x1/Conv"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/F0.1/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 247,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:768 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/N.1/conv2/Conv.lazyIm2col",
+      "/encoder/N.1/conv2/Conv.prep_kernel.pack",
+      "/encoder/N.1/conv2/Conv.reformat_bias",
+      "/encoder/N.1/conv1x1/Conv"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/N.1/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 148,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:768 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/F0.2/conv1/Conv.lazyIm2col",
+      "/encoder/F0.2/conv1/Conv.prep_kernel.pack",
+      "/encoder/F0.2/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/F0.2/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 161,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:768 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/F0.2/conv2/Conv.lazyIm2col",
+      "/encoder/F0.2/conv2/Conv.prep_kernel.pack",
+      "/encoder/F0.2/conv2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/F0.2/conv2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 262,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:768 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/N.2/conv1/Conv.lazyIm2col",
+      "/encoder/N.2/conv1/Conv.prep_kernel.pack",
+      "/encoder/N.2/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/N.2/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 275,
+    "info": [
+      "c_shape:1,256,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:2*F",
+      "Mult: m:256 k:768 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/encoder/N.2/conv2/Conv.lazyIm2col",
+      "/encoder/N.2/conv2/Conv.prep_kernel.pack",
+      "/encoder/N.2/conv2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/encoder/N.2/conv2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 175,
+    "info": [
+      "c_shape:1,1,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1 n:F",
+      "Mult: m:1 k:3 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> scalarAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/F0_conv/Conv.lazyIm2col",
+      "/decoder/decoder/F0_conv/Conv.prep_kernel.pack",
+      "/decoder/decoder/F0_conv/Conv.cast-2"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/F0_conv/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3"
+      }
+    ],
+    "shape": [
+      "1",
+      "1",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 289,
+    "info": [
+      "c_shape:1,1,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1 n:F",
+      "Mult: m:1 k:3 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> scalarAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/N_conv/Conv.lazyIm2col",
+      "/decoder/decoder/N_conv/Conv.prep_kernel.pack",
+      "/decoder/decoder/N_conv/Conv.cast-2"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/N_conv/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3"
+      }
+    ],
+    "shape": [
+      "1",
+      "1",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 308,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:1542 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1542, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/encode/conv1/Conv.lazyIm2col",
+      "/decoder/decoder/encode/conv1/Conv.prep_kernel.pack",
+      "/decoder/decoder/encode/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/encode/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1542"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 340,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3072 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3072, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/encode/conv2/Conv.lazyIm2col",
+      "/decoder/decoder/encode/conv2/Conv.prep_kernel.pack",
+      "/decoder/decoder/encode/conv2/Conv.reformat_bias",
+      "/decoder/decoder/encode/conv1x1/Conv.concat-einsum-I.add-2"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/encode/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3072"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 399,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3072 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3072, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.0/conv2/Conv.lazyIm2col",
+      "/decoder/decoder/decode.0/conv2/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.0/conv2/Conv.reformat_bias",
+      "/decoder/decoder/decode.0/conv1x1/Conv.concat-einsum-I.add-3"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.0/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3072"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 453,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3072 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3072, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.1/conv2/Conv.lazyIm2col",
+      "/decoder/decoder/decode.1/conv2/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.1/conv2/Conv.reformat_bias",
+      "/decoder/decoder/decode.1/conv1x1/Conv.concat-einsum-I.add-3"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.1/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3072"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 507,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3072 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3072, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.2/conv2/Conv.lazyIm2col",
+      "/decoder/decoder/decode.2/conv2/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.2/conv2/Conv.reformat_bias",
+      "/decoder/decoder/decode.2/conv1x1/Conv.concat-einsum-I.add-3"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.2/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3072"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 361,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3270 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3270, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.0/conv1/Conv.lazyIm2col",
+      "/decoder/decoder/decode.0/conv1/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.0/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3270"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 415,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3270 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3270, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.1/conv1/Conv.lazyIm2col",
+      "/decoder/decoder/decode.1/conv1/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.1/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3270"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 469,
+    "info": [
+      "c_shape:1,1024,F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:1024 n:F",
+      "Mult: m:1024 k:3270 n:F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3270, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.2/conv1/Conv.lazyIm2col",
+      "/decoder/decoder/decode.2/conv1/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.2/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.2/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3270"
+      }
+    ],
+    "shape": [
+      "1",
+      "1024",
+      "F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 531,
+    "info": [
+      "c_shape:1,512,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:512 n:2*F",
+      "Mult: m:512 k:3270 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=3270, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.3/conv1/Conv.lazyIm2col",
+      "/decoder/decoder/decode.3/conv1/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.3/conv1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.3/conv1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "3270"
+      }
+    ],
+    "shape": [
+      "1",
+      "512",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 549,
+    "info": [
+      "c_shape:1,512,2*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:512 n:2*F",
+      "Mult: m:512 k:1536 n:2*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1536, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/decode.3/conv2/Conv.lazyIm2col",
+      "/decoder/decoder/decode.3/conv2/Conv.prep_kernel.pack",
+      "/decoder/decoder/decode.3/conv2/Conv.reformat_bias",
+      "/decoder/decoder/decode.3/conv1x1/Conv"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/decode.3/Add",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1536"
+      }
+    ],
+    "shape": [
+      "1",
+      "512",
+      "2*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 617,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:264 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=264, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_convs.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_convs.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_convs.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "264"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 633,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 811,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 824,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 852,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 880,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 646,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.0/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.0/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.0/convs2.0/Conv.reformat_bias",
+      "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.0/Add_2",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 672,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.0/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.0/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.0/convs2.1/Conv.reformat_bias",
+      "/decoder/decoder/generator/noise_res.0/Add_2"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.0/Add_5",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 698,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.0/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.0/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.0/convs2.2/Conv.reformat_bias",
+      "/decoder/decoder/generator/noise_res.0/Add_5"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.0/Add_8",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 659,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 839,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 685,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 867,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:1792 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1792, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1792"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 724,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:768 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 737,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:768 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 765,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:768 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 793,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:768 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 752,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:768 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 780,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:768 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=768, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "768"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 899,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:2816 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2816, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2816"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 912,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:2816 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2816, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2816"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 940,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:2816 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2816, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2816"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 968,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:2816 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2816, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2816"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 927,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:2816 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2816, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2816"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 955,
+    "info": [
+      "c_shape:1,256,20*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:256 n:20*F",
+      "Mult: m:256 k:2816 n:20*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=2816, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "2816"
+      }
+    ],
+    "shape": [
+      "1",
+      "256",
+      "20*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1010,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1276,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1289,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1317,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1345,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1023,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.1/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.1/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.1/convs2.0/Conv.reformat_bias",
+      "/decoder/decoder/generator/noise_convs.1/Conv"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.1/Add_2",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1049,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.1/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.1/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.1/convs2.1/Conv.reformat_bias",
+      "/decoder/decoder/generator/noise_res.1/Add_2"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.1/Add_5",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1075,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> add_to_matrix >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.1/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.1/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.1/convs2.2/Conv.reformat_bias",
+      "/decoder/decoder/generator/noise_res.1/Add_5"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.1/Add_8",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1036,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1304,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1062,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1332,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:1408 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=1408, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "1408"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1101,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:384 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=384, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "384"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1114,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:384 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=384, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "384"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1142,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:384 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=384, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "384"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1170,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:384 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=384, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "384"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1129,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:384 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=384, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "384"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1157,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:384 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=384, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "384"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1188,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1201,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1229,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1257,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1216,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1244,
+    "info": [
+      "c_shape:1,128,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:128 n:1+120*F",
+      "Mult: m:128 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.lazyIm2col",
+      "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "128",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  },
+  {
+    "dtype": "F16",
+    "id": 1355,
+    "info": [
+      "c_shape:1,22,1+120*F,F16, c_m_axis:Some(1) c_n_axis:Some(2) m:22 n:1+120*F",
+      "Mult: m:22 k:896 n:1+120*F with [arm64fp16_mmm_f16_16x8_gen]",
+      "Ops: matmul(k=896, PackedF16[16]@16+1\u2022PackedF16[8]@16+1) >>> rowAdd >>> store"
+    ],
+    "input_nodes": [
+      "/decoder/decoder/generator/conv_post/Conv.lazyIm2col",
+      "/decoder/decoder/generator/conv_post/Conv.prep_kernel.pack",
+      "/decoder/decoder/generator/conv_post/Conv.reformat_bias"
+    ],
+    "kernels": [
+      "arm64fp16_mmm_f16_16x8_gen"
+    ],
+    "m_axis": 1,
+    "n_axis": 2,
+    "name": "/decoder/decoder/generator/conv_post/Conv.matmatmul",
+    "products": [
+      {
+        "a": 1,
+        "b": 0,
+        "k": "896"
+      }
+    ],
+    "shape": [
+      "1",
+      "22",
+      "1+120*F"
+    ],
+    "stage": "stage2"
+  }
+]

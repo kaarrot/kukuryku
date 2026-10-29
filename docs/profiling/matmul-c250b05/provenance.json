@@ -1,0 +1,526 @@
+{
+  "baseline_commit": "c250b0502dfc78aae95b64d41bdc8a27d4a803c7",
+  "source_directory": "tools/bench_out/matmul-c250b05",
+  "date": "2026-10-28",
+  "exports": {
+    "profiles.json": {
+      "source": "profile-workloads.json",
+      "source_sha256": "e4c0d3e29f30649468f32e4856ad45c1cf9a419c5c4e07938b54ddfec461fc65",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/; convolution group keys corrected with recorded matmul axes and K, without changing timings or names"
+    },
+    "stage1-matrices.json": {
+      "source": "stage1-workloads.json",
+      "source_sha256": "bfd25108697e36652d7b75f69695c753abaebba3d0a20e017095f737f5d2d28c",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "convolution-attributes.json": {
+      "source": "onnx-conv-attributes.json",
+      "source_sha256": "90bc78ee7f24fab1350da64ce6d78b293a27036440adadb69959245f4edd512f",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "warm-ab.json": {
+      "source": "warm-inference/manifest.json",
+      "source_sha256": "77cac631a90246c54928c78a1fc60f15def256e3adcd09c73874f161598cb9f9",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "warm-same-binary-abba.json": {
+      "source": "warm-inference-same-binary/manifest.json",
+      "source_sha256": "823683e0d0b83c83dde08199a5b0fdf18bfc78483fd73c1c42b9dff3e0a2dc96",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "raw-parity.json": {
+      "source": "parity/summary.json",
+      "source_sha256": "bf460b7cf0a46a4a0893626fae718f45ec3bbd0d9ae3c1f980874febf1e909f4",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "kernel-scope.json": {
+      "source": "scope-check/kernel-counts.json",
+      "source_sha256": "6303a0469b88f733e77c3cfbfe6297d913d8ecdee68550eb2f5960b55bf8cc07",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "experimental-source-hashes.json": {
+      "source": "application-source-hashes.json",
+      "source_sha256": "21ec2d625ff9b23201815f964ee7fcc020f74dfc5a3b6b9f093eac6558449900",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "experimental-binary.json": {
+      "source": "experimental-binary.json",
+      "source_sha256": "5f545dfb5523bd91612c84055b2235e03d83a799d05338027734123bd6298c0a",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "convolution-probe-build.json": {
+      "source": "probe/build.json",
+      "source_sha256": "d7416a192e9a0a6087fbe910819abb0eef9fe150f546933e04c77f93f977a5cd",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "dense-probe-build.json": {
+      "source": "dense-probe/build.json",
+      "source_sha256": "ed6403f92bff2b4d7595529301ea6acb7e480b6e1976e019270085c4a18a0e69",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "convolution.csv": {
+      "sources": [
+        {
+          "path": "conv-bench/early-256-k11.csv",
+          "sha256": "bbf546f0dcb8561bf98d5a349087929547dece2ac48beb71dc67310b1a20fb18"
+        },
+        {
+          "path": "conv-bench/early-256-k7-res.csv",
+          "sha256": "63ddbcf2e986744b9ace82a0fca9a6eb264c48c1bae3b4cf46059f7db69c2e2b"
+        },
+        {
+          "path": "conv-bench/early-256-k7.csv",
+          "sha256": "50ff260f49455be9a3486785aced4d2b920a0a066a915b7ab0be4ebfc6f44697"
+        },
+        {
+          "path": "conv-bench/edge-tail.csv",
+          "sha256": "05e05e71c012b68f91ce7693eab3619c7b3e9a97c0ad50998ed475a6ce8f5a66"
+        },
+        {
+          "path": "conv-bench/edge-tiny.csv",
+          "sha256": "fe633f5b1ea636aadc0a3467e7874cd56b368f4b24270706f067c9bea2ae948f"
+        },
+        {
+          "path": "conv-bench/long-128-k11-d3.csv",
+          "sha256": "d56b73d7170e741ce78b87f97767bb4d70d541dac30d8073299090c0f0f24c7e"
+        },
+        {
+          "path": "conv-bench/long-128-k11-d5.csv",
+          "sha256": "a55e8685ea8e46fad169016cde6a64eb9da66e3b1f307e7c2c14d14cdacc9e30"
+        },
+        {
+          "path": "conv-bench/long-128-k11-res.csv",
+          "sha256": "2ec3e975fdd71283b915f8d92c4d9fa7c4344acfecef3d5914b016f2f4d9b223"
+        },
+        {
+          "path": "conv-bench/long-128-k11.csv",
+          "sha256": "808d83a454e0bcb4eac87d42e3928514d998d2d3ddaa6fa87d7adef2df47d3c9"
+        },
+        {
+          "path": "conv-bench/long-128-k3.csv",
+          "sha256": "75df20980314d439d5abef26f61613600a176176ca6fd8dfe68d4443291fb6bd"
+        },
+        {
+          "path": "conv-bench/long-128-k7.csv",
+          "sha256": "f36f29a2abaa1d4ea08ca55b954b130d611c9bb04c1a2d2c54ac54c9b27a65f8"
+        },
+        {
+          "path": "conv-bench/medium-128-k11.csv",
+          "sha256": "1362d630f6978937d370334a15cf38632c0fae1630dc2a2339251d4c49ea5930"
+        },
+        {
+          "path": "conv-bench/short-128-k11.csv",
+          "sha256": "6dcb02eb684b2256186bff61b5e8b58345a866b00c7f16d220d19c38f5592a37"
+        }
+      ],
+      "rows": 408,
+      "normalization": "case column added; original values preserved"
+    },
+    "conv-bench-cases.json": {
+      "source": "conv-bench/manifest.json",
+      "source_sha256": "13b2fa4a289156c6cbd9bf52d70492109f4e16e856907c81d5362976bffc124a",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "dense.csv": {
+      "sources": [
+        {
+          "path": "dense-bench/edge-tail.csv",
+          "sha256": "652f844163e8ef6beca4ada8bbfd04fa8a174cab6f9386ea8ab1addf6c41a77e"
+        },
+        {
+          "path": "dense-bench/long-ffn-input.csv",
+          "sha256": "8f92508f8822e92c0cdf35105c0a90d44c4c75c9ccfc89ad95d6b2b6c063af79"
+        },
+        {
+          "path": "dense-bench/long-ffn-output.csv",
+          "sha256": "ce00c5b008398cd732c736a5d75531a173c8f0cdbe7ae293c00a8db282381ae7"
+        },
+        {
+          "path": "dense-bench/long-predictor.csv",
+          "sha256": "97f796953d70fb5d8e65edd42087fb705fa84b93d7016d0058cffe1f660fd6b1"
+        },
+        {
+          "path": "dense-bench/long-projection.csv",
+          "sha256": "d9a63e0d42656e038f4fb9d6d77e5306c75cad54dfa501b452c7923c24aa9d39"
+        },
+        {
+          "path": "dense-bench/long-small-projection.csv",
+          "sha256": "befeee635c1cf9f8092b937fafac441e308dc734f49ef48a7bca18de7db75e12"
+        },
+        {
+          "path": "dense-bench/medium-ffn-input.csv",
+          "sha256": "ec83a3763ad2034ef3396fafbe67fff0f9d12280e1c62308baed946a84e89e78"
+        },
+        {
+          "path": "dense-bench/medium-ffn-output.csv",
+          "sha256": "789dedb552b51cbdc267f3b935fe2d560b7fc0d836f06ccd2ef5caab1a20f0bf"
+        },
+        {
+          "path": "dense-bench/medium-projection.csv",
+          "sha256": "723025cf2a54c6b809f3f6682046f1b6d7eefea4e2e1b40aa67baaff1cac189e"
+        },
+        {
+          "path": "dense-bench/short-ffn-input.csv",
+          "sha256": "0dfb6d49af735ea3122d8ac7fc20dd278227e1b7e24be481971aeb61b6dc30f9"
+        },
+        {
+          "path": "dense-bench/short-ffn-output.csv",
+          "sha256": "4e47d3abb07ca8889d75872a0bd1bfe6ae41e6ddc51bef85a7e6f7154bb689fd"
+        },
+        {
+          "path": "dense-bench/short-projection.csv",
+          "sha256": "81e3dd8ad4684d426887693eb2421611ab2c591a5a91a9faee4427e6cf40af99"
+        }
+      ],
+      "rows": 402,
+      "normalization": "case column added; original values preserved"
+    },
+    "dense-bench-cases.json": {
+      "source": "dense-bench/manifest.json",
+      "source_sha256": "c79a218a83af7beb857e628e348fa8ecc32b3d6ba12beb96a5ac0a0d6bc321a4",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "dense-narrow.csv": {
+      "sources": [
+        {
+          "path": "dense-narrow/n3-m2048-k768.csv",
+          "sha256": "cd852193d6885a20ba305cd612ec9ed3575930abfb24bdaccb456725694abf7a"
+        },
+        {
+          "path": "dense-narrow/n3-m256-k512.csv",
+          "sha256": "57679d7c0ac061e2fde93b84a7e710d96a5a3b69635f95f54f84edb52e4d9933"
+        },
+        {
+          "path": "dense-narrow/n3-m768-k2048.csv",
+          "sha256": "511b3d27b261cd8f6fe0d6ccd9a03d0a506ff27cf81bc23eef3cf8c4a3695145"
+        },
+        {
+          "path": "dense-narrow/n3-m768-k768.csv",
+          "sha256": "4a39ec9bbe1fb6ec3ba0fab4630a6fb6993f8228f407bab5d24f82c0bb3c434a"
+        },
+        {
+          "path": "dense-narrow/n4-ffn-output.csv",
+          "sha256": "a3fab4e7353d4796c1ecc1b44826c05b96dea2fd7861e05bd42ea6d7dd7fcd90"
+        },
+        {
+          "path": "dense-narrow/n6-ffn-output.csv",
+          "sha256": "490cd0e87a12cf070a3d2772684368d80f85a6e0a75cd71ae6e4bab3437b0bb6"
+        },
+        {
+          "path": "dense-narrow/n8-ffn-output.csv",
+          "sha256": "ec6a1abc56bc61760ce05fe8ff80df3934317b3fbd6e2f72a866c3d714950686"
+        }
+      ],
+      "rows": 252,
+      "normalization": "case column added; original values preserved"
+    },
+    "dense-narrow-cases.json": {
+      "source": "dense-narrow/manifest.json",
+      "source_sha256": "19e8b6ce1cd92bceb5f3329efb89e2d852d7b5d80be663da8c6cd8788977b0ea",
+      "normalization": "repo-relative paths; assets as ASSETS; original scratch profiles as fz-prof/"
+    },
+    "convolution-layouts.json": {
+      "source": "kernel-inventory.json",
+      "source_sha256": "febc269bea0f8d93aa567ff85b7bef99964519c28f805fbd16976248fe28c304",
+      "normalization": "only convolution nodes referenced in profiles.json retained; original fields preserved"
+    },
+    "default-build.json": {
+      "source": "default-build/build.json",
+      "source_sha256": "ddeb655194284b3d49e43f8737d24b554e28e2d5309937924bcfdb2fd0641e26",
+      "normalization": "default-enabled binary SHA-256 added"
+    },
+    "default-validation.json": {
+      "source": "default-validation/summary.json",
+      "source_sha256": "6055bd07d76b2e3b72caf1ba32099d06ddf6c26af5cc0b901333851744ac33e2",
+      "normalization": "repo-relative paths; assets as ASSETS"
+    },
+    "default-raw-parity.json": {
+      "source": "default-parity/summary.json",
+      "source_sha256": "0db261e6547cecd75c42ced906c710563889f44e19ee3f9c9ff9de5bcc1be666",
+      "normalization": "repo-relative paths; assets as ASSETS"
+    }
+  },
+  "original_profiles": [
+    {
+      "path": "fz-prof/B-1.prof/stage1-14939-0.json",
+      "sha256": "24f594fc1fdfafb559cca85526286ff4d41dcda35b01397b761008793ae9cdb6"
+    },
+    {
+      "path": "fz-prof/B-1.prof/stage1-14939-2.json",
+      "sha256": "eb6cf4d695dade637009315ff120db84003a8a2fe03cfeab7b975000edc41a83"
+    },
+    {
+      "path": "fz-prof/B-1.prof/stage1-14939-4.json",
+      "sha256": "fa7eab3fce774f6db693d33eff0cbefdba67ce34a6c8d8284013fd7bd3cca7c8"
+    },
+    {
+      "path": "fz-prof/B-1.prof/stage2-14939-1.json",
+      "sha256": "a05febe71bcc97ba44ec9f46a12b76545c22f130d68372b6fc7244741561929e"
+    },
+    {
+      "path": "fz-prof/B-1.prof/stage2-14939-3.json",
+      "sha256": "d157950cc79094f0b4280b57d162fde58886ad7e18fe4cf69852b481252d133b"
+    },
+    {
+      "path": "fz-prof/B-1.prof/stage2-14939-5.json",
+      "sha256": "49f681b5f82253cdf123d165d09ac05c1955f8c32531ed25c2088b1ec7951bc0"
+    },
+    {
+      "path": "fz-prof/B-2.prof/stage1-15019-0.json",
+      "sha256": "4774fe7e0e96c86fa2b0ee47d65788d6018f8f8270bc245a5b444a2b59d98d20"
+    },
+    {
+      "path": "fz-prof/B-2.prof/stage1-15019-2.json",
+      "sha256": "07ad70607e77f1ab095b1a5c957eac38fee67defe935884c789a1d4f0d7a0b6e"
+    },
+    {
+      "path": "fz-prof/B-2.prof/stage1-15019-4.json",
+      "sha256": "643f4319cff4d963ca71a3d3904b38271c392eea1929d2953d16751e226318b5"
+    },
+    {
+      "path": "fz-prof/B-2.prof/stage2-15019-1.json",
+      "sha256": "ac3a3897624d0bcb20d0247d1bfaa197f7cd99dd1ac605fafcaea86cb5f7d655"
+    },
+    {
+      "path": "fz-prof/B-2.prof/stage2-15019-3.json",
+      "sha256": "af61e532349a27e92b28c7d6ea4590d5acb147f05e7795509ef9de6880339b94"
+    },
+    {
+      "path": "fz-prof/B-2.prof/stage2-15019-5.json",
+      "sha256": "dcada047109a5dd28f4464cb0f6abbaa7752afa11cd17a232a2a69d9c83fb66e"
+    },
+    {
+      "path": "fz-prof/B-3.prof/stage1-15494-0.json",
+      "sha256": "14c222fb94da343d916d076f56cc25f7b73a8813b042174682082ae61b20a30f"
+    },
+    {
+      "path": "fz-prof/B-3.prof/stage1-15494-2.json",
+      "sha256": "823c94ab1e2987dbdf9e9f9b75385a4370abfb69297e004111315ed2724bbdf6"
+    },
+    {
+      "path": "fz-prof/B-3.prof/stage1-15494-4.json",
+      "sha256": "a869434a5f25ff0b422eb234d170a5dd23ed56d339f15498bc3d4a91f2424d01"
+    },
+    {
+      "path": "fz-prof/B-3.prof/stage2-15494-1.json",
+      "sha256": "470357ce48ea0bbb8a7d570aafd832a95fcfab24c4224de32558449db74f8437"
+    },
+    {
+      "path": "fz-prof/B-3.prof/stage2-15494-3.json",
+      "sha256": "3b571c83817d9e92b03651898b212aa37c26031e1f94d59f6f287ee8feca2543"
+    },
+    {
+      "path": "fz-prof/B-3.prof/stage2-15494-5.json",
+      "sha256": "abe8dcdddc7bcc50381e4a8ac1dbf640e770cd207db158d19a20053dc3eb61dd"
+    }
+  ],
+  "convolution_group_key_corrections": [
+    {
+      "round": 1,
+      "stage": "stage1",
+      "length": "short",
+      "old": [
+        13,
+        13,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        13,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 1,
+      "stage": "stage1",
+      "length": "medium",
+      "old": [
+        116,
+        116,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        116,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 1,
+      "stage": "stage1",
+      "length": "long",
+      "old": [
+        244,
+        244,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        244,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 2,
+      "stage": "stage1",
+      "length": "short",
+      "old": [
+        13,
+        13,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        13,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 2,
+      "stage": "stage1",
+      "length": "medium",
+      "old": [
+        116,
+        116,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        116,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 2,
+      "stage": "stage1",
+      "length": "long",
+      "old": [
+        244,
+        244,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        244,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 3,
+      "stage": "stage1",
+      "length": "short",
+      "old": [
+        13,
+        13,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        13,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 3,
+      "stage": "stage1",
+      "length": "medium",
+      "old": [
+        116,
+        116,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        116,
+        false,
+        "F16"
+      ]
+    },
+    {
+      "round": 3,
+      "stage": "stage1",
+      "length": "long",
+      "old": [
+        244,
+        244,
+        5,
+        1,
+        512,
+        false,
+        "F16"
+      ],
+      "corrected": [
+        512,
+        512,
+        5,
+        1,
+        244,
+        false,
+        "F16"
+      ]
+    }
+  ]
+}

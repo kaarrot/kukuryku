@@ -20,6 +20,23 @@ fn single_strat(it: Impl) -> Strat {
 
 pub fn strategize(model: &TypedModel, node: &TypedNode, op: &EinSumMatMul) -> TractResult<Strat> {
     let input_facts = model.node_input_facts(node.id)?;
+    // A model-scoped override allows experiments on different CPU clusters
+    // without changing the process-global registry or another compilation.
+    if !op.n.is_one()
+        && op.operating_dt == DatumType::F16
+        && input_facts.iter().all(|f| f.datum_type == DatumType::F16)
+    {
+        if let Some(preferred) = model.properties.get(crate::ops::matmul::F16_KERNEL_PREFERENCE) {
+            let preferred = preferred.to_scalar::<String>()?;
+            let implementation = list_impls(model, node, op)?
+                .into_iter()
+                .find(|(mmm, _, _)| mmm.name() == preferred.as_str())
+                .with_context(|| format!(
+                    "No compatible F16 matmul kernel {preferred:?} for {}", node.name
+                ))?;
+            return Ok(single_strat(implementation));
+        }
+    }
     if let (Some(m), Some(k), Some(n)) = (op.m.as_i64(), op.k.as_i64(), op.n.as_i64()) {
         if op.op.operating_dt == input_facts[0].datum_type
             && op.op.operating_dt == input_facts[1].datum_type

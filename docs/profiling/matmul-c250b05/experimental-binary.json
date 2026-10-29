@@ -1,0 +1,7 @@
+{
+  "path": "tools/bench_out/matmul-c250b05/ryk-s1-kernel",
+  "sha256": "ce98e9f771f90ef230c2900bdb6033bdfcb8da06c0803a2d192b4b5845fb88b1",
+  "installed_binary_sha256": "1bcec71b55e8e61f8937a62590c102455ca60938aaf12c24b4ee3352a18fc8cf",
+  "release_build": "31m50s",
+  "default_kernel_selection": "unchanged; override opt-in"
+}

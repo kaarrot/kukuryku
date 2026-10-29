@@ -232,10 +232,21 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 Diagnostics (rarely needed): `KOKORO_TRACT_PROFILE=1` prints per-op profiles,
 `KOKORO_TRACT_PROFILE_NODES=N` adds the top-N individual nodes with names and IDs.
 `KOKORO_TRACT_PROFILE_JSON=dir` enables profiling and saves every node's timing,
-tensor sizes/dtypes, and graph edges (inspect with `tools/analyze_fusion_profile.py`).
+tensor sizes/dtypes, graph edges, and op details such as selected matmul kernels
+(inspect with `tools/analyze_fusion_profile.py`).
 `KOKORO_TRACT_DUMP=dir` dumps
 stage-boundary tensors. `tools/bench_conv.sh <label>` runs a fixed-sentence best-of-N timing +
 profile for A/B work.
+
+On ARM64 Android, stage-1 FP16 dense matrices default to the A55 16x8 kernel,
+measured at 5–6% less total inference CPU time on this phone. Set
+`KOKORO_TRACT_S1_DENSE_KERNEL=legacy` (or `=0`) to restore the previous tract
+selection; `=default` uses the application default. Other platforms keep their
+previous default. Stage-2 and known matrix-vector operations retain their usual
+kernels. Extremely small N=3 dense matrices can be slower (about 0.4 ms per FFN
+multiply in the probe); these results do not establish battery-energy savings.
+See [the matmul investigation](docs/matmul-kernel-investigation.md) for measurements
+and probe commands.
 
 ### Markdown is stripped before speaking
 

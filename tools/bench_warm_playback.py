@@ -100,6 +100,21 @@ def proc_cpu(pid, include_children=True):
         return 0.0
 
 
+def requested_affinity(pid):
+    # This phone's sched_getaffinity omits temporarily parked CPUs, while proc
+    # status retains the requested mask. Saving only the effective mask can
+    # permanently narrow the supervisor when restoring it after a benchmark.
+    for line in read(f"/proc/{pid}/status").splitlines():
+        if line.startswith("Cpus_allowed_list:"):
+            result = set()
+            for part in line.split(":", 1)[1].strip().split(","):
+                limits = part.split("-")
+                first, last = int(limits[0]), int(limits[-1])
+                result.update(range(first, last + 1))
+            return result
+    raise RuntimeError(f"Cannot read requested CPU affinity for {pid}")
+
+
 @contextmanager
 def isolate_supervisor(pid, directory):
     """Temporarily pin an explicitly supplied, owned supervisor to CPU 0."""
@@ -109,26 +124,45 @@ def isolate_supervisor(pid, directory):
     process = Path(f"/proc/{pid}")
     if process.stat().st_uid != os.getuid():
         raise RuntimeError("Supervisor must belong to the current user")
-    original = {int(t.name): sorted(os.sched_getaffinity(int(t.name)))
-                for t in (process / "task").glob("*")}
+    original = {}
+    for task in (process / "task").glob("*"):
+        try:
+            original[int(task.name)] = sorted(requested_affinity(int(task.name)))
+        except FileNotFoundError:
+            pass
     if pid not in original or 0 not in original[pid]:
         raise RuntimeError("Supervisor affinity does not include efficiency CPU 0")
     record = {"pid": pid, "comm": read(process / "comm"),
-              "original": original, "temporary_cpu": 0, "restored": False}
+              "original": original, "original_source": "proc requested affinity",
+              "temporary_cpu": 0, "restored": False}
     path = directory / "supervisor-affinity.json"
     path.write_text(json.dumps(record, indent=2) + "\n")
     try:
         for tid in original:
-            os.sched_setaffinity(tid, {0})
+            try:
+                os.sched_setaffinity(tid, {0})
+            except ProcessLookupError:
+                pass
         print(f"Supervisor {pid} isolated on efficiency CPU 0", flush=True)
         yield
     finally:
-        for task in (process / "task").glob("*"):
-            tid = int(task.name)
+        # Include threads created while the supervisor was isolated. Repeat if
+        # a thread appeared during restoration and inherited the temporary mask.
+        for _ in range(3):
+            for task in (process / "task").glob("*"):
+                tid = int(task.name)
+                try:
+                    os.sched_setaffinity(tid, original.get(tid, original[pid]))
+                except ProcessLookupError:
+                    pass
             try:
-                os.sched_setaffinity(tid, original.get(tid, original[pid]))
-            except ProcessLookupError:
-                pass
+                if all(sorted(requested_affinity(int(t.name))) == original.get(int(t.name), original[pid])
+                       for t in (process / "task").glob("*")):
+                    break
+            except FileNotFoundError:
+                continue
+        else:
+            raise RuntimeError(f"Could not restore supervisor {pid} requested affinities")
         record["restored"] = True
         path.write_text(json.dumps(record, indent=2) + "\n")
 

@@ -1,0 +1,223 @@
+[
+  {
+    "label": "edge-tiny",
+    "arguments": [
+      3,
+      2,
+      3,
+      1,
+      1,
+      3,
+      1,
+      1
+    ],
+    "start_gold_c": 38.6,
+    "end_gold_c": 37.1,
+    "elapsed_s": 0.018764271022519097,
+    "all_bit_equal": true
+  },
+  {
+    "label": "edge-tail",
+    "arguments": [
+      65,
+      7,
+      11,
+      5,
+      81,
+      3,
+      1,
+      0
+    ],
+    "start_gold_c": 37.5,
+    "end_gold_c": 35.6,
+    "elapsed_s": 0.03757781200692989,
+    "all_bit_equal": true
+  },
+  {
+    "label": "long-128-k11",
+    "arguments": [
+      128,
+      128,
+      11,
+      1,
+      70201,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 35.6,
+    "end_gold_c": 54.0,
+    "elapsed_s": 11.219832859991584,
+    "all_bit_equal": true
+  },
+  {
+    "label": "long-128-k11-res",
+    "arguments": [
+      128,
+      128,
+      11,
+      1,
+      70201,
+      3,
+      6,
+      1
+    ],
+    "start_gold_c": 53.6,
+    "end_gold_c": 63.1,
+    "elapsed_s": 10.751965881994693,
+    "all_bit_equal": true
+  },
+  {
+    "label": "long-128-k7",
+    "arguments": [
+      128,
+      128,
+      7,
+      1,
+      70201,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 35.2,
+    "end_gold_c": 52.0,
+    "elapsed_s": 7.468877028994029,
+    "all_bit_equal": true
+  },
+  {
+    "label": "long-128-k11-d3",
+    "arguments": [
+      128,
+      128,
+      11,
+      3,
+      70201,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 51.3,
+    "end_gold_c": 52.0,
+    "elapsed_s": 11.315511454013176,
+    "all_bit_equal": true
+  },
+  {
+    "label": "long-128-k11-d5",
+    "arguments": [
+      128,
+      128,
+      11,
+      5,
+      70201,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 51.3,
+    "end_gold_c": 60.1,
+    "elapsed_s": 10.38244041299913,
+    "all_bit_equal": true
+  },
+  {
+    "label": "long-128-k3",
+    "arguments": [
+      128,
+      128,
+      3,
+      1,
+      70201,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 38.3,
+    "end_gold_c": 49.7,
+    "elapsed_s": 3.6647368209960405,
+    "all_bit_equal": true
+  },
+  {
+    "label": "early-256-k11",
+    "arguments": [
+      256,
+      256,
+      11,
+      1,
+      11700,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 49.4,
+    "end_gold_c": 57.0,
+    "elapsed_s": 7.3017152580141556,
+    "all_bit_equal": true
+  },
+  {
+    "label": "early-256-k7",
+    "arguments": [
+      256,
+      256,
+      7,
+      1,
+      11700,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 37.5,
+    "end_gold_c": 52.0,
+    "elapsed_s": 4.743384789995616,
+    "all_bit_equal": true
+  },
+  {
+    "label": "early-256-k7-res",
+    "arguments": [
+      256,
+      256,
+      7,
+      1,
+      11700,
+      3,
+      6,
+      1
+    ],
+    "start_gold_c": 51.7,
+    "end_gold_c": 58.6,
+    "elapsed_s": 5.35898900902248,
+    "all_bit_equal": true
+  },
+  {
+    "label": "medium-128-k11",
+    "arguments": [
+      128,
+      128,
+      11,
+      1,
+      32161,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 36.0,
+    "end_gold_c": 50.5,
+    "elapsed_s": 5.138583071005996,
+    "all_bit_equal": true
+  },
+  {
+    "label": "short-128-k11",
+    "arguments": [
+      128,
+      128,
+      11,
+      1,
+      7081,
+      3,
+      6,
+      0
+    ],
+    "start_gold_c": 50.1,
+    "end_gold_c": 54.0,
+    "elapsed_s": 1.2423211970017292,
+    "all_bit_equal": true
+  }
+]

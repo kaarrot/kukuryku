@@ -90,6 +90,10 @@ impl Stage {
             // `into_optimized` then runs on the translated graph.
             typed.declutter().with_context(|| format!("declutter {}", path.display()))?;
             apply_fp16(&mut typed, path)?;
+            configure_stage1_dense_kernel(
+                &mut typed, path,
+                std::env::var("KOKORO_TRACT_S1_DENSE_KERNEL").ok().as_deref(),
+            )?;
         }
         let runnable = typed
             .into_optimized()
@@ -200,6 +204,7 @@ fn profile_run(
             json_nodes.push(serde_json::json!({
                 "id": node.id, "name": node.name, "op": node.op().name(),
                 "seconds": dt, "inputs": inputs, "outputs": outputs,
+                "info": node.op().info().unwrap_or_default(),
             }));
         }
         let e = acc.entry(node.op().name().into_owned());
@@ -407,6 +412,36 @@ fn fp16_enabled() -> Result<bool> {
             Ok(true)
         }
     }
+}
+
+/// Stage-1 dense-kernel selection. Android ARM64 defaults to the tile measured
+/// on its little cores; `legacy` restores tract's previous selection. Keep this
+/// on the model so concurrent stage-2 compilation and gold kernels are unaffected.
+fn configure_stage1_dense_kernel(
+    model: &mut TypedModel, path: &Path, preference: Option<&str>,
+) -> Result<()> {
+    if path.file_name().and_then(|s| s.to_str()) != Some("stage1.onnx") {
+        return Ok(());
+    }
+    let kernel = match preference.unwrap_or("default").trim() {
+        "legacy" | "0" => return Ok(()),
+        "" | "default" if cfg!(all(target_os = "android", target_arch = "aarch64")) =>
+            "arm64fp16_mmm_f16_16x8_a55",
+        "" | "default" => return Ok(()),
+        "16x8-a55" => "arm64fp16_mmm_f16_16x8_a55",
+        "16x8-gen" => "arm64fp16_mmm_f16_16x8_gen",
+        "32x4-a55" => "arm64fp16_mmm_f16_32x4_a55",
+        "32x4-gen" => "arm64fp16_mmm_f16_32x4_gen",
+        "32x6-gen" => "arm64fp16_mmm_f16_32x6_gen",
+        "64x3-gen" => "arm64fp16_mmm_f16_64x3_gen",
+        other => bail!("invalid KOKORO_TRACT_S1_DENSE_KERNEL={other:?}"),
+    };
+    model.properties.insert(
+        tract_onnx::tract_core::ops::matmul::F16_KERNEL_PREFERENCE.to_owned(),
+        rctensor0(kernel.to_owned()),
+    );
+    eprintln!("[kokoro] stage1 F16 dense kernel: {kernel}");
+    Ok(())
 }
 
 /// Seed predicate: translate a node to f16 only when it is a GEMM-like op

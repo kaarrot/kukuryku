@@ -1,0 +1,5 @@
+{
+  "src/tract_backend.rs": "103fa79bc744d87506e18c152624229c2916df2572d71b02bc8467bea59ec0d3",
+  "third_party/tract/tract-core/src/ops/einsum/kernel_selection.rs": "a8a0871e875f5852c5ef8b9466bccf5e004de5edb0e1f088d2cbd4cee537424e",
+  "third_party/tract/tract-core/src/ops/matmul/mod.rs": "79de940c9825a2b68a02588daa2d4a68d5ef609d2a54ec7a027d5687fcdb3731"
+}

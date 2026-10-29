@@ -5,6 +5,10 @@ pub mod quant;
 
 use crate::internal::*;
 
+/// Optional model property naming a preferred F16 matrix-multiply implementation.
+/// Known matrix-vector operations and other precisions keep their usual strategy.
+pub const F16_KERNEL_PREFERENCE: &str = "tract.matmul.f16.preferred_kernel";
+
 pub fn output_type(input: DatumType) -> DatumType {
     if input.is_float() {
         input

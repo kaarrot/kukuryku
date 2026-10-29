@@ -1,0 +1,6077 @@
+[
+  {
+    "round": 1,
+    "stage": "stage1",
+    "length": "short",
+    "file": "fz-prof/B-1.prof/stage1-14939-0.json",
+    "op_wall_s": 0.34287938599999995,
+    "totals": {
+      "Source": 1.6562e-05,
+      "Slice": 7.4584e-05,
+      "Cast": 0.006287562,
+      "MultiBroadcastTo": 0.000104948,
+      "OptMatMulPack": 0.010732131,
+      "Recip": 9.375e-06,
+      "IntoShape": 4.011e-06,
+      "Gather": 0.000202292,
+      "OptMatMul": 0.25361624800000004,
+      "LazyIm2col": 0.000623646,
+      "Add": 0.000942291,
+      "Reduce<Sum>": 0.0021806779999999997,
+      "OptMulByScalar": 0.0026888070000000005,
+      "OptSubByScalar": 0.0006439080000000002,
+      "Reduce<MeanOfSquares>": 0.0012328640000000002,
+      "OptAddByScalar": 0.000572292,
+      "Rsqrt": 0.00036760399999999995,
+      "OptMulUnicast": 0.0025084929999999997,
+      "OptAddUnicast": 0.004893069,
+      "Reshape": 0.0017596340000000006,
+      "LeakyRelu": 7.000100000000001e-05,
+      "Scan": 0.046862865,
+      "Concat": 0.00038656399999999994,
+      "MoveAxis": 0.000303906,
+      "AddAxis": 6.093000000000001e-06,
+      "OptSubFByScalar": 1.3698e-05,
+      "Iff": 5.2761e-05,
+      "Softmax": 0.0026216650000000005,
+      "Square": 0.000826771,
+      "Tanh": 0.002246199,
+      "Sigmoid": 9.844e-06,
+      "RmAxis": 1e-05,
+      "RoundHalfToEven": 3.437e-06,
+      "OptMaxByScalar": 4.583e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          13,
+          false,
+          "F16"
+        ],
+        "s": 0.011888646,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 1,
+    "stage": "stage1",
+    "length": "medium",
+    "file": "fz-prof/B-1.prof/stage1-14939-2.json",
+    "op_wall_s": 2.2519295379999997,
+    "totals": {
+      "Source": 6.302e-06,
+      "Slice": 0.0005365109999999999,
+      "Cast": 0.052881204000000015,
+      "MultiBroadcastTo": 0.000168541,
+      "OptMatMulPack": 0.06785177700000003,
+      "Recip": 7.239e-06,
+      "IntoShape": 3.698e-06,
+      "Gather": 0.00044906199999999996,
+      "OptMatMul": 1.5525865549999998,
+      "LazyIm2col": 0.000434322,
+      "Add": 0.005442708,
+      "Reduce<Sum>": 0.004859326000000001,
+      "OptMulByScalar": 0.024195256000000002,
+      "OptSubByScalar": 0.004325987999999999,
+      "Reduce<MeanOfSquares>": 0.010099636,
+      "OptAddByScalar": 0.002770936,
+      "Rsqrt": 0.000408231,
+      "OptMulUnicast": 0.023302817000000007,
+      "OptAddUnicast": 0.019790416,
+      "Reshape": 0.0029414620000000006,
+      "LeakyRelu": 0.000237239,
+      "Scan": 0.35283478999999995,
+      "Concat": 0.0018284910000000002,
+      "MoveAxis": 0.00406901,
+      "AddAxis": 5.573000000000001e-06,
+      "OptSubFByScalar": 8.125e-06,
+      "Iff": 2.5886e-05,
+      "Softmax": 0.07412369699999999,
+      "Square": 0.027646875,
+      "Tanh": 0.018004531,
+      "Sigmoid": 5.6042e-05,
+      "RmAxis": 1.375e-05,
+      "RoundHalfToEven": 6.198e-06,
+      "OptMaxByScalar": 7.344e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          116,
+          false,
+          "F16"
+        ],
+        "s": 0.058132499000000004,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 1,
+    "stage": "stage1",
+    "length": "long",
+    "file": "fz-prof/B-1.prof/stage1-14939-4.json",
+    "op_wall_s": 5.040586261999999,
+    "totals": {
+      "Source": 6.093e-06,
+      "Slice": 0.000747813,
+      "Cast": 0.14594166199999994,
+      "MultiBroadcastTo": 0.00040916700000000005,
+      "OptMatMulPack": 0.20392692299999995,
+      "Recip": 6.198e-06,
+      "IntoShape": 3.698e-06,
+      "Gather": 0.00085599,
+      "OptMatMul": 3.363423653,
+      "LazyIm2col": 0.000451093,
+      "Add": 0.020662343,
+      "Reduce<Sum>": 0.008051148999999999,
+      "OptMulByScalar": 0.040531931000000014,
+      "OptSubByScalar": 0.006513231,
+      "Reduce<MeanOfSquares>": 0.018629477,
+      "OptAddByScalar": 0.0055196839999999995,
+      "Rsqrt": 0.0003589589999999999,
+      "OptMulUnicast": 0.04309724499999997,
+      "OptAddUnicast": 0.040708388000000005,
+      "Reshape": 0.0024005180000000004,
+      "LeakyRelu": 0.0004928630000000001,
+      "Scan": 0.7647908849999999,
+      "Concat": 0.002484116,
+      "MoveAxis": 0.004300052,
+      "AddAxis": 7.811999999999999e-06,
+      "OptSubFByScalar": 8.959e-06,
+      "Iff": 2.802e-05,
+      "Softmax": 0.304136199,
+      "Square": 0.022494377,
+      "Tanh": 0.039478231999999995,
+      "Sigmoid": 9.1459e-05,
+      "RmAxis": 1.5573e-05,
+      "RoundHalfToEven": 5.573e-06,
+      "OptMaxByScalar": 6.927e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          244,
+          false,
+          "F16"
+        ],
+        "s": 0.12322588599999999,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 1,
+    "stage": "stage2",
+    "length": "short",
+    "file": "fz-prof/B-1.prof/stage2-14939-1.json",
+    "op_wall_s": 0.9888259729999999,
+    "totals": {
+      "Source": 2.9699999999999995e-06,
+      "OptMatMulPack": 0.03574229200000002,
+      "OptMatMul": 0.7237532720000001,
+      "Cast": 0.02509942900000001,
+      "Slice": 0.001101511,
+      "Scan": 0.030868386000000005,
+      "Concat": 0.00043958299999999996,
+      "Reshape": 1.7552e-05,
+      "MoveAxis": 0.000648333,
+      "Reduce<Sum>": 0.00072172,
+      "Recip": 0.000251406,
+      "OptMulByScalar": 0.006246196000000001,
+      "OptSubByScalar": 0.001465208,
+      "Reduce<SumOfSquares>": 0.0007178639999999999,
+      "OptAddByScalar": 0.002113905,
+      "Rsqrt": 1.3175e-05,
+      "LeakyRelu": 0.0006276039999999999,
+      "LazyIm2col": 0.006828853999999997,
+      "AdaIN+LeakyRelu": 0.0039066660000000005,
+      "OptAddUnicast": 0.014038957000000001,
+      "Resize": 0.025532707999999998,
+      "AddAxis": 4.8802e-05,
+      "MultiBroadcastTo": 0.0039442719999999995,
+      "DeconvSum": 0.0062270319999999995,
+      "RmAxis": 2.4167e-05,
+      "Mul": 0.001199061,
+      "Floor": 0.000983177,
+      "OptSubUnicast": 0.000319843,
+      "Sin": 0.002267916,
+      ">": 0.000134531,
+      "Tanh": 7.2865e-05,
+      "Pad": 0.0024858849999999997,
+      "STFT": 0.002923906,
+      "Gather": 0.008202864,
+      "Square": 0.000284271,
+      "Sqrt": 6.9896e-05,
+      "OptMulUnicast": 0.00019510500000000002,
+      "Atan": 0.000858489,
+      "<": 0.000131459,
+      ">=": 0.000108385,
+      "Iff": 9.552200000000001e-05,
+      "AdaIN+Snake": 0.070545518,
+      "Snake": 0.006215677,
+      "Exp": 0.000626666,
+      "Cos": 0.000550834,
+      "NonZero": 2.9791e-05,
+      "ScatterNd": 0.000142448
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.006257031,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.0021148960000000002,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          118,
+          true,
+          "F16"
+        ],
+        "s": 0.001127344,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.0025593739999999997,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.00016932299999999998,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.001884375,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          59,
+          true,
+          "F16"
+        ],
+        "s": 0.014466615,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.010875416,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.004261094,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          118,
+          true,
+          "F16"
+        ],
+        "s": 0.001635729,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.00180974,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.040947759,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          1180,
+          true,
+          "F16"
+        ],
+        "s": 0.025863853,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.015635259999999998,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.014651303000000001,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.018196198,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.005258177,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.003900208,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.049573178,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.012946718,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.011889531,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.095563437,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          7081,
+          true,
+          "F16"
+        ],
+        "s": 0.06686911400000001,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.036712448,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.047972708,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.022704219,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.008424739,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.006043281,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.052821508999999996,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.017670364,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.012299896,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.00435724,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 1,
+    "stage": "stage2",
+    "length": "medium",
+    "file": "fz-prof/B-1.prof/stage2-14939-3.json",
+    "op_wall_s": 3.9018835469999993,
+    "totals": {
+      "Source": 3.073e-06,
+      "OptMatMulPack": 0.023065517000000004,
+      "OptMatMul": 2.9896080800000004,
+      "Cast": 0.11724641000000002,
+      "Slice": 0.00363906,
+      "Scan": 0.079563436,
+      "Concat": 0.00369656,
+      "Reshape": 2.4635e-05,
+      "MoveAxis": 0.004781926999999999,
+      "Reduce<Sum>": 0.001928177,
+      "Recip": 0.000605522,
+      "OptMulByScalar": 0.019622293,
+      "OptSubByScalar": 0.005340677,
+      "Reduce<SumOfSquares>": 0.002456251,
+      "OptAddByScalar": 0.009686303,
+      "Rsqrt": 1.2917e-05,
+      "LeakyRelu": 0.003112604,
+      "LazyIm2col": 0.015215418000000005,
+      "AdaIN+LeakyRelu": 0.007247396000000001,
+      "OptAddUnicast": 0.059799113,
+      "Resize": 0.111898438,
+      "AddAxis": 5.2187999999999996e-05,
+      "MultiBroadcastTo": 0.026667239000000002,
+      "DeconvSum": 0.028329687,
+      "RmAxis": 2.4217e-05,
+      "Mul": 0.004179063,
+      "Floor": 0.003993698,
+      "OptSubUnicast": 0.001353958,
+      "Sin": 0.005961615,
+      ">": 0.000291302,
+      "Tanh": 0.000292813,
+      "Pad": 0.005213334,
+      "STFT": 0.013597239,
+      "Gather": 0.036068126,
+      "Square": 0.000747344,
+      "Sqrt": 0.000426979,
+      "OptMulUnicast": 0.0016943230000000002,
+      "Atan": 0.005009219,
+      "<": 0.00048073,
+      ">=": 0.000461146,
+      "Iff": 0.00052651,
+      "AdaIN+Snake": 0.28159567700000004,
+      "Snake": 0.020750520999999997,
+      "Exp": 0.002819375,
+      "Cos": 0.002661666,
+      "NonZero": 1.25e-05,
+      "ScatterNd": 0.000119271
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.017132136,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.008568073,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          536,
+          true,
+          "F16"
+        ],
+        "s": 0.005359166,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.006239687000000001,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.000592709,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.006052291,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          268,
+          true,
+          "F16"
+        ],
+        "s": 0.051802603,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.038091198,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.018089479,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          536,
+          true,
+          "F16"
+        ],
+        "s": 0.006328385,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.006899374,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.18896411300000002,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          5360,
+          true,
+          "F16"
+        ],
+        "s": 0.12126026000000001,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.082795417,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.07931901,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.065968282,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.014463906,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.014452708,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.24615057199999998,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.076360521,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.053949531,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.41301374999999996,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          32161,
+          true,
+          "F16"
+        ],
+        "s": 0.266663385,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.160414532,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.158110729,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.107641563,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.023566614,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.035357969,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.262382813,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.057289635,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.076917448,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.026595261,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 1,
+    "stage": "stage2",
+    "length": "long",
+    "file": "fz-prof/B-1.prof/stage2-14939-5.json",
+    "op_wall_s": 8.348272115000004,
+    "totals": {
+      "Source": 3.281e-06,
+      "OptMatMulPack": 0.053653645,
+      "OptMatMul": 6.219174362000002,
+      "Cast": 0.288994373,
+      "Slice": 0.010133907999999999,
+      "Scan": 0.193444428,
+      "Concat": 0.0051028110000000005,
+      "Reshape": 6.9323e-05,
+      "MoveAxis": 0.014292238999999998,
+      "Reduce<Sum>": 0.004045626,
+      "Recip": 0.001827864,
+      "OptMulByScalar": 0.05840551899999999,
+      "OptSubByScalar": 0.011011459,
+      "Reduce<SumOfSquares>": 0.00517672,
+      "OptAddByScalar": 0.02060677,
+      "Rsqrt": 1.2032000000000001e-05,
+      "LeakyRelu": 0.0066760940000000005,
+      "LazyIm2col": 0.052843071000000005,
+      "AdaIN+LeakyRelu": 0.014109062,
+      "OptAddUnicast": 0.11959067100000001,
+      "Resize": 0.25649083400000006,
+      "AddAxis": 5.916599999999998e-05,
+      "MultiBroadcastTo": 0.06097682299999999,
+      "DeconvSum": 0.062401095000000004,
+      "RmAxis": 2.4843999999999998e-05,
+      "Mul": 0.011558802,
+      "Floor": 0.008364532,
+      "OptSubUnicast": 0.002634323,
+      "Sin": 0.011572135,
+      ">": 0.000480312,
+      "Tanh": 0.000630417,
+      "Pad": 0.023545574,
+      "STFT": 0.032548646,
+      "Gather": 0.082338124,
+      "Square": 0.003411719,
+      "Sqrt": 0.000759531,
+      "OptMulUnicast": 0.0022917709999999997,
+      "Atan": 0.011392969,
+      "<": 0.000990677,
+      ">=": 0.000980261,
+      "Iff": 0.0011126040000000001,
+      "AdaIN+Snake": 0.6341477060000003,
+      "Snake": 0.049793960000000005,
+      "Exp": 0.006142917,
+      "Cos": 0.004084479,
+      "NonZero": 1.4792e-05,
+      "ScatterNd": 0.000349844
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.039496511,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.019242031,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1170,
+          true,
+          "F16"
+        ],
+        "s": 0.009844218,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.018414896,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.000281302,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.02325802,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          585,
+          true,
+          "F16"
+        ],
+        "s": 0.122297395,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.105999375,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.044387604,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          1170,
+          true,
+          "F16"
+        ],
+        "s": 0.015132969,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.012690573,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.419869948,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          11700,
+          true,
+          "F16"
+        ],
+        "s": 0.23940854099999997,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.141992552,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.142229323,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.143512448,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.031647396,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.030667136,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.559950365,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.113221406,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.118092969,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.8778140099999999,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          70201,
+          true,
+          "F16"
+        ],
+        "s": 0.5502640089999999,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.349858489,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.360145208,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.267306769,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.054567448,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.057233594,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.46367802199999997,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.171432292,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.120165208,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.040037292,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "stage": "stage1",
+    "length": "short",
+    "file": "fz-prof/B-2.prof/stage1-15019-0.json",
+    "op_wall_s": 0.339553468,
+    "totals": {
+      "Source": 9.896e-06,
+      "Slice": 7.666699999999999e-05,
+      "Cast": 0.006016661,
+      "MultiBroadcastTo": 0.00010552,
+      "OptMatMulPack": 0.010324998000000002,
+      "Recip": 9.219e-06,
+      "IntoShape": 5.104e-06,
+      "Gather": 0.00021750100000000002,
+      "OptMatMul": 0.2554663019999999,
+      "LazyIm2col": 0.000531928,
+      "Add": 0.0008551009999999999,
+      "Reduce<Sum>": 0.001707914,
+      "OptMulByScalar": 0.0026525489999999997,
+      "OptSubByScalar": 0.0006091129999999998,
+      "Reduce<MeanOfSquares>": 0.00127807,
+      "OptAddByScalar": 0.0005224980000000001,
+      "Rsqrt": 0.00033323,
+      "OptMulUnicast": 0.0025079670000000003,
+      "OptAddUnicast": 0.005233803999999999,
+      "Reshape": 0.002345781,
+      "LeakyRelu": 6.9427e-05,
+      "Scan": 0.042842186,
+      "Concat": 0.000237971,
+      "MoveAxis": 0.00025026,
+      "AddAxis": 6.875e-06,
+      "OptSubFByScalar": 1.2239e-05,
+      "Iff": 4.7083e-05,
+      "Softmax": 0.002272709,
+      "Square": 0.0007640630000000002,
+      "Tanh": 0.002218331,
+      "Sigmoid": 1.0209e-05,
+      "RmAxis": 6.042e-06,
+      "RoundHalfToEven": 2.604e-06,
+      "OptMaxByScalar": 3.646e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          13,
+          false,
+          "F16"
+        ],
+        "s": 0.011898802,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "stage": "stage1",
+    "length": "medium",
+    "file": "fz-prof/B-2.prof/stage1-15019-2.json",
+    "op_wall_s": 2.2594038199999993,
+    "totals": {
+      "Source": 6.041999999999999e-06,
+      "Slice": 0.00033031300000000005,
+      "Cast": 0.04940980199999993,
+      "MultiBroadcastTo": 0.000171459,
+      "OptMatMulPack": 0.06223629900000001,
+      "Recip": 5.26e-06,
+      "IntoShape": 2.76e-06,
+      "Gather": 0.000407758,
+      "OptMatMul": 1.572493232,
+      "LazyIm2col": 0.000383021,
+      "Add": 0.005235833,
+      "Reduce<Sum>": 0.005339429000000001,
+      "OptMulByScalar": 0.023748798,
+      "OptSubByScalar": 0.0031507309999999995,
+      "Reduce<MeanOfSquares>": 0.010147765000000001,
+      "OptAddByScalar": 0.002637343,
+      "Rsqrt": 0.0003801020000000001,
+      "OptMulUnicast": 0.024623860999999997,
+      "OptAddUnicast": 0.019089377,
+      "Reshape": 0.002671408,
+      "LeakyRelu": 0.00023630099999999999,
+      "Scan": 0.36979843600000006,
+      "Concat": 0.001603177,
+      "MoveAxis": 0.001789531,
+      "AddAxis": 7.968e-06,
+      "OptSubFByScalar": 8.698e-06,
+      "Iff": 2.8333e-05,
+      "Softmax": 0.07297297,
+      "Square": 0.010986458000000001,
+      "Tanh": 0.019373386000000003,
+      "Sigmoid": 6.651e-05,
+      "RmAxis": 3.5469e-05,
+      "RoundHalfToEven": 8.542e-06,
+      "OptMaxByScalar": 1.7448e-05
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          116,
+          false,
+          "F16"
+        ],
+        "s": 0.058468541000000006,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "stage": "stage1",
+    "length": "long",
+    "file": "fz-prof/B-2.prof/stage1-15019-4.json",
+    "op_wall_s": 5.112282450999998,
+    "totals": {
+      "Source": 1.6822999999999998e-05,
+      "Slice": 0.000602603,
+      "Cast": 0.16499139699999996,
+      "MultiBroadcastTo": 0.000612344,
+      "OptMatMulPack": 0.21052666899999994,
+      "Recip": 7.396e-06,
+      "IntoShape": 3.906e-06,
+      "Gather": 0.0005804170000000001,
+      "OptMatMul": 3.393588285999997,
+      "LazyIm2col": 0.00044786399999999997,
+      "Add": 0.019269374000000002,
+      "Reduce<Sum>": 0.008694064,
+      "OptMulByScalar": 0.044303592,
+      "OptSubByScalar": 0.008766301,
+      "Reduce<MeanOfSquares>": 0.019379431,
+      "OptAddByScalar": 0.005769064999999997,
+      "Rsqrt": 0.00038125199999999995,
+      "OptMulUnicast": 0.044005728,
+      "OptAddUnicast": 0.040291875,
+      "Reshape": 0.002490572,
+      "LeakyRelu": 0.000482655,
+      "Scan": 0.775022916,
+      "Concat": 0.0026921889999999998,
+      "MoveAxis": 0.004053855,
+      "AddAxis": 8.385e-06,
+      "OptSubFByScalar": 9.844e-06,
+      "Iff": 2.7761e-05,
+      "Softmax": 0.30617708300000007,
+      "Square": 0.020457866999999998,
+      "Tanh": 0.038479739000000006,
+      "Sigmoid": 9.849e-05,
+      "RmAxis": 2.3281e-05,
+      "RoundHalfToEven": 7.917e-06,
+      "OptMaxByScalar": 1.151e-05
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          244,
+          false,
+          "F16"
+        ],
+        "s": 0.122671406,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "stage": "stage2",
+    "length": "short",
+    "file": "fz-prof/B-2.prof/stage2-15019-1.json",
+    "op_wall_s": 0.9657708870000001,
+    "totals": {
+      "Source": 1.8436999999999996e-05,
+      "OptMatMulPack": 0.006527191,
+      "OptMatMul": 0.7403929659999999,
+      "Cast": 0.023605316,
+      "Slice": 0.001044323,
+      "Scan": 0.02577526,
+      "Concat": 0.0004053630000000001,
+      "Reshape": 1.4844e-05,
+      "MoveAxis": 0.0006677079999999999,
+      "Reduce<Sum>": 0.0005866669999999999,
+      "Recip": 0.000215468,
+      "OptMulByScalar": 0.0047468200000000006,
+      "OptSubByScalar": 0.001154272,
+      "Reduce<SumOfSquares>": 0.000663646,
+      "OptAddByScalar": 0.0022336459999999997,
+      "Rsqrt": 1.1772e-05,
+      "LeakyRelu": 0.0007740620000000001,
+      "LazyIm2col": 0.0063858340000000026,
+      "AdaIN+LeakyRelu": 0.003529217,
+      "OptAddUnicast": 0.014518125,
+      "Resize": 0.024448331000000004,
+      "AddAxis": 4.797e-05,
+      "MultiBroadcastTo": 0.005471717,
+      "DeconvSum": 0.00622125,
+      "RmAxis": 2.0155e-05,
+      "Mul": 0.001002604,
+      "Floor": 0.000740209,
+      "OptSubUnicast": 0.000189219,
+      "Sin": 0.0019117179999999998,
+      ">": 0.000106353,
+      "Tanh": 7.0521e-05,
+      "Pad": 0.001462292,
+      "STFT": 0.002868803,
+      "Gather": 0.007760052000000001,
+      "Square": 0.000313959,
+      "Sqrt": 6.8489e-05,
+      "OptMulUnicast": 0.000293282,
+      "Atan": 0.000852865,
+      "<": 0.000121615,
+      ">=": 0.000105157,
+      "Iff": 9.4896e-05,
+      "AdaIN+Snake": 0.06936755299999998,
+      "Snake": 0.007699637,
+      "Exp": 0.000624375,
+      "Cos": 0.000477813,
+      "NonZero": 1.0417e-05,
+      "ScatterNd": 0.000148698
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.0036913529999999996,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.002552082,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          118,
+          true,
+          "F16"
+        ],
+        "s": 0.001033593,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.002566718,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.000150676,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.001986355,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          59,
+          true,
+          "F16"
+        ],
+        "s": 0.013200261,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.01146224,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.004208802,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          118,
+          true,
+          "F16"
+        ],
+        "s": 0.002072864,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.00215375,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.041082917999999996,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          1180,
+          true,
+          "F16"
+        ],
+        "s": 0.026825155999999996,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.015827395,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.016473802,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.014995523,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.004986667,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.003707084,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.050932501,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.012062708,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.011212864,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.107635261,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          7081,
+          true,
+          "F16"
+        ],
+        "s": 0.064673385,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.044496146,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.043439324,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.027118387,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.006048906,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.007964948,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.055898229,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.017175365,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.011301562,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.004345833,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "stage": "stage2",
+    "length": "medium",
+    "file": "fz-prof/B-2.prof/stage2-15019-3.json",
+    "op_wall_s": 3.9509816630000003,
+    "totals": {
+      "Source": 1.4792e-05,
+      "OptMatMulPack": 0.023840154000000002,
+      "OptMatMul": 3.0132816650000005,
+      "Cast": 0.131433911,
+      "Slice": 0.004556978000000001,
+      "Scan": 0.08016744699999999,
+      "Concat": 0.002886666,
+      "Reshape": 1.6094e-05,
+      "MoveAxis": 0.0038122910000000006,
+      "Reduce<Sum>": 0.002166146,
+      "Recip": 0.000503906,
+      "OptMulByScalar": 0.021145051,
+      "OptSubByScalar": 0.00524203,
+      "Reduce<SumOfSquares>": 0.002495989,
+      "OptAddByScalar": 0.009278488000000001,
+      "Rsqrt": 1.2031e-05,
+      "LeakyRelu": 0.002882917,
+      "LazyIm2col": 0.015198435000000001,
+      "AdaIN+LeakyRelu": 0.007498853999999999,
+      "OptAddUnicast": 0.058740060000000004,
+      "Resize": 0.110649427,
+      "AddAxis": 4.7446e-05,
+      "MultiBroadcastTo": 0.024235624,
+      "DeconvSum": 0.02777099,
+      "RmAxis": 2.5208e-05,
+      "Mul": 0.0045409380000000004,
+      "Floor": 0.004190781,
+      "OptSubUnicast": 0.001170365,
+      "Sin": 0.006829636000000001,
+      ">": 0.000285938,
+      "Tanh": 0.000294219,
+      "Pad": 0.005444896,
+      "STFT": 0.01445276,
+      "Gather": 0.036389845000000004,
+      "Square": 0.000607136,
+      "Sqrt": 0.000307032,
+      "OptMulUnicast": 0.001820468,
+      "Atan": 0.005058386,
+      "<": 0.000482969,
+      ">=": 0.000461927,
+      "Iff": 0.000526614,
+      "AdaIN+Snake": 0.29181432000000007,
+      "Snake": 0.022382448000000003,
+      "Exp": 0.002817864,
+      "Cos": 0.003032917,
+      "NonZero": 1.0885e-05,
+      "ScatterNd": 0.000156719
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.016023646000000002,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.009232969,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          536,
+          true,
+          "F16"
+        ],
+        "s": 0.003931354,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.006370261,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.000606874,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.006192552,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          268,
+          true,
+          "F16"
+        ],
+        "s": 0.055026146000000005,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.042802188,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.013593386,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          536,
+          true,
+          "F16"
+        ],
+        "s": 0.006107083,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.00609823,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.188331304,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          5360,
+          true,
+          "F16"
+        ],
+        "s": 0.118150625,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.063140416,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.092888646,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.077095989,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.025850938,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.014310885,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.225663648,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.054476198,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.050220417,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.444565261,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          32161,
+          true,
+          "F16"
+        ],
+        "s": 0.286630312,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.156565051,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.197456511,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.134837343,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.025637031,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.035675989,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.233801771,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.053418125,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.053116771,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.017886667,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 2,
+    "stage": "stage2",
+    "length": "long",
+    "file": "fz-prof/B-2.prof/stage2-15019-5.json",
+    "op_wall_s": 8.912719326999998,
+    "totals": {
+      "Source": 3.645e-06,
+      "OptMatMulPack": 0.06080880200000001,
+      "OptMatMul": 6.722857238000001,
+      "Cast": 0.29535088699999995,
+      "Slice": 0.010713023,
+      "Scan": 0.190401823,
+      "Concat": 0.024255054999999998,
+      "Reshape": 2.1094e-05,
+      "MoveAxis": 0.0060991150000000004,
+      "Reduce<Sum>": 0.003766407,
+      "Recip": 0.001916719,
+      "OptMulByScalar": 0.042475729999999996,
+      "OptSubByScalar": 0.019021407,
+      "Reduce<SumOfSquares>": 0.005241511,
+      "OptAddByScalar": 0.020212550000000003,
+      "Rsqrt": 1.4376e-05,
+      "LeakyRelu": 0.0064031240000000005,
+      "LazyIm2col": 0.051096301,
+      "AdaIN+LeakyRelu": 0.012711823,
+      "OptAddUnicast": 0.126619738,
+      "Resize": 0.247466823,
+      "AddAxis": 5.4846e-05,
+      "MultiBroadcastTo": 0.06260744800000001,
+      "DeconvSum": 0.062396198,
+      "RmAxis": 2.5104999999999998e-05,
+      "Mul": 0.00987099,
+      "Floor": 0.008295156,
+      "OptSubUnicast": 0.002507812,
+      "Sin": 0.01157354,
+      ">": 0.000478385,
+      "Tanh": 0.000628073,
+      "Pad": 0.024034062000000002,
+      "STFT": 0.029247344,
+      "Gather": 0.07941822999999998,
+      "Square": 0.002808073,
+      "Sqrt": 0.000668959,
+      "OptMulUnicast": 0.0040137490000000005,
+      "Atan": 0.0113925,
+      "<": 0.000993282,
+      ">=": 0.000981563,
+      "Iff": 0.001290521,
+      "AdaIN+Snake": 0.6913664070000001,
+      "Snake": 0.049180311000000004,
+      "Exp": 0.006340833,
+      "Cos": 0.004793333,
+      "NonZero": 1.0312e-05,
+      "ScatterNd": 0.000285104
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.033890156,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.02017776,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1170,
+          true,
+          "F16"
+        ],
+        "s": 0.009951198,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.016574583,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.0005042709999999999,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.020618385,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          585,
+          true,
+          "F16"
+        ],
+        "s": 0.136126147,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.10786145800000001,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.041164114,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          1170,
+          true,
+          "F16"
+        ],
+        "s": 0.013919115,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.012190417,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.442886978,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          11700,
+          true,
+          "F16"
+        ],
+        "s": 0.238395364,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.171421876,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.137210521,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.184111927,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.030574375,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.030782604,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.5033132290000001,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.110911041,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.115607708,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 1.1342401030000002,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          70201,
+          true,
+          "F16"
+        ],
+        "s": 0.643239688,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.351416927,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.5180656260000001,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.21481213400000002,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.053191198,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.050849219,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.5716257819999999,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.121751406,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.121139375,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.059015781,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "stage": "stage1",
+    "length": "short",
+    "file": "fz-prof/B-3.prof/stage1-15494-0.json",
+    "op_wall_s": 0.3335448459999999,
+    "totals": {
+      "Source": 8.541e-06,
+      "Slice": 7.5728e-05,
+      "Cast": 0.005968805999999999,
+      "MultiBroadcastTo": 7.6251e-05,
+      "OptMatMulPack": 0.009651409,
+      "Recip": 7.187e-06,
+      "IntoShape": 3.541e-06,
+      "Gather": 0.000478698,
+      "OptMatMul": 0.24798016300000003,
+      "LazyIm2col": 0.00042307300000000005,
+      "Add": 0.000861616,
+      "Reduce<Sum>": 0.0016061990000000002,
+      "OptMulByScalar": 0.0025787389999999996,
+      "OptSubByScalar": 0.0005871839999999998,
+      "Reduce<MeanOfSquares>": 0.001211093,
+      "OptAddByScalar": 0.000504843,
+      "Rsqrt": 0.000312086,
+      "OptMulUnicast": 0.002351562,
+      "OptAddUnicast": 0.0044936460000000004,
+      "Reshape": 0.001615678,
+      "LeakyRelu": 4.4635e-05,
+      "Scan": 0.04660796799999999,
+      "Concat": 0.000271457,
+      "MoveAxis": 0.000339635,
+      "AddAxis": 3.6460000000000003e-06,
+      "OptSubFByScalar": 6.719e-06,
+      "Iff": 2.3646e-05,
+      "Softmax": 0.0022165640000000003,
+      "Square": 0.0007748980000000001,
+      "Tanh": 0.002432289,
+      "Sigmoid": 1.0782e-05,
+      "RmAxis": 8.959e-06,
+      "RoundHalfToEven": 3.021e-06,
+      "OptMaxByScalar": 4.584e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          13,
+          false,
+          "F16"
+        ],
+        "s": 0.009729531,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "stage": "stage1",
+    "length": "medium",
+    "file": "fz-prof/B-3.prof/stage1-15494-2.json",
+    "op_wall_s": 2.250122711999999,
+    "totals": {
+      "Source": 5.364000000000001e-06,
+      "Slice": 0.00023791699999999998,
+      "Cast": 0.05893228999999999,
+      "MultiBroadcastTo": 0.000221511,
+      "OptMatMulPack": 0.06641989799999999,
+      "Recip": 5.677e-06,
+      "IntoShape": 3.282e-06,
+      "Gather": 0.00043651000000000003,
+      "OptMatMul": 1.559672393,
+      "LazyIm2col": 0.000413905,
+      "Add": 0.005514583000000001,
+      "Reduce<Sum>": 0.004839792000000002,
+      "OptMulByScalar": 0.020095364999999994,
+      "OptSubByScalar": 0.0031849479999999995,
+      "Reduce<MeanOfSquares>": 0.009572869,
+      "OptAddByScalar": 0.002633697,
+      "Rsqrt": 0.00041135500000000013,
+      "OptMulUnicast": 0.025583903999999998,
+      "OptAddUnicast": 0.018219319,
+      "Reshape": 0.0025747909999999995,
+      "LeakyRelu": 0.000240625,
+      "Scan": 0.362904429,
+      "Concat": 0.001689585,
+      "MoveAxis": 0.003586303,
+      "AddAxis": 5.365e-06,
+      "OptSubFByScalar": 7.76e-06,
+      "Iff": 2.5677e-05,
+      "Softmax": 0.07276416899999999,
+      "Square": 0.011261043,
+      "Tanh": 0.01857547,
+      "Sigmoid": 4.7447e-05,
+      "RmAxis": 1.875e-05,
+      "RoundHalfToEven": 6.927e-06,
+      "OptMaxByScalar": 9.792e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          116,
+          false,
+          "F16"
+        ],
+        "s": 0.061687084,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "stage": "stage1",
+    "length": "long",
+    "file": "fz-prof/B-3.prof/stage1-15494-4.json",
+    "op_wall_s": 5.069375601,
+    "totals": {
+      "Source": 1.9634999999999998e-05,
+      "Slice": 0.000667135,
+      "Cast": 0.174407023,
+      "MultiBroadcastTo": 0.000389115,
+      "OptMatMulPack": 0.197478436,
+      "Recip": 9.479e-06,
+      "IntoShape": 5.104e-06,
+      "Gather": 0.001099532,
+      "OptMatMul": 3.352888178,
+      "LazyIm2col": 0.000511719,
+      "Add": 0.017252547,
+      "Reduce<Sum>": 0.008569476999999999,
+      "OptMulByScalar": 0.036557234,
+      "OptSubByScalar": 0.006748281999999998,
+      "Reduce<MeanOfSquares>": 0.020284060000000003,
+      "OptAddByScalar": 0.005398905000000001,
+      "Rsqrt": 0.000375732,
+      "OptMulUnicast": 0.047566353000000006,
+      "OptAddUnicast": 0.03695802100000001,
+      "Reshape": 0.0022821360000000006,
+      "LeakyRelu": 0.000490885,
+      "Scan": 0.7939248939999999,
+      "Concat": 0.002910156,
+      "MoveAxis": 0.002843854,
+      "AddAxis": 7.083e-06,
+      "OptSubFByScalar": 1.099e-05,
+      "Iff": 2.9375e-05,
+      "Softmax": 0.302497553,
+      "Square": 0.018798021999999998,
+      "Tanh": 0.038284321999999996,
+      "Sigmoid": 9.0573e-05,
+      "RmAxis": 9.583e-06,
+      "RoundHalfToEven": 3.75e-06,
+      "OptMaxByScalar": 6.458e-06
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          5,
+          1,
+          244,
+          false,
+          "F16"
+        ],
+        "s": 0.122813176,
+        "count": 3,
+        "names": [
+          "/encoder/text_encoder/cnn.0/cnn.0.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.1/cnn.1.0/Conv.matmatmul",
+          "/encoder/text_encoder/cnn.2/cnn.2.0/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "stage": "stage2",
+    "length": "short",
+    "file": "fz-prof/B-3.prof/stage2-15494-1.json",
+    "op_wall_s": 0.9734630910000004,
+    "totals": {
+      "Source": 1.6041e-05,
+      "OptMatMulPack": 0.006473436,
+      "OptMatMul": 0.7477557880000001,
+      "Cast": 0.023202499999999997,
+      "Slice": 0.0013354169999999993,
+      "Scan": 0.021041875,
+      "Concat": 0.000529376,
+      "Reshape": 1.3385e-05,
+      "MoveAxis": 0.000647709,
+      "Reduce<Sum>": 0.000560574,
+      "Recip": 0.000131407,
+      "OptMulByScalar": 0.006699326,
+      "OptSubByScalar": 0.0011404689999999999,
+      "Reduce<SumOfSquares>": 0.0006224990000000001,
+      "OptAddByScalar": 0.002319583,
+      "Rsqrt": 1.1459e-05,
+      "LeakyRelu": 0.000684479,
+      "LazyIm2col": 0.006792914999999999,
+      "AdaIN+LeakyRelu": 0.003746198,
+      "OptAddUnicast": 0.014487452,
+      "Resize": 0.024964478999999998,
+      "AddAxis": 4.396099999999999e-05,
+      "MultiBroadcastTo": 0.005810574,
+      "DeconvSum": 0.006272344,
+      "RmAxis": 1.974e-05,
+      "Mul": 0.001109271,
+      "Floor": 0.000900781,
+      "OptSubUnicast": 0.0002275,
+      "Sin": 0.00186927,
+      ">": 0.00010770900000000001,
+      "Tanh": 7.0521e-05,
+      "Pad": 0.001546667,
+      "STFT": 0.002775834,
+      "Gather": 0.007807812999999999,
+      "Square": 0.000347917,
+      "Sqrt": 6.9063e-05,
+      "OptMulUnicast": 0.000305262,
+      "Atan": 0.0008525,
+      "<": 0.00013875,
+      ">=": 0.000107552,
+      "Iff": 8.8489e-05,
+      "AdaIN+Snake": 0.07121098899999999,
+      "Snake": 0.007372342999999999,
+      "Exp": 0.000625989,
+      "Cos": 0.000459375,
+      "NonZero": 1.0833e-05,
+      "ScatterNd": 0.000135677
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.004122031,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.00258776,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          118,
+          true,
+          "F16"
+        ],
+        "s": 0.0011706770000000002,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.002019219,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.000466823,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.001915833,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          59,
+          true,
+          "F16"
+        ],
+        "s": 0.015395572,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          59,
+          false,
+          "F16"
+        ],
+        "s": 0.009986927999999999,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          118,
+          false,
+          "F16"
+        ],
+        "s": 0.004583281,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          118,
+          true,
+          "F16"
+        ],
+        "s": 0.001332605,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.001804011,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.042249686,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          1180,
+          true,
+          "F16"
+        ],
+        "s": 0.027617916,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.01806052,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.015184949,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.016174219,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.003657552,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.005019167,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.047415052,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.011779375,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          1180,
+          false,
+          "F16"
+        ],
+        "s": 0.017214843,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.106223178,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          7081,
+          true,
+          "F16"
+        ],
+        "s": 0.066472031,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.043891927,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.045959688,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.027875572,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.008216979,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.005530573,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.055550625,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.01143849,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.017612031,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          7081,
+          false,
+          "F16"
+        ],
+        "s": 0.006469531,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "stage": "stage2",
+    "length": "medium",
+    "file": "fz-prof/B-3.prof/stage2-15494-3.json",
+    "op_wall_s": 3.8750523979999993,
+    "totals": {
+      "Source": 1.2292e-05,
+      "OptMatMulPack": 0.025150987,
+      "OptMatMul": 2.9403390090000006,
+      "Cast": 0.11904859800000002,
+      "Slice": 0.004259113999999998,
+      "Scan": 0.083653021,
+      "Concat": 0.003633851,
+      "Reshape": 4.5364e-05,
+      "MoveAxis": 0.005501719,
+      "Reduce<Sum>": 0.0021983330000000002,
+      "Recip": 0.000630207,
+      "OptMulByScalar": 0.025965103000000003,
+      "OptSubByScalar": 0.005402969,
+      "Reduce<SumOfSquares>": 0.002520729,
+      "OptAddByScalar": 0.009654166,
+      "Rsqrt": 1.1979e-05,
+      "LeakyRelu": 0.003092603,
+      "LazyIm2col": 0.014796828000000001,
+      "AdaIN+LeakyRelu": 0.0076869799999999995,
+      "OptAddUnicast": 0.061237915999999996,
+      "Resize": 0.108502708,
+      "AddAxis": 5.135399999999999e-05,
+      "MultiBroadcastTo": 0.023341041000000003,
+      "DeconvSum": 0.028050365,
+      "RmAxis": 2.0467e-05,
+      "Mul": 0.004649635,
+      "Floor": 0.004473333,
+      "OptSubUnicast": 0.001664636,
+      "Sin": 0.005505729,
+      ">": 0.000306719,
+      "Tanh": 0.000356094,
+      "Pad": 0.011748022,
+      "STFT": 0.014469167,
+      "Gather": 0.035294897000000006,
+      "Square": 0.000712657,
+      "Sqrt": 0.000378334,
+      "OptMulUnicast": 0.001704063,
+      "Atan": 0.005016354,
+      "<": 0.000482968,
+      ">=": 0.000464635,
+      "Iff": 0.00062427,
+      "AdaIN+Snake": 0.28420573400000004,
+      "Snake": 0.022554842,
+      "Exp": 0.002927292,
+      "Cos": 0.002574688,
+      "NonZero": 1.198e-05,
+      "ScatterNd": 0.000118646
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.015983334000000002,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.006555468,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          536,
+          true,
+          "F16"
+        ],
+        "s": 0.004120469,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.008117501,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.000616041,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.006243073,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          268,
+          true,
+          "F16"
+        ],
+        "s": 0.059678386,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          268,
+          false,
+          "F16"
+        ],
+        "s": 0.036352136,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          536,
+          false,
+          "F16"
+        ],
+        "s": 0.014350885,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          536,
+          true,
+          "F16"
+        ],
+        "s": 0.009035208,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.008952291,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.162716511,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          5360,
+          true,
+          "F16"
+        ],
+        "s": 0.102901874,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.06260312400000001,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.064812552,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.07805395799999999,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.015946354,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.014830677,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.22830010500000003,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.055194427,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          5360,
+          false,
+          "F16"
+        ],
+        "s": 0.049978073,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.43395208299999993,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          32161,
+          true,
+          "F16"
+        ],
+        "s": 0.281980886,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.198848594,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.204774791,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.09985651,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.034895,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.035783698,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.255460364,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.051742812,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.053847552,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          32161,
+          false,
+          "F16"
+        ],
+        "s": 0.018038646,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  },
+  {
+    "round": 3,
+    "stage": "stage2",
+    "length": "long",
+    "file": "fz-prof/B-3.prof/stage2-15494-5.json",
+    "op_wall_s": 8.574917223,
+    "totals": {
+      "Source": 3.7999999999999996e-06,
+      "OptMatMulPack": 0.054663957,
+      "OptMatMul": 6.423956814999999,
+      "Cast": 0.28730479900000006,
+      "Slice": 0.008701146000000002,
+      "Scan": 0.186876302,
+      "Concat": 0.007972654999999999,
+      "Reshape": 4.8541e-05,
+      "MoveAxis": 0.011179531,
+      "Reduce<Sum>": 0.003815209,
+      "Recip": 0.0019540089999999996,
+      "OptMulByScalar": 0.062797083,
+      "OptSubByScalar": 0.012075207000000001,
+      "Reduce<SumOfSquares>": 0.005274792,
+      "OptAddByScalar": 0.021508489,
+      "Rsqrt": 1.3488999999999999e-05,
+      "LeakyRelu": 0.008028644,
+      "LazyIm2col": 0.05401979300000003,
+      "AdaIN+LeakyRelu": 0.013027289999999997,
+      "OptAddUnicast": 0.122932242,
+      "Resize": 0.251234427,
+      "AddAxis": 5.8540999999999994e-05,
+      "MultiBroadcastTo": 0.059282189,
+      "DeconvSum": 0.06830525999999999,
+      "RmAxis": 2.5882999999999996e-05,
+      "Mul": 0.013596302000000001,
+      "Floor": 0.007916406,
+      "OptSubUnicast": 0.002385469,
+      "Sin": 0.013110051,
+      ">": 0.000479323,
+      "Tanh": 0.000629739,
+      "Pad": 0.022405104,
+      "STFT": 0.028882709,
+      "Gather": 0.07722125,
+      "Square": 0.003335677,
+      "Sqrt": 0.000790833,
+      "OptMulUnicast": 0.00565901,
+      "Atan": 0.011321406,
+      "<": 0.001011406,
+      ">=": 0.000996719,
+      "Iff": 0.002965312,
+      "AdaIN+Snake": 0.656122497,
+      "Snake": 0.049650781000000005,
+      "Exp": 0.006200989,
+      "Cos": 0.004834584,
+      "NonZero": 1.3542e-05,
+      "ScatterNd": 0.000328021
+    },
+    "conv_groups": [
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.036428751,
+        "count": 4,
+        "names": [
+          "/encoder/F0.0/conv1/Conv.matmatmul",
+          "/encoder/F0.0/conv2/Conv.matmatmul",
+          "/encoder/N.0/conv1/Conv.matmatmul",
+          "/encoder/N.0/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          512,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.016463542,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/conv1/Conv.matmatmul",
+          "/encoder/N.1/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1170,
+          true,
+          "F16"
+        ],
+        "s": 0.010551458,
+        "count": 2,
+        "names": [
+          "/encoder/F0.1/Add",
+          "/encoder/N.1/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.016070729,
+        "count": 4,
+        "names": [
+          "/encoder/F0.2/conv1/Conv.matmatmul",
+          "/encoder/F0.2/conv2/Conv.matmatmul",
+          "/encoder/N.2/conv1/Conv.matmatmul",
+          "/encoder/N.2/conv2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1,
+          1,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.0006132280000000001,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/F0_conv/Conv.matmatmul",
+          "/decoder/decoder/N_conv/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          514,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.019094166,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/encode/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1024,
+          3,
+          1,
+          585,
+          true,
+          "F16"
+        ],
+        "s": 0.13287276,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/encode/Add",
+          "/decoder/decoder/decode.0/Add",
+          "/decoder/decoder/decode.1/Add",
+          "/decoder/decoder/decode.2/Add"
+        ]
+      },
+      {
+        "key": [
+          1024,
+          1090,
+          3,
+          1,
+          585,
+          false,
+          "F16"
+        ],
+        "s": 0.12085854200000001,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/decode.0/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.1/conv1/Conv.matmatmul",
+          "/decoder/decoder/decode.2/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          1090,
+          3,
+          1,
+          1170,
+          false,
+          "F16"
+        ],
+        "s": 0.027571875,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/conv1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          512,
+          512,
+          3,
+          1,
+          1170,
+          true,
+          "F16"
+        ],
+        "s": 0.020575417,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/decode.3/Add"
+        ]
+      },
+      {
+        "key": [
+          256,
+          22,
+          12,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.016013698,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/noise_convs.0/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.344030053,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          1,
+          11700,
+          true,
+          "F16"
+        ],
+        "s": 0.23813349,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/Add_2",
+          "/decoder/decoder/generator/noise_res.0/Add_5",
+          "/decoder/decoder/generator/noise_res.0/Add_8"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.140976094,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          7,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.137752813,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.0/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.1/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.130809011,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.0/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.032188698,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          3,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.045927969,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.0/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          1,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.47507354199999996,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.2/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          3,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.114825416,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          256,
+          256,
+          11,
+          5,
+          11700,
+          false,
+          "F16"
+        ],
+        "s": 0.13230099,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.2/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 1.061116197,
+        "count": 5,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          1,
+          70201,
+          true,
+          "F16"
+        ],
+        "s": 0.548702967,
+        "count": 3,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/Add_2",
+          "/decoder/decoder/generator/noise_res.1/Add_5",
+          "/decoder/decoder/generator/noise_res.1/Add_8"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.35196895699999997,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          11,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.435394061,
+        "count": 2,
+        "names": [
+          "/decoder/decoder/generator/noise_res.1/convs1.2/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.5/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.26728447699999996,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.3/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.076638177,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          3,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.077556927,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.3/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.532731354,
+        "count": 4,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.0/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.1/Conv.matmatmul",
+          "/decoder/decoder/generator/resblocks.4/convs2.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          3,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.112478281,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.1/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          128,
+          128,
+          7,
+          5,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.113413958,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/resblocks.4/convs1.2/Conv.matmatmul"
+        ]
+      },
+      {
+        "key": [
+          22,
+          128,
+          7,
+          1,
+          70201,
+          false,
+          "F16"
+        ],
+        "s": 0.049528802,
+        "count": 1,
+        "names": [
+          "/decoder/decoder/generator/conv_post/Conv.matmatmul"
+        ]
+      }
+    ]
+  }
+]

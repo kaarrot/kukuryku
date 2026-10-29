@@ -1,0 +1,467 @@
+{
+  "binary_sha256": {
+    "A": "4325720bbbdb3f61141cb279c515796cc74d13479845d436312d60c281f9e3ab",
+    "B": "4325720bbbdb3f61141cb279c515796cc74d13479845d436312d60c281f9e3ab"
+  },
+  "assets": "ASSETS",
+  "sink": "discard (parity only)",
+  "cases": [
+    {
+      "voice": "af_heart",
+      "speed": 0.8,
+      "text": "Hello there.",
+      "runs": {
+        "A": {
+          "elapsed_s": 6.2292774969828315
+        },
+        "B": {
+          "elapsed_s": 5.676084893988445
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 8320,
+          "A_sha256": "5a467dee6f511c39582cb6574e867c2148432bff0313ed976142dfab53da745c",
+          "B_sha256": "5a467dee6f511c39582cb6574e867c2148432bff0313ed976142dfab53da745c"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 6656,
+          "A_sha256": "664408f03d0d48117ac168eb636bbbb5743c618e75af3c20bbe516cddae8c2ad",
+          "B_sha256": "664408f03d0d48117ac168eb636bbbb5743c618e75af3c20bbe516cddae8c2ad"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 13,
+          "A_sha256": "2bf52a7649e1634eb91da029f0655cd0e18f8a5ea3b9bd4b5f0bf85dcd477483",
+          "B_sha256": "2bf52a7649e1634eb91da029f0655cd0e18f8a5ea3b9bd4b5f0bf85dcd477483"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 43800,
+          "A_sha256": "5d9a3dfa9fd078a65839071d0a9878c823efbbe05b58645130ed567754819a53",
+          "B_sha256": "5d9a3dfa9fd078a65839071d0a9878c823efbbe05b58645130ed567754819a53"
+        }
+      },
+      "audio_s": 1.825,
+      "wav_equal": true
+    },
+    {
+      "voice": "af_heart",
+      "speed": 1.0,
+      "text": "She stood at the old lighthouse and watched the fishing boats return slowly to the quiet harbour before sunset.",
+      "runs": {
+        "A": {
+          "elapsed_s": 10.417180882010143
+        },
+        "B": {
+          "elapsed_s": 9.640124579978874
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 74240,
+          "A_sha256": "5c8839ac02601d842c91725650e638b8ce637960da6056fea994ba702a9c4ede",
+          "B_sha256": "5c8839ac02601d842c91725650e638b8ce637960da6056fea994ba702a9c4ede"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 59392,
+          "A_sha256": "c21a0efca63aa64eb43cddb0173151f040b8b25a1dee627432e30daea0960436",
+          "B_sha256": "c21a0efca63aa64eb43cddb0173151f040b8b25a1dee627432e30daea0960436"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 116,
+          "A_sha256": "ccca704096d520260d085b2e2ffae050d0f9384f16ea0d86484ae8fb4dcdcdca",
+          "B_sha256": "ccca704096d520260d085b2e2ffae050d0f9384f16ea0d86484ae8fb4dcdcdca"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 160800,
+          "A_sha256": "9d366776480a33daefd3ce50ba566dcf4dc1cb238436a21e467ccd8e70aa1a9a",
+          "B_sha256": "9d366776480a33daefd3ce50ba566dcf4dc1cb238436a21e467ccd8e70aa1a9a"
+        }
+      },
+      "audio_s": 6.7,
+      "wav_equal": true
+    },
+    {
+      "voice": "af_heart",
+      "speed": 1.2,
+      "text": "The old lighthouse keeper climbed the winding staircase every single evening at dusk, carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night.",
+      "runs": {
+        "A": {
+          "elapsed_s": 16.055221504997462
+        },
+        "B": {
+          "elapsed_s": 15.275352650001878
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 156160,
+          "A_sha256": "d876ca81f161879911cca0ef0d5b5022eb5149ff01ca3e37d979df97efd39dee",
+          "B_sha256": "d876ca81f161879911cca0ef0d5b5022eb5149ff01ca3e37d979df97efd39dee"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 124928,
+          "A_sha256": "49e21670ad429385c32e51e31d0690d1c4dcefa6b96cc014986ab4c8cfa36f57",
+          "B_sha256": "49e21670ad429385c32e51e31d0690d1c4dcefa6b96cc014986ab4c8cfa36f57"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 244,
+          "A_sha256": "1821061e5c8e971f69c010a9795acfc4f37fa1048a64b29af813677433529844",
+          "B_sha256": "1821061e5c8e971f69c010a9795acfc4f37fa1048a64b29af813677433529844"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 306600,
+          "A_sha256": "b8258893019badd7a39b082128968557ba89ee54d30c78084be5746f9eeeed0e",
+          "B_sha256": "b8258893019badd7a39b082128968557ba89ee54d30c78084be5746f9eeeed0e"
+        }
+      },
+      "audio_s": 12.775,
+      "wav_equal": true
+    },
+    {
+      "voice": "af_heart",
+      "speed": 1.0,
+      "text": "a",
+      "runs": {
+        "A": {
+          "elapsed_s": 6.3805760919931345
+        },
+        "B": {
+          "elapsed_s": 5.988278800010448
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 3200,
+          "A_sha256": "089ae22afe2506a1ac044163646721ae73aa57ca5c9272d499251cfe649011a7",
+          "B_sha256": "089ae22afe2506a1ac044163646721ae73aa57ca5c9272d499251cfe649011a7"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 2560,
+          "A_sha256": "7912c73cb04c6897c266aa5b81d11dc1cc39a735eac0648daff5d0beae29fd1a",
+          "B_sha256": "7912c73cb04c6897c266aa5b81d11dc1cc39a735eac0648daff5d0beae29fd1a"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 5,
+          "A_sha256": "3f6452d6a1d8a687fd0af418b763dccca7444b333acf2fcce15a5b6bec7556e9",
+          "B_sha256": "3f6452d6a1d8a687fd0af418b763dccca7444b333acf2fcce15a5b6bec7556e9"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 29400,
+          "A_sha256": "1f0e9c13563b91d1a2d849b4433e090440712ee3e75510101f5ffa9e846c1575",
+          "B_sha256": "1f0e9c13563b91d1a2d849b4433e090440712ee3e75510101f5ffa9e846c1575"
+        }
+      },
+      "audio_s": 1.225,
+      "wav_equal": true
+    },
+    {
+      "voice": "af_heart",
+      "speed": 1.0,
+      "text": "Hi.",
+      "runs": {
+        "A": {
+          "elapsed_s": 6.398292809986742
+        },
+        "B": {
+          "elapsed_s": 5.616685257991776
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 3840,
+          "A_sha256": "fc872091dcf479a8a5197ca1c2336c9850ba9c5ad583f88d037915f87a3d30a4",
+          "B_sha256": "fc872091dcf479a8a5197ca1c2336c9850ba9c5ad583f88d037915f87a3d30a4"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 3072,
+          "A_sha256": "3ba1e9cded98315467d9386fdcb058cb9653110e66e098070a3e05e2adc80794",
+          "B_sha256": "3ba1e9cded98315467d9386fdcb058cb9653110e66e098070a3e05e2adc80794"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 6,
+          "A_sha256": "c6b43bff7a724615a00e037db1963a155cee9b7be3a1025d1db853560ca7545c",
+          "B_sha256": "c6b43bff7a724615a00e037db1963a155cee9b7be3a1025d1db853560ca7545c"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 31200,
+          "A_sha256": "6938699503006b7407c9cce5303c2421dfddacc195a3d7484802bb199beee48a",
+          "B_sha256": "6938699503006b7407c9cce5303c2421dfddacc195a3d7484802bb199beee48a"
+        }
+      },
+      "audio_s": 1.3,
+      "wav_equal": true
+    },
+    {
+      "voice": "am_michael",
+      "speed": 0.8,
+      "text": "Hello there.",
+      "runs": {
+        "A": {
+          "elapsed_s": 6.602245414018398
+        },
+        "B": {
+          "elapsed_s": 6.422580206010025
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 8320,
+          "A_sha256": "b84bf75203e4aa18ddc1d786593c6706377d3ff5dec8d3acafbcc01b560d4144",
+          "B_sha256": "b84bf75203e4aa18ddc1d786593c6706377d3ff5dec8d3acafbcc01b560d4144"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 6656,
+          "A_sha256": "664408f03d0d48117ac168eb636bbbb5743c618e75af3c20bbe516cddae8c2ad",
+          "B_sha256": "664408f03d0d48117ac168eb636bbbb5743c618e75af3c20bbe516cddae8c2ad"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 13,
+          "A_sha256": "98874e8c16b9968f1081ed3ab2089c701b92467dc3faee17ac72e81d0ea82f27",
+          "B_sha256": "98874e8c16b9968f1081ed3ab2089c701b92467dc3faee17ac72e81d0ea82f27"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 49200,
+          "A_sha256": "93e05b9818540b044a4174ad1216f038fa11ed0a8c92633f4c0c01eacaf70273",
+          "B_sha256": "93e05b9818540b044a4174ad1216f038fa11ed0a8c92633f4c0c01eacaf70273"
+        }
+      },
+      "audio_s": 2.05,
+      "wav_equal": true
+    },
+    {
+      "voice": "am_michael",
+      "speed": 1.0,
+      "text": "She stood at the old lighthouse and watched the fishing boats return slowly to the quiet harbour before sunset.",
+      "runs": {
+        "A": {
+          "elapsed_s": 11.05907661098172
+        },
+        "B": {
+          "elapsed_s": 10.839996192982653
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 74240,
+          "A_sha256": "02c7d5da0ccfb23565d4d9895d02aa4067ef9b24b6b033ceaaeccb6fb6f0d6a4",
+          "B_sha256": "02c7d5da0ccfb23565d4d9895d02aa4067ef9b24b6b033ceaaeccb6fb6f0d6a4"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 59392,
+          "A_sha256": "c21a0efca63aa64eb43cddb0173151f040b8b25a1dee627432e30daea0960436",
+          "B_sha256": "c21a0efca63aa64eb43cddb0173151f040b8b25a1dee627432e30daea0960436"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 116,
+          "A_sha256": "d99953b49e1960331f41524cb08975f3dcbdc84600580242963cf1c4e55ae424",
+          "B_sha256": "d99953b49e1960331f41524cb08975f3dcbdc84600580242963cf1c4e55ae424"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 180600,
+          "A_sha256": "4c0a5bad4e54c00ddb433e7312b2efbbeebed62b4b9c7ef182c0b61650a9f13b",
+          "B_sha256": "4c0a5bad4e54c00ddb433e7312b2efbbeebed62b4b9c7ef182c0b61650a9f13b"
+        }
+      },
+      "audio_s": 7.525,
+      "wav_equal": true
+    },
+    {
+      "voice": "am_michael",
+      "speed": 1.2,
+      "text": "The old lighthouse keeper climbed the winding staircase every single evening at dusk, carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night.",
+      "runs": {
+        "A": {
+          "elapsed_s": 20.454017284006113
+        },
+        "B": {
+          "elapsed_s": 16.19141244198545
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 156160,
+          "A_sha256": "cb52744f2a6bccb7974c41fd1c1551112f1037d94e9e18371cabf1232dce57dd",
+          "B_sha256": "cb52744f2a6bccb7974c41fd1c1551112f1037d94e9e18371cabf1232dce57dd"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 124928,
+          "A_sha256": "49e21670ad429385c32e51e31d0690d1c4dcefa6b96cc014986ab4c8cfa36f57",
+          "B_sha256": "49e21670ad429385c32e51e31d0690d1c4dcefa6b96cc014986ab4c8cfa36f57"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 244,
+          "A_sha256": "e31cf736d47002f8bcd4e02848423e98fa1d809d8d48f95303094e0e800319ad",
+          "B_sha256": "e31cf736d47002f8bcd4e02848423e98fa1d809d8d48f95303094e0e800319ad"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 333000,
+          "A_sha256": "bf1064d32855e17d380a0d52b6cdcc1a973cf413290edf564f2d867d32b81b4c",
+          "B_sha256": "bf1064d32855e17d380a0d52b6cdcc1a973cf413290edf564f2d867d32b81b4c"
+        }
+      },
+      "audio_s": 13.875,
+      "wav_equal": true
+    },
+    {
+      "voice": "am_michael",
+      "speed": 1.0,
+      "text": "a",
+      "runs": {
+        "A": {
+          "elapsed_s": 5.16853853999055
+        },
+        "B": {
+          "elapsed_s": 5.174165050004376
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 3200,
+          "A_sha256": "5421e9a7020d03d389652af4fc51d822341b0a23fdd7bacb00ad07663884b635",
+          "B_sha256": "5421e9a7020d03d389652af4fc51d822341b0a23fdd7bacb00ad07663884b635"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 2560,
+          "A_sha256": "7912c73cb04c6897c266aa5b81d11dc1cc39a735eac0648daff5d0beae29fd1a",
+          "B_sha256": "7912c73cb04c6897c266aa5b81d11dc1cc39a735eac0648daff5d0beae29fd1a"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 5,
+          "A_sha256": "1be2ff6d9538ab3aaf0375894c73dc47d1364c91d9ec518553bac86f2ccce648",
+          "B_sha256": "1be2ff6d9538ab3aaf0375894c73dc47d1364c91d9ec518553bac86f2ccce648"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 28800,
+          "A_sha256": "e94efea69f486dcf8db960853c876935036abd1a36ce388a76c59c1398835f3c",
+          "B_sha256": "e94efea69f486dcf8db960853c876935036abd1a36ce388a76c59c1398835f3c"
+        }
+      },
+      "audio_s": 1.2,
+      "wav_equal": true
+    },
+    {
+      "voice": "am_michael",
+      "speed": 1.0,
+      "text": "Hi.",
+      "runs": {
+        "A": {
+          "elapsed_s": 5.299370102002285
+        },
+        "B": {
+          "elapsed_s": 5.190876091975952
+        }
+      },
+      "tensors": {
+        "s1_feat640.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 3840,
+          "A_sha256": "44d18bf5b6bd6991166fe9ee3cce4949d198f283a778af1ff5d63137cdb9431e",
+          "B_sha256": "44d18bf5b6bd6991166fe9ee3cce4949d198f283a778af1ff5d63137cdb9431e"
+        },
+        "s1_feat512.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 3072,
+          "A_sha256": "3ba1e9cded98315467d9386fdcb058cb9653110e66e098070a3e05e2adc80794",
+          "B_sha256": "3ba1e9cded98315467d9386fdcb058cb9653110e66e098070a3e05e2adc80794"
+        },
+        "s1_dur.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 6,
+          "A_sha256": "b4b38f6e2492359d4d74e7f620736986c59ddc784fdc953e9214809c235cebea",
+          "B_sha256": "b4b38f6e2492359d4d74e7f620736986c59ddc784fdc953e9214809c235cebea"
+        },
+        "s2_out0.f32": {
+          "equal_bytes": true,
+          "all_finite": true,
+          "elements": 30000,
+          "A_sha256": "11a19ae236a429fa133d6a6b8635b42e7b6548ed0785dd77cc2ad7ae8dff64eb",
+          "B_sha256": "11a19ae236a429fa133d6a6b8635b42e7b6548ed0785dd77cc2ad7ae8dff64eb"
+        }
+      },
+      "audio_s": 1.25,
+      "wav_equal": true
+    }
+  ],
+  "A_environment_overrides": {
+    "KOKORO_TRACT_S1_DENSE_KERNEL": "legacy",
+    "KOKORO_TRACT_S1_CPUSET": "1"
+  },
+  "B_environment_overrides": {
+    "KOKORO_TRACT_S1_CPUSET": "1"
+  }
+}

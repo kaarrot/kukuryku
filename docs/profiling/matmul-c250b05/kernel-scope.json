@@ -1,0 +1,14 @@
+{
+  "stage1": {
+    "('arm64fp16_mmm_f16_16x8_a55',)": 172,
+    "('arm64fp16_mmm_f16_128x1_gen',)": 6,
+    "('arm64fp16_mmm_f16_16x8_gen',)": 3
+  },
+  "stage2": {
+    "('arm64fp16_mmm_f16_64x1_gen', 'arm64fp16_mmm_f16_64x3_gen')": 31,
+    "('arm64fp16_mmm_f16_128x1_gen',)": 142,
+    "('arm64fp16_mmm_f16_16x8_gen',)": 74,
+    "('arm64simd_mmm_f32_32x1_gen', 'arm64simd_mmm_f32_32x3_gen')": 6,
+    "('arm64simd_mmm_f32_64x1_gen',)": 1
+  }
+}

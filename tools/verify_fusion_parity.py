@@ -27,11 +27,24 @@ def main():
     parser.add_argument("--baseline", required=True, type=Path)
     parser.add_argument("--fused", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument("--baseline-env", action="append", default=[], metavar="KEY=VALUE",
+                        help="environment override for A only (repeatable)")
+    parser.add_argument("--fused-env", action="append", default=[], metavar="KEY=VALUE",
+                        help="environment override for B only (repeatable)")
+    parser.add_argument("--extra-text", action="append", default=[],
+                        help="additional one-sentence cases at speed 1 (repeatable)")
     parser.add_argument(
         "--assets", type=Path,
         default=Path.home() / ".local/share/kukuryku/kokoro-onyx",
     )
     args = parser.parse_args()
+    overrides = {"A": {}, "B": {}}
+    for label, settings in [("A", args.baseline_env), ("B", args.fused_env)]:
+        for setting in settings:
+            key, separator, value = setting.partition("=")
+            if not separator or not key:
+                parser.error("environment overrides expect KEY=VALUE")
+            overrides[label][key] = value
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     fakebin = out / "discard-sink"
@@ -53,11 +66,14 @@ def main():
         "binary_sha256": {k: sha256(v) for k, v in binaries.items()},
         "assets": str(args.assets.resolve()),
         "sink": "discard (parity only)", "cases": [],
+        "A_environment_overrides": overrides["A"],
+        "B_environment_overrides": overrides["B"],
     }
+    cases = list(zip([0.8, 1.0, 1.2], texts)) + [(1.0, text) for text in args.extra_text]
     for voice in ["af_heart", "am_michael"]:
-        for speed, text in zip([0.8, 1.0, 1.2], texts):
+        for index, (speed, text) in enumerate(cases):
             case = {"voice": voice, "speed": speed, "text": text, "runs": {}}
-            case_dir = out / f"{voice}-{speed}"
+            case_dir = out / f"{voice}-{index:02d}-{speed}"
             case_dir.mkdir()
             for label, binary in binaries.items():
                 run_dir = case_dir / label
@@ -65,7 +81,7 @@ def main():
                 env = os.environ.copy()
                 # Avoid inherited diagnostics or scheduler overrides changing a run.
                 for name in list(env):
-                    if name.startswith(("KOKORO_", "RYK_")):
+                    if name.startswith(("KOKORO_", "RYK_", "TRACT_CPU_")):
                         del env[name]
                 env.update({
                     "PATH": str(fakebin) + os.pathsep + env["PATH"],
@@ -75,6 +91,7 @@ def main():
                     "KOKORO_TRACT_DUMP": str(run_dir),
                     "KOKORO_WAV": str(run_dir / "audio.wav"),
                 })
+                env.update(overrides[label])
                 started = time.monotonic()
                 with (run_dir / "run.log").open("wb") as log:
                     subprocess.run([str(binary), text], env=env, stdout=log,

@@ -1,0 +1,86 @@
+{
+  "binary_sha256": "4325720bbbdb3f61141cb279c515796cc74d13479845d436312d60c281f9e3ab",
+  "build_s": 823.3479719780153,
+  "source_sha256": {
+    "src/tract_backend.rs": "b543db5a90b98345134a7dba33a0432d07a17b1cd5b5bbb6e0eabcbe4e007a1a",
+    "third_party/tract/tract-core/src/ops/einsum/kernel_selection.rs": "a8a0871e875f5852c5ef8b9466bccf5e004de5edb0e1f088d2cbd4cee537424e",
+    "third_party/tract/tract-core/src/ops/matmul/mod.rs": "79de940c9825a2b68a02588daa2d4a68d5ef609d2a54ec7a027d5687fcdb3731"
+  },
+  "parity_cases": 10,
+  "raw_tensors": 40,
+  "raw_outputs_match_saved_fused_reference": true,
+  "kernel_counts": {
+    "default": {
+      "stage1": {
+        "arm64fp16_mmm_f16_16x8_a55": 172,
+        "arm64fp16_mmm_f16_128x1_gen": 6,
+        "arm64fp16_mmm_f16_16x8_gen": 3
+      },
+      "stage2": {
+        "arm64fp16_mmm_f16_64x1_gen,arm64fp16_mmm_f16_64x3_gen": 31,
+        "arm64fp16_mmm_f16_128x1_gen": 142,
+        "arm64fp16_mmm_f16_16x8_gen": 74,
+        "arm64simd_mmm_f32_32x1_gen,arm64simd_mmm_f32_32x3_gen": 6,
+        "arm64simd_mmm_f32_64x1_gen": 1
+      }
+    },
+    "legacy": {
+      "stage1": {
+        "arm64fp16_mmm_f16_64x1_gen,arm64fp16_mmm_f16_64x3_gen": 172,
+        "arm64fp16_mmm_f16_128x1_gen": 6,
+        "arm64fp16_mmm_f16_16x8_gen": 3
+      },
+      "stage2": {
+        "arm64fp16_mmm_f16_64x1_gen,arm64fp16_mmm_f16_64x3_gen": 31,
+        "arm64fp16_mmm_f16_128x1_gen": 142,
+        "arm64fp16_mmm_f16_16x8_gen": 74,
+        "arm64simd_mmm_f32_32x1_gen,arm64simd_mmm_f32_32x3_gen": 6,
+        "arm64simd_mmm_f32_64x1_gen": 1
+      }
+    },
+    "zero": {
+      "stage1": {
+        "arm64fp16_mmm_f16_64x1_gen,arm64fp16_mmm_f16_64x3_gen": 172,
+        "arm64fp16_mmm_f16_128x1_gen": 6,
+        "arm64fp16_mmm_f16_16x8_gen": 3
+      },
+      "stage2": {
+        "arm64fp16_mmm_f16_64x1_gen,arm64fp16_mmm_f16_64x3_gen": 31,
+        "arm64fp16_mmm_f16_128x1_gen": 142,
+        "arm64fp16_mmm_f16_16x8_gen": 74,
+        "arm64simd_mmm_f32_32x1_gen,arm64simd_mmm_f32_32x3_gen": 6,
+        "arm64simd_mmm_f32_64x1_gen": 1
+      }
+    }
+  },
+  "legacy_matches_saved_kernel_plan": true,
+  "zero_matches_legacy": true,
+  "stage2_unchanged": true,
+  "known_stage1_vectors_and_convolutions_unchanged": true,
+  "mode_environment": {
+    "default": {},
+    "legacy": {
+      "KOKORO_TRACT_S1_DENSE_KERNEL": "legacy"
+    },
+    "zero": {
+      "KOKORO_TRACT_S1_DENSE_KERNEL": "0"
+    }
+  },
+  "scope_common_environment": {
+    "KOKORO_TRACT_FP16": "1",
+    "KOKORO_TRACT_S1_CPUSET": "1",
+    "KOKORO_TRACT_CPUSET": "4-6",
+    "KOKORO_TRACT_THREADS": "3",
+    "KOKORO_GOVERNOR": "off"
+  },
+  "optimized_stage1_names_only_default": [
+    "/encoder/bert/encoder/albert_layer_groups.0/albert_layers.0/attention/Add_1",
+    "/encoder/predictor/duration_proj/linear_layer/Add"
+  ],
+  "optimized_stage1_names_only_legacy": [
+    "/encoder/bert/encoder/albert_layer_groups.0/albert_layers.0/attention/dense/Add",
+    "/encoder/predictor/duration_proj/linear_layer/MatMul.concat-einsum-b.0..1"
+  ],
+  "supervisor_requested_affinities_restored": true,
+  "installed_binary_unchanged": true
+}

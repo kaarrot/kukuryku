@@ -1,0 +1,156 @@
+[
+  {
+    "label": "n3-m768-k768",
+    "arguments": [
+      768,
+      768,
+      3,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 35.6,
+      "little_c": 37.5,
+      "little_khz": 1785600
+    },
+    "end": {
+      "gold_c": 35.6,
+      "little_c": 36.3,
+      "little_khz": 1209600
+    },
+    "elapsed_s": 0.19529208398307674,
+    "all_bit_equal": true
+  },
+  {
+    "label": "n3-m768-k2048",
+    "arguments": [
+      768,
+      2048,
+      3,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 35.6,
+      "little_c": 36.7,
+      "little_khz": 1209600
+    },
+    "end": {
+      "gold_c": 35.6,
+      "little_c": 36.3,
+      "little_khz": 768000
+    },
+    "elapsed_s": 0.2893235929950606,
+    "all_bit_equal": true
+  },
+  {
+    "label": "n3-m2048-k768",
+    "arguments": [
+      2048,
+      768,
+      3,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 36.0,
+      "little_c": 37.1,
+      "little_khz": 1209600
+    },
+    "end": {
+      "gold_c": 36.0,
+      "little_c": 37.5,
+      "little_khz": 1785600
+    },
+    "elapsed_s": 0.2837989059917163,
+    "all_bit_equal": true
+  },
+  {
+    "label": "n3-m256-k512",
+    "arguments": [
+      256,
+      512,
+      3,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 36.0,
+      "little_c": 37.9,
+      "little_khz": 1785600
+    },
+    "end": {
+      "gold_c": 36.3,
+      "little_c": 38.6,
+      "little_khz": 1785600
+    },
+    "elapsed_s": 0.04356442700373009,
+    "all_bit_equal": true
+  },
+  {
+    "label": "n4-ffn-output",
+    "arguments": [
+      768,
+      2048,
+      4,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 36.3,
+      "little_c": 39.0,
+      "little_khz": 1785600
+    },
+    "end": {
+      "gold_c": 36.7,
+      "little_c": 38.3,
+      "little_khz": 1785600
+    },
+    "elapsed_s": 0.22596197898383252,
+    "all_bit_equal": true
+  },
+  {
+    "label": "n6-ffn-output",
+    "arguments": [
+      768,
+      2048,
+      6,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 36.3,
+      "little_c": 38.6,
+      "little_khz": 1785600
+    },
+    "end": {
+      "gold_c": 36.3,
+      "little_c": 38.3,
+      "little_khz": 844800
+    },
+    "elapsed_s": 0.279189947003033,
+    "all_bit_equal": true
+  },
+  {
+    "label": "n8-ffn-output",
+    "arguments": [
+      768,
+      2048,
+      8,
+      1,
+      6
+    ],
+    "start": {
+      "gold_c": 36.7,
+      "little_c": 37.5,
+      "little_khz": 1209600
+    },
+    "end": {
+      "gold_c": 36.7,
+      "little_c": 39.0,
+      "little_khz": 1785600
+    },
+    "elapsed_s": 0.2915822399954777,
+    "all_bit_equal": true
+  }
+]
