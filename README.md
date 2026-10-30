@@ -420,6 +420,19 @@ paused or finished session can be driven from the screen, and removes it when it
 If an Android update breaks a hidden API, `ryk --headset-check` says which step failed. Design and
 the measurements behind it: [`docs/headset-control.md`](docs/headset-control.md).
 
+### Agent harnesses
+
+To set up `ryk` playback in an agent harness, use the companion **`ryk-skills`**
+repository (locally, `~/PRJ/ryk-skills/`). It contains the harness-specific `spk`
+skills and the `bin/speak-last-reply` transcript reader; follow that repository's
+README for the setup for your harness (Claude Code, Grok or Codex).
+
+The installed `~/.local/bin/speak-last-reply` is a symlink to
+`~/PRJ/ryk-skills/bin/speak-last-reply`, and the harness skill entries link into
+that repository too. Keep the checkout in place: it is the source of truth for
+these integrations. The reader expects the `ryk` binary at `~/bin/ryk` and submits
+speech through `ryk --send`, so playback uses the daemon and its controls.
+
 ### Helix
 
 Do **not** pipe the selection to one-shot `ryk`: that blocks Helix until playback ends, so a
