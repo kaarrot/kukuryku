@@ -1,0 +1,94 @@
+[kokoro] backend: tract (pure Rust, two-stage split)
+[kokoro] resolving assets...
+[kokoro] loading split model (stage1.onnx + stage2.onnx) from /data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx
+[kokoro] playback pinned to cpus 0-3
+[kokoro] tract executor: 3 threads on 4-6 (governor Thermal), cool 2 threads on 4-5
+[kokoro] no PulseAudio server running; starting one (pulseaudio --start)
+[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten
+[kokoro] fp16 stage2: 486 of 1334 nodes translated
+[kokoro] stage2: compiled one symbolic plan (length-independent)
+[kokoro] fp16 stage1: 327 of 1117 nodes translated
+[kokoro] stage1: compiled one symbolic plan (length-independent)
+[kokoro] 1 sentence chunk(s)
+[kokoro] stage1 lookahead on cpus 0-3
+[kokoro]   stage1 profile (op: total_s  calls  %):
+[kokoro]     OptMatMul                      0.776s    181  71.3%
+[kokoro]     Scan                           0.183s     10  16.8%
+[kokoro]     OptMatMulPack                  0.028s    108   2.6%
+[kokoro]     Cast                           0.023s    197   2.1%
+[kokoro]     Softmax                        0.021s     12   1.9%
+[kokoro]     OptMulUnicast                  0.012s     55   1.1%
+[kokoro]     OptAddUnicast                  0.010s    100   0.9%
+[kokoro]     Tanh                           0.009s     12   0.8%
+[kokoro]     OptMulByScalar                 0.008s    123   0.7%
+[kokoro]     Reduce<MeanOfSquares>          0.004s     31   0.4%
+[kokoro]     Square                         0.003s     12   0.3%
+[kokoro]     Reduce<Sum>                    0.003s     32   0.2%
+[kokoro]   stage1 top-25 nodes (op  total_s  calls  in -> out):
+[kokoro]     Scan                   0.022s     1  [1,1,1,256]x[1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256] -> [58,1,1,256]
+[kokoro]     Scan                   0.019s     1  [1,1,1,256]x[1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256] -> [58,1,1,256]
+[kokoro]     Scan                   0.019s     1  [1,1,256]x[1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256] -> [58,1,256]
+[kokoro]     Scan                   0.019s     1  [1,1,1,256]x[1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256] -> [58,1,1,256]
+[kokoro]     Scan                   0.018s     1  [1,1,1,256]x[1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256]x[58,1,1,1,256] -> [58,1,1,256]
+[kokoro]     Scan                   0.018s     1  [1,1,256]x[1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256] -> [58,1,256]
+[kokoro]     Scan                   0.017s     1  [1,256]x[1,256]x[58,1,256]x[58,1,256]x[58,1,256]x[58,1,256] -> [58,256]
+[kokoro]     Scan                   0.017s     1  [1,256]x[1,256]x[58,1,256]x[58,1,256]x[58,1,256]x[58,1,256] -> [58,256]
+[kokoro]     Scan                   0.017s     1  [1,1,256]x[1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256] -> [58,1,256]
+[kokoro]     OptMatMul              0.017s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     Scan                   0.016s     1  [1,1,256]x[1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256]x[58,1,1,256] -> [58,1,256]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,2048] -> [58,2048]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,2048] -> [58,2048]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,2048] -> [58,2048]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,2048] -> [58,2048]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,2048] -> [58,2048]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,768] -> [58,768]
+[kokoro]     OptMatMul              0.016s     1  []x[]x[1,2048] -> [58,2048]
+[kokoro]   stage2 profile (op: total_s  calls  %):
+[kokoro]     OptMatMul                      1.548s    254  73.2%
+[kokoro]     Cast                           0.139s    331   6.6%
+[kokoro]     Snake                          0.101s     48   4.8%
+[kokoro]     AdaIN                          0.060s     62   2.8%
+[kokoro]     Resize                         0.056s      6   2.7%
+[kokoro]     Scan                           0.041s      3   1.9%
+[kokoro]     OptAddUnicast                  0.030s     41   1.4%
+[kokoro]     Gather                         0.017s      5   0.8%
+[kokoro]     Pad                            0.016s      3   0.8%
+[kokoro]     DeconvSum                      0.015s      6   0.7%
+[kokoro]     MultiBroadcastTo               0.013s      7   0.6%
+[kokoro]     OptMatMulPack                  0.011s     36   0.5%
+[kokoro]   stage2 top-25 nodes (op  total_s  calls  in -> out):
+[kokoro]     OptMatMul              0.059s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.059s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.059s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.059s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.048s     1  []x[1] -> [1,1536,2700]
+[kokoro]     OptMatMul              0.046s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.042s     1  [1,1]x[1]x[1,128]x[1,128,16201] -> [1,128,16201]
+[kokoro]     OptMatMul              0.042s     1  [1,1]x[1]x[1,128]x[1,128,16201] -> [1,128,16201]
+[kokoro]     OptMatMul              0.041s     1  [1,1]x[1]x[1,128]x[1,128,16201] -> [1,128,16201]
+[kokoro]     OptMatMul              0.041s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.041s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.040s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.039s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.039s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.039s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.038s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     Resize                 0.030s     1  [1,9,270]x[3] -> [1,9,81000]
+[kokoro]     OptMatMul              0.029s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.028s     1  [1,1]x[1]x[1,256] -> [1,256,2700]
+[kokoro]     OptMatMul              0.028s     1  [1,1]x[1]x[1,256] -> [1,256,2700]
+[kokoro]     OptMatMul              0.027s     1  [1,1]x[1]x[1,256] -> [1,256,2700]
+[kokoro]     OptMatMul              0.027s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.026s     1  [1,1]x[1]x[1,256] -> [1,256,2700]
+[kokoro]     OptMatMul              0.026s     1  [1,1]x[1]x[1,128] -> [1,128,16201]
+[kokoro]     OptMatMul              0.026s     1  [1,1]x[1]x[1,256] -> [1,256,2700]
+[kokoro] [1/1] 56 tokens | 3.38s audio | prep 0.42s | infer 3.28s | RTF 0.972 | gap 0.00s
+[kokoro] first audio at 3.71s
+[kokoro] done: 3.38s audio | infer 3.28s | RTF 0.972 | wall 3.71s | wall RTF 1.100 | gap 0.00s | total 12.10s
