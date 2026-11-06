@@ -1,8 +1,10 @@
 # Battery review follow-ups
 
 Changes selected from `battery-review-b366946.md`, reviewed against `b366946`.
-These reduce idle work and fix playback tracking; no battery-energy improvement
-has been measured for this batch.
+These reduce idle work and fix playback tracking. Subsequent
+[live validation](battery-validation-8501a62.md) passed the software and control
+checks and confirmed earlier audio shutdown; battery-energy savings remain
+unproven.
 
 | Review item | Implemented behavior |
 | --- | --- |
@@ -35,5 +37,10 @@ Validation on Android:
 - The installed `~/bin/ryk` SHA-256 is unchanged; the new build is not installed.
 - Local repetition record: `tools/bench_out/battery-followups-b366946/validation.json`.
 
-Physical playback restart clicks/latency and unplugged energy measurements need a
-separate listening/measurement run; fake-sink tests cannot establish either.
+The follow-up speech, real audio/Java integration, live daemon/headset controls
+and unplugged paired energy run are recorded in
+[`battery-validation-8501a62.md`](battery-validation-8501a62.md). The user confirmed
+the wired-headset and notification controls work. A detailed perceptual rating
+of restart clicks and cancel-tone loudness was not collected. The five-second
+grace closed the audio client/server about 25 s sooner; four energy pairs were
+too noisy to establish savings. The installed binary remains unchanged.

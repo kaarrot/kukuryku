@@ -567,8 +567,10 @@ From cheapest to most real.
 1. **Real `pacat`, no model**: plays a quiet tone through the daemon's player and counts `pacat`
    processes to prove that pause, back and cancel really stop and restart the sink.
    ```bash
-   cargo test --release --test real_sink -- --ignored --nocapture --test-threads=1
+   RYK_EARCONS=0 cargo test --release --test real_sink -- --ignored --nocapture --test-threads=1
    ```
+   Disable earcons for this process-count check: the cancel tone intentionally
+   opens a separate `pacat` stream. Check earcons during the live daemon run below.
 2. **The Android side, no headset and no ryk** (Termux): `python3 tools/rykkeys/chain-test.py`
    runs the real helper against a fake daemon and dispatches real media keys through Android's
    own service. It checks the key map (including 1, 2 and 3 clicks of a wired headset and a custom
@@ -597,6 +599,12 @@ What only a human can judge: clicks at a restart, gaps between sentences, the le
 tone, whether the pause lands where you heard it. If something is off, `RYK_SINK_PIPE_BYTES=16384`
 (gaps), `RYK_FADE_IN_MS=0` and `RYK_EARCONS=0` (to rule those out) and `RYK_HEADSET=0` (helper off)
 isolate it quickly.
+
+The battery follow-up [live validation](docs/battery-validation-8501a62.md) covers
+these layers, wired-headset and notification controls, replay after the shorter
+sink grace, and a paired unplugged measurement including the audio shutdown
+tail. Audio shutdown was about 25 s earlier; battery-energy savings remain
+inconclusive.
 
 ### Test sentences for pause / back / cancel
 
