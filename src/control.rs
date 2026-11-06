@@ -40,13 +40,6 @@ const MAX_LINE: u64 = 4096;
 /// A client that stops reading must not wedge the writer for long.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Re-check interval for a connection whose window might end without a
-/// notification (a job that played nothing finishes with nothing to wake us).
-const SETTLE_POLL: Duration = Duration::from_secs(1);
-
-/// Re-check interval otherwise; every change wakes the watcher anyway.
-const KEEPALIVE: Duration = Duration::from_secs(30);
-
 /// Default step for a bare `rewind`: `$RYK_REWIND_SECS` or 10 s.
 pub fn default_rewind_secs() -> f32 {
     parse_secs(std::env::var("RYK_REWIND_SECS").ok().as_deref()).map_or(10.0, |v| v as f32)
@@ -111,13 +104,16 @@ pub fn serve_watch<R: BufRead + Send + 'static>(
             .spawn(move || push_states(&out, &done, &ctl, &pending))
     };
     let verbs = {
-        let out = Arc::clone(&out);
+        let (out, done, ctl, pending) =
+            (Arc::clone(&out), Arc::clone(&done), ctl.clone(), Arc::clone(&pending));
         std::thread::Builder::new()
             .name("ryk-watch-verbs".into())
             .spawn(move || read_verbs(reader, &out, &done, &ctl, &pending))
     };
     if pusher.is_err() || verbs.is_err() {
         eprintln!("[ryk-serve] could not start the watch threads");
+        done.store(true, Ordering::Release);
+        ctl.nudge();
         close(&out);
     }
 }
@@ -152,8 +148,7 @@ fn push_states(out: &Mutex<UnixStream>, done: &AtomicBool, ctl: &Handle, pending
         if window_over(&snap, pending) {
             break;
         }
-        let settling = snap.state == PlayState::Idle && !snap.history;
-        snap = ctl.wait_change(snap.seq, if settling { SETTLE_POLL } else { KEEPALIVE });
+        snap = ctl.wait_change_blocking(snap.seq);
     }
     close(out);
 }
@@ -393,7 +388,8 @@ mod tests {
         c.say("status");
         assert_eq!(c.until("ok"), "ok idle");
         pending.store(0, Ordering::Release);
-        assert_eq!(c.line(), None, "closes within the settle poll once the queue is empty");
+        h.nudge(); // the worker notifies when its last pending job finishes
+        assert_eq!(c.line(), None, "closes on notification once the queue is empty");
         s.finish().unwrap();
     }
 

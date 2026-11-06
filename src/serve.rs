@@ -95,7 +95,7 @@ fn daemon_idle_timeout() -> Option<Duration> {
     parse_idle_timeout(std::env::var("RYK_IDLE_TIMEOUT").ok().as_deref())
 }
 
-/// Parse `$RYK_SINK_IDLE_MS`. Missing or unparseable values use the 30-second default.
+/// Parse `$RYK_SINK_IDLE_MS`. Missing or unparseable values use the 5-second default.
 pub(crate) fn parse_sink_idle_ms(val: Option<&str>) -> Duration {
     match val {
         None => kokoro::DEFAULT_SINK_IDLE,
@@ -296,7 +296,9 @@ fn handle_conn(
             let job = Job { voice, lang, speed, text, epoch: ctl.epoch() };
             pending.fetch_add(1, Ordering::Release);
             if tx.send(job).is_err() {
-                pending.fetch_sub(1, Ordering::Release);
+                if pending.fetch_sub(1, Ordering::AcqRel) == 1 {
+                    ctl.nudge();
+                }
                 bail!("worker thread gone");
             }
             conn.write_all(b"ok\n").ok();
@@ -342,10 +344,12 @@ fn parse_request(header: &str, body: String) -> Result<Request> {
 
 /// Decrements the pending-job count when a worker iteration finishes (including
 /// on panic unwind), so a failed synth cannot pin the idle timer forever.
-struct PendingGuard<'a>(&'a AtomicUsize);
+struct PendingGuard<'a>(&'a AtomicUsize, &'a Handle);
 impl Drop for PendingGuard<'_> {
     fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::Release);
+        if self.0.fetch_sub(1, Ordering::AcqRel) == 1 {
+            self.1.nudge();
+        }
     }
 }
 
@@ -372,7 +376,7 @@ fn worker_loop(
 ) {
     let mut voices: HashMap<String, PathBuf> = HashMap::new();
     for job in rx {
-        let _pending = PendingGuard(&pending);
+        let _pending = PendingGuard(&pending, &ctl);
         if job.epoch != ctl.epoch() {
             info!("[ryk-serve] skipping a job cancelled while queued");
             continue;
@@ -640,9 +644,9 @@ mod tests {
     }
 
     #[test]
-    fn sink_idle_default_is_thirty_seconds() {
-        assert_eq!(parse_sink_idle_ms(None), Duration::from_secs(30));
-        assert_eq!(kokoro::DEFAULT_SINK_IDLE, Duration::from_secs(30));
+    fn sink_idle_default_is_five_seconds() {
+        assert_eq!(parse_sink_idle_ms(None), Duration::from_secs(5));
+        assert_eq!(crate::playback::Config::default().sink_idle, kokoro::DEFAULT_SINK_IDLE);
     }
 
     #[test]
@@ -652,6 +656,59 @@ mod tests {
 
     #[test]
     fn sink_idle_garbage_falls_back_to_default() {
-        assert_eq!(parse_sink_idle_ms(Some("nope")), Duration::from_secs(30));
+        assert_eq!(parse_sink_idle_ms(Some("nope")), Duration::from_secs(5));
+    }
+
+    struct NoAudio;
+
+    impl crate::playback::SinkFactory for NoAudio {
+        fn spawn(&mut self) -> Result<Box<dyn crate::playback::Sink>> {
+            bail!("this test must not open an audio sink")
+        }
+        fn lag_samples(&self) -> u64 { 0 }
+    }
+
+    #[test]
+    fn the_last_pending_job_wakes_and_closes_an_empty_watch() {
+        let s = crate::playback::Session::spawn(NoAudio, crate::playback::Config::default());
+        let h = s.handle();
+        let pending = Arc::new(AtomicUsize::new(2));
+        let (server, client) = UnixStream::pair().unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut reader = BufReader::new(client);
+        serve_watch(server.try_clone().unwrap(), BufReader::new(server), h.clone(), Arc::clone(&pending));
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        assert_eq!(line, "ok\n");
+        line.clear();
+        reader.read_line(&mut line).unwrap();
+        assert_eq!(line, "state idle\n");
+
+        let seen = h.snapshot().seq;
+        drop(PendingGuard(&pending, &h));
+        assert_eq!(pending.load(Ordering::Acquire), 1);
+        assert_eq!(h.snapshot().seq, seen, "another job is still queued");
+        drop(PendingGuard(&pending, &h));
+        assert_eq!(pending.load(Ordering::Acquire), 0);
+        assert!(h.snapshot().seq > seen, "finishing without audio still wakes watchers");
+        assert_eq!(reader.read_line(&mut String::new()).unwrap(), 0);
+        s.finish().unwrap();
+    }
+
+    #[test]
+    fn a_failed_enqueue_notifies_watchers_when_pending_returns_to_zero() {
+        let s = crate::playback::Session::spawn(NoAudio, crate::playback::Config::default());
+        let h = s.handle();
+        let pending = Arc::new(AtomicUsize::new(0));
+        let (tx, rx) = mpsc::channel();
+        drop(rx);
+        let (server, mut client) = UnixStream::pair().unwrap();
+        client.write_all(b"af_heart\ten-us\t1.0\nhello").unwrap();
+        client.shutdown(Shutdown::Write).unwrap();
+        let seen = h.snapshot().seq;
+        assert!(handle_conn(server, &tx, &pending, &h).is_err());
+        assert_eq!(pending.load(Ordering::Acquire), 0);
+        assert!(h.snapshot().seq > seen);
+        s.finish().unwrap();
     }
 }

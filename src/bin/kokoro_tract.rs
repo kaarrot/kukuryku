@@ -99,7 +99,7 @@ ENV:
                         the exe-adjacent dir)
     RYK_SOCKET     daemon socket path (default $XDG_RUNTIME_DIR/ryk.sock)
     RYK_SINK_IDLE_MS  --serve: close the audio sink this long after the last
-                      sample (default 30000)
+                      sample (default 5000)
     RYK_HISTORY_SECS  --serve: seconds of played audio kept for rewinding (180)
     RYK_REWIND_WINDOW_SECS  --serve: keep that history this long after the last
                       sample, so `ryk-ctl back` works after speech ends (600)

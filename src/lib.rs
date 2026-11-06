@@ -48,6 +48,7 @@ macro_rules! info {
 }
 
 pub mod kokoro {
+    use std::cell::RefCell;
     use std::collections::HashMap;
     use std::io::Write;
     use std::path::{Path, PathBuf};
@@ -370,12 +371,15 @@ pub mod kokoro {
         phonemes: String,
         voice_path: &std::path::Path,
     ) -> Result<Option<Prepared>> {
-        let vocab: HashMap<String, i64> =
-            serde_json::from_str(include_str!("kokoro_vocab.json")).context("parsing vocab")?;
+        static VOCAB: OnceLock<HashMap<char, i64>> = OnceLock::new();
+        let vocab = VOCAB.get_or_init(|| {
+            serde_json::from_str(include_str!("kokoro_vocab.json"))
+                .expect("invalid embedded Kokoro vocabulary")
+        });
 
         let mut tokens: Vec<i64> = phonemes
             .chars()
-            .filter_map(|c| vocab.get(&c.to_string()).copied())
+            .filter_map(|c| vocab.get(&c).copied())
             .collect();
         tokens.truncate(MAX_PHONEMES);
         if tokens.is_empty() {
@@ -384,11 +388,7 @@ pub mod kokoro {
         let token_len = tokens.len();
 
         // Voice style vector: row indexed by (unpadded) token length.
-        let voice_bytes = std::fs::read(voice_path).context("reading voice file")?;
-        let voice_f32: &[f32] = bytemuck::cast_slice(&voice_bytes);
-        let rows = voice_f32.len() / STYLE_DIM;
-        let row = token_len.min(rows - 1);
-        let style: Vec<f32> = voice_f32[row * STYLE_DIM..(row + 1) * STYLE_DIM].to_vec();
+        let style = VOICE_CACHE.with(|cache| cache.borrow_mut().style(voice_path, token_len))?;
 
         // Input ids, padded with 0 at both ends.
         let mut ids: Vec<i64> = Vec::with_capacity(token_len + 2);
@@ -397,6 +397,79 @@ pub mod kokoro {
         ids.push(0);
 
         Ok(Some(Prepared { phonemes, ids, style, token_len }))
+    }
+
+    // Preparation lives on the persistent stage-1 thread (or the ORT caller).
+    // Keep only its latest voice, so switching voices cannot grow memory forever.
+    thread_local! {
+        static VOICE_CACHE: RefCell<VoiceCache> = RefCell::default();
+    }
+
+    #[derive(Default)]
+    struct VoiceCache {
+        last: Option<CachedVoice>,
+    }
+
+    struct CachedVoice {
+        path: PathBuf,
+        metadata: std::fs::Metadata,
+        values: Vec<f32>,
+    }
+
+    impl CachedVoice {
+        fn matches(&self, path: &Path, metadata: &std::fs::Metadata) -> bool {
+            if self.path != path || self.metadata.len() != metadata.len() {
+                return false;
+            }
+            match (self.metadata.modified(), metadata.modified()) {
+                (Ok(old), Ok(new)) if old == new => {}
+                _ => return false, // no usable timestamp: read again
+            }
+            // Also notice atomic replacements and edits that preserve mtime.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                if self.metadata.dev() != metadata.dev()
+                    || self.metadata.ino() != metadata.ino()
+                    || self.metadata.ctime() != metadata.ctime()
+                    || self.metadata.ctime_nsec() != metadata.ctime_nsec()
+                {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+
+    impl VoiceCache {
+        fn style(&mut self, path: &Path, token_len: usize) -> Result<Vec<f32>> {
+            let metadata = match std::fs::metadata(path) {
+                Ok(metadata) => metadata,
+                Err(e) => {
+                    self.last = None;
+                    return Err(e).context("reading voice file metadata");
+                }
+            };
+            if !self.last.as_ref().is_some_and(|voice| voice.matches(path, &metadata)) {
+                // A failed reload must not leave an older voice eligible for
+                // reuse if the file is repaired within one filesystem clock tick.
+                self.last = None;
+                let bytes = std::fs::read(path).context("reading voice file")?;
+                if bytes.is_empty() || bytes.len() % (STYLE_DIM * size_of::<f32>()) != 0 {
+                    bail!("voice file must contain complete rows of {STYLE_DIM} floats: {}", path.display());
+                }
+                // Preserve the old native-endian float values without relying on
+                // a byte allocation having f32 alignment. Convert only on a miss.
+                let values = bytes.chunks_exact(size_of::<f32>())
+                    .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
+                    .collect();
+                self.last = Some(CachedVoice { path: path.to_path_buf(), metadata, values });
+            }
+            let voice = self.last.as_ref().unwrap();
+            let rows = voice.values.len() / STYLE_DIM;
+            let row = token_len.min(rows - 1);
+            Ok(voice.values[row * STYLE_DIM..(row + 1) * STYLE_DIM].to_vec())
+        }
     }
 
     /// Split a paragraph into sentence-sized chunks for streaming synthesis.
@@ -616,7 +689,7 @@ pub mod kokoro {
     /// streaming, plus a PCM history so the sink can be killed and respawned at
     /// any point (pause, back one sentence, rewind, cancel; see
     /// [`handle`](Self::handle)). It closes the sink after a grace period
-    /// (default 30 seconds) so PulseAudio can exit and Android can suspend
+    /// (default 5 seconds) so PulseAudio can exit and Android can suspend
     /// OpenSL; the next `push` respawns it. [`hold_sink`](Self::hold_sink)
     /// covers the gap while the next sentence of an utterance is still synthesizing
     /// (which can exceed the idle).
@@ -646,7 +719,7 @@ pub mod kokoro {
     /// audio path), so this stays short. A `--send` after it pays a sink respawn,
     /// and PulseAudio's restart is overlapped with synthesis by
     /// [`StreamPlayer::warm`]. Override with `$RYK_SINK_IDLE_MS`.
-    pub const DEFAULT_SINK_IDLE: Duration = Duration::from_secs(30);
+    pub use crate::playback::DEFAULT_SINK_IDLE;
 
     /// The raw-PCM sink on `PATH`, probed once per process.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1226,6 +1299,101 @@ pub mod kokoro {
         }
         std::fs::write(path, out)?;
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod preparation_tests {
+        use super::*;
+
+        struct Voices(PathBuf);
+
+        impl Voices {
+            fn new() -> Self {
+                static NEXT: AtomicU64 = AtomicU64::new(0);
+                let dir = std::env::temp_dir().join(format!(
+                    "ryk-voices-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                Self(dir)
+            }
+
+            fn write(&self, name: &str, seed: f32) -> (PathBuf, Vec<f32>) {
+                let path = self.0.join(name);
+                let values: Vec<f32> = (0..3 * STYLE_DIM).map(|i| seed + i as f32).collect();
+                std::fs::write(&path, bytemuck::cast_slice(&values)).unwrap();
+                (path, values)
+            }
+        }
+
+        impl Drop for Voices {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+
+        #[test]
+        fn preparation_preserves_tokens_truncation_and_the_style_row() {
+            let voices = Voices::new();
+            let (path, values) = voices.write("voice.bin", 0.0);
+            let phonemes = format!("hɛlˈoʊ\u{200d}🤖{}", "a".repeat(MAX_PHONEMES));
+            let legacy_vocab: HashMap<String, i64> =
+                serde_json::from_str(include_str!("kokoro_vocab.json")).unwrap();
+            let mut expected = vec![0];
+            expected.extend(phonemes.chars()
+                .filter_map(|c| legacy_vocab.get(&c.to_string()).copied())
+                .take(MAX_PHONEMES));
+            expected.push(0);
+            let p = prepare_from_phonemes(phonemes.clone(), &path).unwrap().unwrap();
+            assert_eq!(p.ids, expected);
+            assert_eq!(p.token_len, MAX_PHONEMES);
+            assert_eq!(p.phonemes, phonemes);
+            assert_eq!(p.style, values[2 * STYLE_DIM..]);
+            assert!(prepare_from_phonemes("🤖\u{200d}".into(), Path::new("/no/voice"))
+                .unwrap().is_none());
+        }
+
+        #[test]
+        fn voice_cache_follows_edits_switches_and_deletion() {
+            let voices = Voices::new();
+            let (a, values_a) = voices.write("a.bin", 0.0);
+            let (b, values_b) = voices.write("b.bin", 1000.0);
+            let mut cache = VoiceCache::default();
+            assert_eq!(cache.style(&a, 1).unwrap(), values_a[STYLE_DIM..2 * STYLE_DIM]);
+            assert_eq!(cache.style(&a, 0).unwrap(), values_a[..STYLE_DIM]);
+
+            let (_, edited) = voices.write("a.bin", 2000.0);
+            let file = std::fs::File::open(&a).unwrap();
+            file.set_modified(std::time::UNIX_EPOCH + Duration::from_secs(100)).unwrap();
+            assert_eq!(cache.style(&a, 1).unwrap(), edited[STYLE_DIM..2 * STYLE_DIM]);
+            assert_eq!(cache.style(&b, 1).unwrap(), values_b[STYLE_DIM..2 * STYLE_DIM]);
+            assert_eq!(cache.style(&a, usize::MAX).unwrap(), edited[2 * STYLE_DIM..]);
+
+            #[cfg(unix)]
+            {
+                let modified = std::fs::metadata(&a).unwrap().modified().unwrap();
+                let (replacement, values) = voices.write("replacement.bin", 3000.0);
+                std::fs::File::open(&replacement).unwrap().set_modified(modified).unwrap();
+                std::fs::rename(replacement, &a).unwrap();
+                assert_eq!(cache.style(&a, 1).unwrap(), values[STYLE_DIM..2 * STYLE_DIM],
+                    "an atomic replacement with the same size and mtime must invalidate the cache");
+            }
+            std::fs::remove_file(&a).unwrap();
+            assert!(cache.style(&a, 1).is_err(), "a cached voice must not hide a missing file");
+        }
+
+        #[test]
+        fn malformed_voice_files_return_errors_without_reusing_cached_data() {
+            let voices = Voices::new();
+            let (path, _) = voices.write("voice.bin", 0.0);
+            let mut cache = VoiceCache::default();
+            cache.style(&path, 1).unwrap();
+            for bytes in [vec![], vec![0; 3], vec![0; STYLE_DIM * 4 - 4]] {
+                std::fs::write(&path, bytes).unwrap();
+                assert!(cache.style(&path, 1).is_err());
+            }
+            let (_, repaired) = voices.write("voice.bin", 4000.0);
+            assert_eq!(cache.style(&path, 1).unwrap(), repaired[STYLE_DIM..2 * STYLE_DIM]);
+        }
     }
 }
 

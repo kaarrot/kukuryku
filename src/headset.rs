@@ -243,6 +243,21 @@ impl Launch {
     }
 
     fn spawn(&self) -> io::Result<Child> {
+        // The synthesis worker must keep its gold mask. Launch from a separate
+        // thread so the JVM and its descendants inherit the little-core mask,
+        // without running locks, allocations or topology reads after fork.
+        #[cfg(all(feature = "tract", target_os = "android"))]
+        return std::thread::scope(|scope| {
+            std::thread::Builder::new().name("ryk-keys-launch".into()).spawn_scoped(scope, || {
+                crate::tract_backend::pin_to_little_cores("headset helper");
+                self.spawn_command()
+            })?.join().unwrap_or_else(|_| Err(io::Error::other("headset launcher panicked")))
+        });
+        #[cfg(not(all(feature = "tract", target_os = "android")))]
+        self.spawn_command()
+    }
+
+    fn spawn_command(&self) -> io::Result<Child> {
         let mut cmd = self.command();
         let log = self.log.as_ref().and_then(|p| {
             std::fs::create_dir_all(p.parent()?).ok()?;
@@ -373,6 +388,8 @@ impl Keys {
         }
         let state = Arc::clone(&self.state);
         let spawned = std::thread::Builder::new().name("ryk-keys-build".into()).spawn(move || {
+            #[cfg(feature = "tract")]
+            crate::tract_backend::pin_to_little_cores("headset build");
             crate::info!("[ryk-serve] building the headset helper ...");
             let t = Instant::now();
             let r = builder.build();
@@ -851,5 +868,54 @@ mod tests {
         settle();
         let text = std::fs::read_to_string(&log).unwrap();
         assert!(text.contains("started") && text.contains("oops"), "{text:?}");
+    }
+
+    #[cfg(all(feature = "tract", target_os = "android"))]
+    fn affinity() -> String {
+        std::fs::read_to_string("/proc/thread-self/status").unwrap().lines()
+            .find(|line| line.starts_with("Cpus_allowed_list:")).unwrap().trim().to_string()
+    }
+
+    #[cfg(all(feature = "tract", target_os = "android"))]
+    fn little_affinity() -> String {
+        std::thread::spawn(|| {
+            crate::tract_backend::pin_to_little_cores("headset affinity test");
+            affinity()
+        }).join().unwrap()
+    }
+
+    #[cfg(all(feature = "tract", target_os = "android"))]
+    #[test]
+    fn helper_inherits_little_cores_without_repinning_the_caller() {
+        let expected = little_affinity();
+        let before = affinity();
+        let dir = temp("affinity-launch");
+        let log = dir.join("mask");
+        let mut launch = cmd("sh", &["-c", "sed -n '/^Cpus_allowed_list:/p' /proc/self/status"]);
+        launch.log = Some(log.clone());
+        assert!(launch.spawn().unwrap().wait().unwrap().success());
+        assert_eq!(std::fs::read_to_string(log).unwrap().trim(), expected);
+        assert_eq!(affinity(), before, "the synthesis caller keeps its original mask");
+    }
+
+    #[cfg(all(feature = "tract", target_os = "android"))]
+    #[test]
+    fn background_compilers_inherit_little_cores() {
+        let expected = little_affinity();
+        let before = affinity();
+        let dir = temp("affinity-build");
+        let ecj = format!("sed -n '/^Cpus_allowed_list:/p' /proc/self/status > \"$3/../../ecj.mask\"\n{ECJ_OK}");
+        let dx = format!("sed -n '/^Cpus_allowed_list:/p' /proc/self/status > \"$3/../../dx.mask\"\n{DX_OK}");
+        let b = builder(&dir, &ecj, &dx);
+        let mut launch = cmd("true", &[]);
+        launch.build = Some(b);
+        let k = Keys::new(Ok(launch));
+        k.prepare();
+        wait_for(|| !k.building());
+        assert!(!k.build_failed());
+        for tool in ["ecj", "dx"] {
+            assert_eq!(std::fs::read_to_string(dir.join(format!("{tool}.mask"))).unwrap().trim(), expected);
+        }
+        assert_eq!(affinity(), before);
     }
 }

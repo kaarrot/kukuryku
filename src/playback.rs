@@ -29,6 +29,9 @@ pub const WRITE_SLICE: usize = SAMPLE_RATE as usize / 10;
 /// Max queued messages (sentences) between the synth thread and playback.
 pub const STREAM_BUFFER: usize = 32;
 
+/// Grace after the last sample before an unheld daemon sink closes.
+pub const DEFAULT_SINK_IDLE: Duration = Duration::from_secs(5);
+
 /// How long a caller waits for the playback thread to answer a control.
 const CONTROL_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -328,7 +331,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            sink_idle: Duration::from_secs(30),
+            sink_idle: DEFAULT_SINK_IDLE,
             window: Duration::from_secs(600),
             pause_max: Duration::from_secs(600),
             played_cap: secs_to_samples(180.0),
@@ -360,11 +363,18 @@ pub struct Status {
     changed: Condvar,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Changes {
     seq: u64,
-    /// The last state/history combination that bumped `seq`.
-    code: u8,
+    /// State published by `refresh`, paired with its change counter.
+    state: PlayState,
+    history: bool,
+}
+
+impl Default for Changes {
+    fn default() -> Self {
+        Self { seq: 0, state: PlayState::Idle, history: false }
+    }
 }
 
 /// What a watcher sees: the change counter and the coarse state. `state` is
@@ -400,11 +410,13 @@ impl Status {
     /// Call after any input above changed: wakes watchers if the coarse state
     /// or the history flag is different from the last time.
     pub fn refresh(&self) {
-        let (state, history) = self.coarse();
-        let code = state as u8 | (history as u8) << 2;
+        // Read under the change lock: an older refresh must not overwrite a
+        // newer state code and hide the next transition from sleeping watchers.
         let mut c = self.lock_changes();
-        if c.code != code {
-            c.code = code;
+        let (state, history) = self.coarse();
+        if (c.state, c.history) != (state, history) {
+            c.state = state;
+            c.history = history;
             c.seq += 1;
             drop(c);
             self.changed.notify_all();
@@ -419,9 +431,11 @@ impl Status {
     }
 
     pub fn snapshot(&self) -> Snapshot {
-        let seq = self.lock_changes().seq;
-        let (state, history) = self.coarse();
-        Snapshot { seq, state, history }
+        // Raw atomics can be changing before their refresh acquires the lock.
+        // Only expose the published state: every visible transition must have
+        // a matching counter change, or an indefinite waiter could miss it.
+        let c = self.lock_changes();
+        Snapshot { seq: c.seq, state: c.state, history: c.history }
     }
 
     /// Block until the counter differs from `seen` or `timeout` passes.
@@ -438,6 +452,16 @@ impl Status {
         drop(c);
         self.snapshot()
     }
+
+    /// Block until the counter differs from `seen`, including an earlier nudge.
+    pub fn wait_change_blocking(&self, seen: u64) -> Snapshot {
+        let mut c = self.lock_changes();
+        while c.seq == seen {
+            c = self.changed.wait(c).unwrap_or_else(|e| e.into_inner());
+        }
+        drop(c);
+        self.snapshot()
+    }
 }
 
 pub struct Engine<F: SinkFactory> {
@@ -449,6 +473,8 @@ pub struct Engine<F: SinkFactory> {
     paused_at: Option<Instant>,
     /// Last time audio was ingested or written. Drives sink idle and the window.
     last_activity: Option<Instant>,
+    /// Last successful write to this sink. Warming/ingesting cannot revive its tail.
+    last_write: Option<Instant>,
     fails: u8,
     /// The next slice is the first after a restart in the middle of the audio.
     fade_pending: bool,
@@ -466,6 +492,7 @@ impl<F: SinkFactory> Engine<F> {
             sink_start: 0,
             paused_at: None,
             last_activity: None,
+            last_write: None,
             fails: 0,
             fade_pending: false,
             cfg,
@@ -514,14 +541,15 @@ impl<F: SinkFactory> Engine<F> {
         self.publish();
     }
 
-    /// Write one slice at the playhead. Blocks while the sink is full.
-    pub fn write_slice(&mut self, now: Instant) {
+    /// Write one slice at the playhead. Blocks while the sink is full; returns
+    /// whether audio was written so the caller can timestamp its completion.
+    pub fn write_slice(&mut self, now: Instant) -> bool {
         if !self.ensure_sink() {
             // No sink: drop the audio rather than retry forever.
             let rest = self.hist.unplayed() as usize;
             self.hist.commit(rest);
             self.publish();
-            return;
+            return false;
         }
         let slice = self.hist.peek(WRITE_SLICE);
         let n = slice.len();
@@ -536,33 +564,36 @@ impl<F: SinkFactory> Engine<F> {
         };
         let bytes: &[u8] = bytemuck::cast_slice(slice);
         let res = self.sink.as_mut().map(|s| s.write(bytes));
-        match res {
+        let written = match res {
             Some(Ok(())) => {
                 self.fade_pending = false;
                 self.fails = 0;
                 self.hist.commit(n);
                 self.last_activity = Some(now);
+                self.last_write = Some(now);
+                true
             }
             _ => {
                 eprintln!("[kokoro] audio sink write failed; will respawn");
-                if let Some(s) = self.sink.take() {
-                    s.kill();
-                }
+                self.kill_sink();
                 self.fails += 1;
                 if self.fails >= 3 {
                     self.fails = 0;
                     let rest = self.hist.unplayed() as usize;
                     self.hist.commit(rest);
                 }
+                false
             }
-        }
+        };
         self.publish();
+        written
     }
 
     /// Record that audio was just written (called after a blocking write, with
     /// a fresh clock reading).
     pub fn touch(&mut self, now: Instant) {
         self.last_activity = Some(now);
+        self.last_write = Some(now);
     }
 
     /// Timers: close an idle sink, expire the history, end a long pause.
@@ -585,6 +616,7 @@ impl<F: SinkFactory> Engine<F> {
                     eprintln!("[kokoro] {e:#}; will respawn on next chunk");
                 }
             }
+            self.last_write = None;
         }
         if self.hist.has_audio() && idle >= self.cfg.window {
             self.hist.clear();
@@ -625,7 +657,7 @@ impl<F: SinkFactory> Engine<F> {
         if self.sink.is_none() {
             return ph;
         }
-        let in_flight = match self.last_activity {
+        let in_flight = match self.last_write {
             Some(t) => {
                 let elapsed = secs_to_samples(now.saturating_duration_since(t).as_secs_f64());
                 self.factory.lag_samples().saturating_sub(elapsed)
@@ -640,7 +672,7 @@ impl<F: SinkFactory> Engine<F> {
             return PlayState::Paused;
         }
         let tail = self.sink.is_some()
-            && self.last_activity.is_some_and(|t| {
+            && self.last_write.is_some_and(|t| {
                 secs_to_samples(now.saturating_duration_since(t).as_secs_f64())
                     < self.factory.lag_samples()
             });
@@ -775,6 +807,7 @@ impl<F: SinkFactory> Engine<F> {
         if let Some(s) = self.sink.take() {
             s.kill();
         }
+        self.last_write = None;
     }
 
     /// Play the cancel sound on a sink of its own, on its own thread, so the
@@ -800,6 +833,7 @@ impl<F: SinkFactory> Engine<F> {
             Ok(s) => {
                 self.sink = Some(s);
                 self.sink_start = self.hist.playhead();
+                self.last_write = None;
                 true
             }
             Err(e) => {
@@ -1011,6 +1045,7 @@ impl Session {
     /// Close the queue, let playback finish, join the thread.
     pub fn finish(mut self) -> anyhow::Result<()> {
         self.shared.status.held.store(false, Ordering::Release);
+        self.shared.status.refresh();
         self.shared.lock().closed = true;
         self.shared.consumer.notify_all();
         if let Some(t) = self.thread.take() {
@@ -1040,6 +1075,11 @@ impl Handle {
     /// Sleep until the state or history flag changes (or `nudge`), at most `timeout`.
     pub fn wait_change(&self, seen: u64, timeout: Duration) -> Snapshot {
         self.shared.status.wait_change(seen, timeout)
+    }
+
+    /// Sleep until the state/history changes or a caller nudges the watchers.
+    pub fn wait_change_blocking(&self, seen: u64) -> Snapshot {
+        self.shared.status.wait_change_blocking(seen)
     }
 
     /// Wake everyone in [`wait_change`](Self::wait_change).
@@ -1119,8 +1159,9 @@ fn run<F: SinkFactory>(sh: Arc<Shared>, mut eng: Engine<F>) {
             }
             Work::Tick => eng.tick(Instant::now(), sh.status.held.load(Ordering::Acquire)),
             Work::Write => {
-                eng.write_slice(Instant::now());
-                eng.touch(Instant::now());
+                if eng.write_slice(Instant::now()) {
+                    eng.touch(Instant::now());
+                }
             }
             Work::Ingest(m) => match m.msg {
                 Msg::Warm => eng.warm(Instant::now()),
@@ -1341,6 +1382,7 @@ mod tests {
         kills: usize,
         finishes: usize,
         fail_spawn: bool,
+        fail_write: bool,
     }
 
     type SharedLog = Arc<StdMutex<Log>>;
@@ -1351,6 +1393,9 @@ mod tests {
         fn write(&mut self, pcm: &[u8]) -> io::Result<()> {
             let s: &[f32] = bytemuck::cast_slice(pcm);
             let mut l = self.0.lock().unwrap();
+            if l.fail_write {
+                return Err(io::Error::from(io::ErrorKind::BrokenPipe));
+            }
             l.writes.push(s[0]);
             l.slices.push(s.to_vec());
             Ok(())
@@ -1426,6 +1471,60 @@ mod tests {
         assert_eq!(l.writes.len(), 30); // 3 s / 100 ms
         assert!(l.writes.iter().all(|&v| v == 1.0));
         assert_eq!(e.playhead(), 3 * S as u64);
+    }
+
+    #[test]
+    fn warming_a_drained_sink_does_not_move_the_cursor_or_revive_its_tail() {
+        let (mut e, _log, t) = engine(S as u64 / 5);
+        feed(&mut e, &[1.0], 4 * S, t);
+        play(&mut e, 4 * S, t);
+        let later = t + Duration::from_secs(1);
+        e.warm(later);
+        assert_eq!(e.audible(later), 4 * S as u64);
+        assert_eq!(e.apply(Control::Status, later, false).unwrap().state, PlayState::Idle);
+        e.apply(Control::Rewind(1.0), later, false).unwrap();
+        assert_eq!(e.playhead(), 3 * S as u64);
+    }
+
+    #[test]
+    fn ingesting_without_writing_does_not_move_the_audible_cursor() {
+        let (mut e, _log, t) = engine(S as u64 / 5);
+        feed(&mut e, &[1.0], 4 * S, t);
+        play(&mut e, 4 * S, t);
+        let later = t + Duration::from_secs(1);
+        e.ingest(&chunk(2.0, 4 * S), later);
+        assert_eq!(e.audible(later), 4 * S as u64);
+        e.apply(Control::Pause, later, false).unwrap();
+        assert_eq!(e.playhead(), 4 * S as u64);
+    }
+
+    #[test]
+    fn sink_tail_uses_write_completion_and_is_reset_on_respawn() {
+        let lag = S as u64 / 5;
+        let (mut e, _log, t) = engine(lag);
+        feed(&mut e, &[1.0], S, t);
+        play(&mut e, S, t);
+        let completed = t + Duration::from_secs(1);
+        e.touch(completed); // the blocking final write finished now
+        assert_eq!(e.audible(completed), S as u64 - lag);
+        assert_eq!(e.state(completed, false), PlayState::Playing);
+        e.kill_sink();
+        e.warm(completed);
+        assert_eq!(e.audible(completed), S as u64);
+        assert_eq!(e.state(completed, false), PlayState::Idle);
+    }
+
+    #[test]
+    fn a_failed_write_does_not_create_a_new_audio_tail() {
+        let (mut e, log, t) = engine(S as u64 / 5);
+        feed(&mut e, &[1.0], S, t);
+        play(&mut e, S, t);
+        log.lock().unwrap().fail_write = true;
+        e.ingest(&chunk(2.0, S), t + Duration::from_secs(1));
+        assert!(!e.write_slice(t + Duration::from_secs(1)));
+        assert_eq!(e.last_write, None);
+        assert!(!e.has_sink());
+        assert_eq!(e.playhead(), S as u64, "the failed slice was not committed");
     }
 
     #[test]
@@ -1645,17 +1744,13 @@ mod tests {
 
     #[test]
     fn idle_sink_closes_but_history_stays_for_the_window() {
-        let cfg = Config {
-            sink_idle: Duration::from_secs(30),
-            window: Duration::from_secs(600),
-            ..Config::default()
-        };
+        let cfg = Config::default();
         let (mut e, log, t) = engine_cfg(0, cfg);
         feed(&mut e, &[1.0], 2 * S, t);
         play(&mut e, 2 * S, t);
-        e.tick(t + Duration::from_secs(10), false);
+        e.tick(t + Duration::from_secs(4), false);
         assert!(e.has_sink());
-        e.tick(t + Duration::from_secs(31), false);
+        e.tick(t + Duration::from_secs(6), false);
         assert!(!e.has_sink());
         assert_eq!(log.lock().unwrap().finishes, 1);
         // rewind still works after the sink has closed, and respawns it
@@ -1688,7 +1783,7 @@ mod tests {
         assert_eq!(e.next_deadline(false), None); // unplayed audio: busy writing
         play(&mut e, 2 * S, t);
         let d = e.next_deadline(false).unwrap();
-        assert_eq!(d, t + Duration::from_secs(30)); // sink idle comes first
+        assert_eq!(d, t + Duration::from_secs(5)); // sink idle comes first
         assert_eq!(e.next_deadline(true), None); // held: wait for release
     }
 
@@ -1828,7 +1923,9 @@ mod tests {
     fn controls_after_the_thread_exits_fail_cleanly() {
         let (s, _log) = session();
         let h = s.handle();
+        s.hold();
         s.finish().unwrap();
+        assert_eq!(h.snapshot().state, PlayState::Idle, "shutdown publishes the released hold");
         assert!(h.control(Control::Status).is_err());
     }
 
@@ -1860,6 +1957,24 @@ mod tests {
     }
 
     #[test]
+    fn snapshots_only_expose_state_published_with_the_change_counter() {
+        let st = Status::default();
+        let published = st.snapshot();
+        // Two concurrent writers can change the atomics and then coalesce
+        // before either refresh runs. A watcher must not see the transient pause.
+        st.paused.store(true, Ordering::Release);
+        assert_eq!(st.snapshot(), published);
+        st.paused.store(false, Ordering::Release);
+        st.refresh();
+        assert_eq!(st.snapshot(), published);
+        st.held.store(true, Ordering::Release);
+        st.refresh();
+        let snap = st.snapshot();
+        assert!(snap.seq > published.seq);
+        assert_eq!(snap.state, PlayState::Playing);
+    }
+
+    #[test]
     fn wait_change_times_out_and_wakes_on_a_change_or_a_nudge() {
         let st = Arc::new(Status::default());
         let seen = st.snapshot().seq;
@@ -1879,6 +1994,25 @@ mod tests {
         std::thread::sleep(Duration::from_millis(30));
         st.nudge();
         assert!(th.join().unwrap().seq > seen);
+    }
+
+    #[test]
+    fn blocking_wait_handles_notifications_before_and_after_it_starts() {
+        let st = Arc::new(Status::default());
+        let seen = st.snapshot().seq;
+        st.nudge();
+        assert!(st.wait_change_blocking(seen).seq > seen, "an earlier nudge is not lost");
+
+        let seen = st.snapshot().seq;
+        let st2 = Arc::clone(&st);
+        let (tx, rx) = mpsc::channel();
+        let th = std::thread::spawn(move || tx.send(st2.wait_change_blocking(seen)).unwrap());
+        assert!(rx.recv_timeout(Duration::from_millis(30)).is_err());
+        st.history.store(true, Ordering::Release);
+        st.refresh();
+        let snap = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(snap.seq > seen && snap.history);
+        th.join().unwrap();
     }
 
     #[test]

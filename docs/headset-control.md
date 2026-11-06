@@ -143,7 +143,11 @@ Why this is enough:
 - **No ownership table, no hand-off, no timer game.** The helper consumes every media key (`onMediaButtonEvent` returns true). With ryk idle inside the rewind window, `NEXT` or `PREVIOUS` = `back` (replays the last sentence and makes ryk live again), `STOP` = `cancel` with nothing to cancel (reply `err: nothing playing`, no sound), `PAUSE`/`PLAY` = nothing to toggle (same reply, no sound).
 - **Outside the window** there is no helper, and the buttons go wherever Android sends them. One unverified edge: Android may fall back to the last app that handled media buttons, so a press after the window could start Apple Music again if it is installed and idle. That is the normal state of the phone, so it is not a regression.
 
-**Rewind window.** `RYK_REWIND_WINDOW_SECS`, default **600** (matches `RYK_PAUSE_MAX_SECS`). It keeps both the helper and the PCM history alive after the last audio, independent of the 30 s `RYK_SINK_IDLE_MS`; the sink is respawned on `back` (~80-200 ms). It is bounded by the daemon's own idle exit (`RYK_IDLE_TIMEOUT`, default 1800 s), which must not be shorter than the window. Cost: ~64 MB for the helper (idle CPU ~0) and up to ~17 MB of PCM (180 s of f32).
+**Rewind window.** `RYK_REWIND_WINDOW_SECS`, default **600** (matches `RYK_PAUSE_MAX_SECS`). It keeps both the helper and the PCM history alive after the last audio, independent of the 5 s `RYK_SINK_IDLE_MS`; the sink is respawned on `back` (~80-200 ms). The daemon's idle clock (`RYK_IDLE_TIMEOUT`, default 1800 s) starts after the window ends. Cost: ~64 MB for the helper (idle CPU ~0) and up to ~17 MB of PCM (180 s of f32).
+
+The helper JVM and background `ecj`/`dx` build run on little cores on Android. State
+watchers sleep until notified by playback, the last pending job finishing, or a client
+disconnect; there are no periodic watcher keepalive or queue-settle timers.
 
 **Deferred: hand-off.** If sharing the buttons with Apple Music is wanted later, the helper can release its session and re-dispatch the key with `ISessionManager.dispatchMediaKeyEvent`. `MediaSpike` already has a `handoff` mode for it (`tools/headset-spike/run.sh 30 handoff`, compiled but never run). It is not part of v1.
 
@@ -348,7 +352,7 @@ No UI in v1 (a session with no notification adds nothing to the lock screen). On
 1. `ryk --serve -v &` then `ryk --send "One. Two. Three. Four. Five."` (a longer text is better) and, while it speaks, `ryk-ctl pause`, `ryk-ctl toggle`, `ryk-ctl back` (twice), `ryk-ctl status`.
 2. `ryk-ctl cancel` mid-text, then `ryk --send "after"`: the new text must play, and `ryk-ctl back` must replay the sentence you cancelled in.
 3. Send two texts, `ryk-ctl cancel` during the first: neither continues.
-4. Let it finish, wait 40 s (past the 30 s sink grace), `ryk-ctl back`: the last sentence replays.
+4. Let it finish, wait 10 s (past the 5 s sink grace), `ryk-ctl back`: the last sentence replays.
 5. `ryk-ctl pause` and wait: the daemon must still be there after `RYK_IDLE_TIMEOUT` would have passed (try `RYK_IDLE_TIMEOUT=30`).
 6. Listen for clicks at each restart, and for gaps between sentences (the 4 KiB pipe); if there are any, try `RYK_SINK_PIPE_BYTES=16384`.
 7. Headset (needs `pkg install ecj dx`; close Apple Music first): `ryk --headset-check` should print five `ok` lines and `headset check: OK`. Then start `ryk --serve -v`: the log says `headset control on; building ...` (first time only) and `headset helper built in ~2s`. `ryk --send` a long text with the XM4 on: `pgrep -f RykKeys` shows one process about a second after the text starts and `cat ~/.cache/ryk/keys.log` shows `session active`. Then: double tap pauses, double tap resumes, a swipe goes back a sentence (twice walks back two), a swipe while paused resumes from the earlier sentence. After the text ends, a swipe within the rewind window replays the last sentence. With `RYK_REWIND_WINDOW_SECS=20` the helper should be gone about 20 s after the last sentence (`pgrep -f RykKeys` empty, the log ends with `daemon closed the connection`).

@@ -222,10 +222,10 @@ first fetch prints that path. The split stages are *not* on Hugging Face. Only a
 | `KOKORO_GOVERNOR` | `thermal` | `pace` stops synthesizing ahead once 20 s of audio is queued. `thermal` (default) also drops stage 2 to 2 threads while the hottest gold core zone is at or above `KOKORO_THERM_HOT_C`. `off` does neither. |
 | `KOKORO_THERM_HOT_C` | `90` | Thermal-hold trip in °C (released 6 °C lower). Normal 3-gold load sits at 80–85 °C, so this only fires when the phone is abnormally hot. |
 | `RYK_SOCKET` | `$XDG_RUNTIME_DIR/ryk.sock` | Daemon socket for `--serve`/`--send` (see below) |
-| `RYK_IDLE_TIMEOUT` | `1800` (seconds) | `--serve` exits after this long with no jobs and no live audio sink. `0`/`off`/`none`/`-1` disables. `--send` auto-starts a replacement. |
-| `RYK_SINK_IDLE_MS` | `30000` (30 seconds) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe. Then the sink closes and PulseAudio can idle-exit. Kept short because a connected `pacat` holds the Android audio path awake even when silent. |
+| `RYK_IDLE_TIMEOUT` | `1800` (seconds) | `--serve` exits after this long with no jobs, live audio sink, pause or rewind history. `0`/`off`/`none`/`-1` disables. `--send` auto-starts a replacement. |
+| `RYK_SINK_IDLE_MS` | `5000` (5 seconds) | Audio-sink **grace period**. `--serve` keeps `pacat`/`ffplay` open this long after the last sample so nearby `--send`s reuse the same pipe. Then the sink closes and PulseAudio can idle-exit. Kept short because a connected `pacat` holds the Android audio path awake even when silent. |
 | `RYK_HISTORY_SECS` | `180` | `--serve`: seconds of **already-played** audio kept so `back` / `rewind` can replay it (~17 MB at 180 s). |
-| `RYK_REWIND_WINDOW_SECS` | `600` | `--serve`: how long after the last sample the history stays, so `ryk-ctl back` still works once speech has ended. Independent of the 30 s sink grace (the sink is respawned on demand). Keep `RYK_IDLE_TIMEOUT` at least this long. |
+| `RYK_REWIND_WINDOW_SECS` | `600` | `--serve`: how long after the last sample the history stays, so `ryk-ctl back` still works once speech has ended. Independent of the 5 s sink grace (the sink is respawned on demand). |
 | `RYK_PAUSE_MAX_SECS` | `600` | `--serve`: a pause longer than this becomes a cancel. |
 | `RYK_BACK_RESTART_SECS` | `1.5` | `back` restarts the sentence you are in when you are more than this far into it, else it goes to the previous sentence (previous-track behaviour). |
 | `RYK_REWIND_SECS` | `10` | Default step for `ryk-ctl rewind` / `ryk-rewind`. |
@@ -346,12 +346,13 @@ order, gaplessly. Voice/lang/speed are read per request (from `KOKORO_VOICE` / `
 `ryk --serve` yourself if you'd rather manage the daemon explicitly (foreground, or as a service).
 
 The **compiled pipeline** stays hot between sends. The **audio sink** stays warm for a
-**30-second grace period** after the last sample (`RYK_SINK_IDLE_MS`, default `30000`):
-consecutive sentences of one utterance, and `--send`s that overlap or arrive within those
-30 seconds, share one `pacat`/`ffplay` pipe so playback stays gapless. After the grace period
+**5-second grace period** after the last sample (`RYK_SINK_IDLE_MS`, default `5000`):
+consecutive sentences of one utterance share one `pacat`/`ffplay` pipe throughout synthesis,
+as do `--send`s that overlap or arrive within those 5 seconds. After the grace period
 the sink exits and PulseAudio can idle-exit (~20s more); a later `--send` restarts PulseAudio
-while its first sentence synthesizes. After `RYK_IDLE_TIMEOUT` seconds of no jobs *and* no
-live sink (default 30 minutes after the grace) the daemon itself exits; the next `--send`
+while its first sentence synthesizes. After `RYK_IDLE_TIMEOUT` seconds of no jobs, no
+live sink, no pause and no rewind history (default 30 minutes after the rewind window),
+the daemon itself exits; the next `--send`
 starts a fresh one (~4s compile).
 
 The socket path is `$RYK_SOCKET`, else `$XDG_RUNTIME_DIR/ryk.sock`, else `$TMPDIR/ryk-$USER.sock`,
@@ -476,7 +477,7 @@ started from the playback thread, which is pinned to the little cores, so the da
 inherit the gold-core mask of stage 2; a one-shot run starts it and opens `pacat` while the
 model compiles, and the open stream keeps the phone from suspending mid-synthesis with the screen
 off. It does **not** pin PulseAudio awake
-(`--exit-idle-time=-1`); `--serve` keeps `pacat` up for a **30-second grace period** after the
+(`--exit-idle-time=-1`); `--serve` keeps `pacat` up for a **5-second grace period** after the
 last sample (`RYK_SINK_IDLE_MS`), then closes the sink so PulseAudio can idle-exit. The next
 utterance after that grace respawns both. Or just use `KOKORO_WAV`.
 (The `ffplay` path, used on desktop, instead relies on the audio server your session already
@@ -549,9 +550,10 @@ model, in layers:
 
 | Layer | What it covers | How |
 |---|---|---|
+| Preparation (`src/lib.rs`) | token IDs, truncation and style selection; cached voices following edits, replacement, switching, deletion and repair | synthetic voice files and comparison with the previous tokenizer; no model or audio |
 | Playback engine (`src/playback.rs`) | the PCM history and playhead, sentence marks, pause / resume / back / rewind / cancel, the rewind window, sink idle, the cancel epoch, the fade-in and the cancel tone | the audio sink is a trait; the tests use a fake one that records what was written |
 | Socket protocol (`src/control.rs`, `src/serve.rs`) | the control verbs, the `watch` connection (state pushes, verbs as lines, hang-up when the window ends, an over-long line, a client that disappears) | a connected socket pair against a real session with a null sink |
-| Helper launch and build (`src/headset.rs`) | the launch command from the environment, the first-use build (atomic install, stale detection, tool failures), respawn, giving up after repeated crashes, the log | fake `ecj`/`dx` scripts and real child processes (`sleep`, `true`, `false`) |
+| Helper launch and build (`src/headset.rs`) | the launch command from the environment, the first-use build (atomic install, stale detection, tool failures), respawn, giving up after repeated crashes, the log, Android child affinity without repinning the caller | fake `ecj`/`dx` scripts and real child processes (`sleep`, `true`, `false`) |
 
 Several of these depend on timing (windows, grace periods, wake-ups), so after touching them run
 the suite in a loop and expect no failure at all: `for i in $(seq 20); do cargo test --release --lib 2>&1 | grep 'test result'; done`.

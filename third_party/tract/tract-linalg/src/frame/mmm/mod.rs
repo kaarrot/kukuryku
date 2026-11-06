@@ -335,13 +335,11 @@ unsafe fn run_with_scratch_space_row_outer<K: MatMatMulKer>(
             }
             #[cfg(feature = "multithread-mm")]
             Executor::MultiThread(pool) => pool.install(|| {
-                pool.install(|| {
-                    (0..m.div_ceil(ker.mr())).into_par_iter().try_for_each(|ia| {
-                        for ib in 0..n.divceil(ker.nr()) {
-                            scratch.run(ker, non_linear, ia, ib)?;
-                        }
-                        Ok(())
-                    })
+                (0..m.div_ceil(ker.mr())).into_par_iter().try_for_each(|ia| {
+                    for ib in 0..n.divceil(ker.nr()) {
+                        scratch.run(ker, non_linear, ia, ib)?;
+                    }
+                    Ok(())
                 })
             }),
         }
