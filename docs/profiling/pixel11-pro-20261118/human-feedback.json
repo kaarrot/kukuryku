@@ -1,0 +1,7 @@
+{
+  "power_conditions": "Running on battery; Battery Saver disabled (user confirmation).",
+  "audio_quality": "Sounds normal",
+  "question": "Does the test speech sound normal on the Pixel\u2014clear speech, with no unexpected gaps or distortion?",
+  "scope": "User feedback during/after the three lighthouse runs; sustained playback not rated separately.",
+  "sustained_screen_state": "Screen stayed on; same app (user confirmed)."
+}

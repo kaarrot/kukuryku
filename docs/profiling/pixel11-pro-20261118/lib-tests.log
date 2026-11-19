@@ -1,0 +1,453 @@
+warning: Cargo.toml: file `/data/data/com.termux/files/home/PRJ/kukuryku/src/bin/kokoro_tract.rs` found to be present in multiple build targets:
+  * `bin` target `kokoro-tract`
+  * `bin` target `ryk`
+warning: `kukuryku` (manifest) generated 1 warning
+   Compiling crossbeam-utils v0.8.21
+   Compiling openssl-sys v0.9.117
+   Compiling futures-channel v0.3.32
+   Compiling potential_utf v0.1.5
+   Compiling zerotrie v0.2.4
+   Compiling zerocopy v0.8.52
+   Compiling matrixmultiply v0.3.10
+   Compiling percent-encoding v2.3.2
+   Compiling unicode-segmentation v1.13.3
+   Compiling icu_properties_data v2.2.0
+   Compiling parking_lot_core v0.9.12
+   Compiling tinyvec_macros v0.1.1
+   Compiling utf8_iter v1.0.4
+   Compiling crc32fast v1.5.0
+   Compiling icu_normalizer_data v2.2.0
+   Compiling zmij v1.0.21
+   Compiling icu_collections v2.2.0
+   Compiling tinyvec v1.11.0
+   Compiling liquid-lib v0.26.11
+   Compiling icu_provider v2.2.0
+   Compiling crossbeam-epoch v0.9.18
+   Compiling num-traits v0.2.19
+   Compiling ahash v0.8.12
+   Compiling syn v1.0.109
+   Compiling num-complex v0.4.6
+   Compiling http v1.4.2
+   Compiling futures-macro v0.3.32
+   Compiling simd-adler32 v0.3.9
+   Compiling serde_json v1.0.150
+   Compiling futures-io v0.3.32
+   Compiling scopeguard v1.2.0
+   Compiling same-file v1.0.6
+   Compiling byteorder v1.5.0
+   Compiling futures-task v0.3.32
+   Compiling rayon-core v1.13.0
+   Compiling cfg-if v1.0.4
+   Compiling rawpointer v0.2.1
+   Compiling half v2.7.1
+   Compiling futures-util v0.3.32
+   Compiling walkdir v2.5.0
+   Compiling lock_api v0.4.14
+   Compiling hashbrown v0.14.5
+   Compiling crossbeam-deque v0.8.6
+   Compiling liquid v0.26.11
+   Compiling unicode-normalization v0.1.25
+   Compiling anyhow v1.0.103
+   Compiling ppv-lite86 v0.2.21
+   Compiling nom v8.0.0
+   Compiling openssl v0.10.81
+   Compiling adler2 v2.0.1
+   Compiling equivalent v1.0.2
+   Compiling foreign-types-shared v0.1.1
+   Compiling smallvec v1.15.2
+   Compiling zeroize v1.9.0
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.0
+   Compiling nom-language v0.1.0
+   Compiling rustls-pki-types v1.15.0
+   Compiling tract-linalg v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-linalg)
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+  --> third_party/tract/tract-linalg/build.rs:74:19
+   |
+74 |         self.cc().static_flag(true).file(filename).try_compile("dummy").is_ok()
+   |                   ^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:131:26
+    |
+131 |                         .static_flag(true)
+    |                          ^^^^^^^^^^^
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:143:61
+    |
+143 |                 cc::Build::new().files(files).flag("-mfma").static_flag(true).compile("x86_64_fma");
+    |                                                             ^^^^^^^^^^^
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:152:18
+    |
+152 |                 .static_flag(true)
+    |                  ^^^^^^^^^^^
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:164:18
+    |
+164 |                 .static_flag(true)
+    |                  ^^^^^^^^^^^
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:174:43
+    |
+174 |             cc::Build::new().files(files).static_flag(true).compile("arm64simd");
+    |                                           ^^^^^^^^^^^
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:177:47
+    |
+177 |                 cc::Build::new().files(files).static_flag(true).compile("appleamx");
+    |                                               ^^^^^^^^^^^
+
+warning: use of deprecated method `cc::Build::static_flag`: cc only creates static libraries, setting this does nothing
+   --> third_party/tract/tract-linalg/build.rs:188:42
+    |
+188 |                 config.cc().files(files).static_flag(true).compile("arm64fp16")
+    |                                          ^^^^^^^^^^^
+
+   Compiling foreign-types v0.3.2
+   Compiling miniz_oxide v0.8.9
+warning: `tract-linalg` (build script) generated 8 warnings
+   Compiling parking_lot v0.12.5
+   Compiling icu_normalizer v2.2.0
+   Compiling icu_properties v2.2.0
+   Compiling string-interner v0.15.0
+   Compiling ndarray v0.16.1
+   Compiling http-body v1.0.1
+   Compiling scan_fmt v0.2.6
+   Compiling itertools v0.12.1
+   Compiling tracing-core v0.1.36
+   Compiling ring v0.17.14
+   Compiling openssl-macros v0.1.1
+   Compiling maplit v1.0.2
+   Compiling static_assertions v1.1.0
+   Compiling ucd-trie v0.1.7
+   Compiling lazy_static v1.5.0
+   Compiling num-conv v0.2.2
+   Compiling time-core v0.1.9
+   Compiling rustix v1.1.4
+   Compiling deranged v0.5.8
+   Compiling powerfmt v0.2.0
+   Compiling httparse v1.10.1
+   Compiling dyn-clone v1.0.20
+   Compiling dyn-hash v0.2.2
+   Compiling native-tls v0.2.18
+   Compiling strength_reduce v0.2.4
+   Compiling downcast-rs v1.2.1
+   Compiling tract-data v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-data)
+   Compiling transpose v0.2.3
+   Compiling time v0.3.52
+   Compiling pest v2.8.6
+   Compiling kstring v2.0.2
+   Compiling tracing v0.1.44
+   Compiling rayon v1.12.0
+   Compiling idna_adapter v1.2.2
+   Compiling flate2 v1.1.9
+   Compiling derive-new v0.5.9
+   Compiling tokio-util v0.7.18
+   Compiling primal-check v0.3.4
+   Compiling itertools v0.14.0
+   Compiling form_urlencoded v1.2.2
+   Compiling generic-array v0.14.7
+   Compiling errno v0.3.14
+   Compiling getrandom v0.3.4
+   Compiling openssl-probe v0.2.1
+   Compiling bit-vec v0.6.3
+   Compiling linux-raw-sys v0.12.1
+   Compiling pastey v0.1.1
+   Compiling try-lock v0.2.5
+   Compiling anymap2 v0.13.0
+   Compiling tower-service v0.3.3
+   Compiling fnv v1.0.7
+   Compiling atomic-waker v1.1.2
+   Compiling h2 v0.4.15
+   Compiling liquid-core v0.26.11
+warning: tract-linalg@0.22.3: arm64/arm64fp16/dummy_fmla_no_pragma.S:11:5: error: instruction requires: fullfp16
+warning: tract-linalg@0.22.3:     fmla v16.8h, v0.8h, v8.h[0]
+warning: tract-linalg@0.22.3:     ^
+   Compiling want v0.3.1
+   Compiling bit-set v0.5.3
+   Compiling rustfft v6.4.1
+   Compiling idna v1.1.0
+   Compiling rand_core v0.6.4
+   Compiling anymap3 v1.1.0
+   Compiling untrusted v0.9.0
+   Compiling typenum v1.20.1
+   Compiling option-ext v0.2.0
+   Compiling base64 v0.22.1
+   Compiling tract-core v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-core)
+warning: unused import: `crate::model::*`
+   --> third_party/tract/tract-core/src/lib.rs:117:13
+    |
+117 |     pub use crate::model::*;
+    |             ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling rand_chacha v0.3.1
+   Compiling hyper v1.10.1
+   Compiling url v2.5.8
+   Compiling xattr v1.6.1
+   Compiling sync_wrapper v1.0.2
+   Compiling filetime v0.2.29
+   Compiling ipnet v2.12.0
+   Compiling tower-layer v0.3.3
+   Compiling portable-atomic v1.13.1
+   Compiling rustls v0.23.41
+   Compiling thiserror v2.0.18
+   Compiling tower v0.5.3
+   Compiling hyper-util v0.1.20
+   Compiling tar v0.4.46
+   Compiling rand_core v0.9.5
+   Compiling rand v0.8.6
+   Compiling rustls-webpki v0.103.13
+   Compiling tokio-native-tls v0.3.1
+   Compiling http-body-util v0.1.3
+   Compiling safetensors v0.6.2
+   Compiling webpki-roots v1.0.8
+   Compiling itertools v0.10.5
+   Compiling libmimalloc-sys v0.1.49
+   Compiling thiserror-impl v2.0.18
+   Compiling ryu v1.0.23
+   Compiling subtle v2.6.1
+   Compiling unicode-width v0.2.2
+   Compiling console v0.15.11
+   Compiling serde_urlencoded v0.7.1
+   Compiling prost-derive v0.11.9
+   Compiling webpki-roots v0.26.11
+   Compiling tract-nnef v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-nnef)
+   Compiling hyper-tls v0.6.0
+   Compiling rand_distr v0.4.3
+   Compiling rand_chacha v0.9.0
+   Compiling tower-http v0.6.11
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling dirs-sys v0.5.0
+   Compiling futures-executor v0.3.32
+   Compiling socks v0.3.4
+   Compiling encoding_rs v0.8.35
+   Compiling number_prefix v0.4.0
+   Compiling mime v0.3.17
+   Compiling bumpalo v3.20.3
+   Compiling zip v2.4.2
+   Compiling zopfli v0.8.3
+   Compiling reqwest v0.12.28
+   Compiling indicatif v0.17.11
+   Compiling ureq v2.12.1
+   Compiling futures v0.3.32
+   Compiling dirs v6.0.0
+   Compiling digest v0.10.7
+   Compiling rand v0.9.4
+   Compiling tract-onnx-opl v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-onnx-opl)
+   Compiling prost v0.11.9
+   Compiling tract-hir v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-hir)
+warning: ambiguous import visibility: pub(in crate::infer) or pub
+  --> third_party/tract/tract-hir/src/infer/mod.rs:25:9
+   |
+25 | pub use wrap;
+   |         ^^^^
+   |
+   = note: ambiguous because of a conflict between a `macro_rules` name and a non-`macro_rules` name from another module
+note: `wrap` could refer to the macro defined here
+  --> third_party/tract/tract-hir/src/infer/rules/mod.rs:17:1
+   |
+17 | / macro_rules! wrap {
+18 | |     ($($x:expr),*) => ({
+19 | |         vec![$( $crate::infer::rules::expr::IntoExp::bex($x) ),*]
+20 | |     });
+21 | |
+22 | |     ($($x:expr,)*) => (wrap![$($x),*]);
+23 | | }
+   | |_^
+note: `wrap` could also refer to the macro imported here
+  --> third_party/tract/tract-hir/src/infer/mod.rs:1:5
+   |
+ 1 | use crate::internal::*;
+   |     ^^^^^^^^^^^^^^^^^^
+   = help: use `self::wrap` to refer to this macro unambiguously
+   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in a future release!
+   = note: for more information, see issue #149145 <https://github.com/rust-lang/rust/issues/149145>
+   = note: `#[warn(ambiguous_import_visibilities)]` (part of `#[warn(future_incompatible)]`) on by default
+
+warning: `tract-core` (lib) generated 1 warning (run `cargo fix --lib -p tract-core` to apply 1 suggestion)
+   Compiling dirs-sys v0.4.1
+   Compiling memmap2 v0.9.11
+   Compiling cpufeatures v0.2.17
+   Compiling num_cpus v1.17.0
+   Compiling hf-hub v0.4.3
+   Compiling sha2 v0.10.9
+   Compiling tract-onnx v0.22.3 (/data/data/com.termux/files/home/PRJ/kukuryku/third_party/tract/tract-onnx)
+warning: `tract-hir` (lib) generated 1 warning
+   Compiling dirs v5.0.1
+   Compiling mimalloc v0.1.52
+   Compiling bytemuck v1.25.0
+   Compiling kukuryku v0.1.0 (/data/data/com.termux/files/home/PRJ/kukuryku)
+    Finished `release` profile [optimized] target(s) in 6m 17s
+     Running unittests src/lib.rs (target/release/deps/kukuryku-0cbdb9c18c39b422)
+
+running 157 tests
+test control::tests::verbs_parse_with_their_argument ... ok
+test control::tests::watch_closes_when_there_is_nothing_left_to_control ... ok
+test control::tests::cancel_with_nothing_playing_depends_on_the_queue ... ok
+test control::tests::an_over_long_line_ends_the_connection ... ok
+test control::tests::a_client_that_hangs_up_frees_the_watch_threads ... ok
+test headset::tests::a_disabled_launch_never_spawns ... ok
+test headset::tests::a_command_override_gets_the_socket_and_skips_the_jar ... ok
+test control::tests::watch_rejects_unknown_and_bad_lines_but_stays_open ... ok
+test control::tests::watch_says_ok_then_the_state_and_runs_verbs ... ok
+test control::tests::watch_stays_while_a_job_is_still_queued ... ok
+test headset::tests::a_missing_jar_means_no_helper_but_it_is_picked_up_later ... ok
+test headset::tests::a_failed_build_keeps_headset_control_off_without_retrying ... ok
+test headset::tests::a_build_makes_the_jar_and_the_stamp_and_leaves_no_litter ... ok
+test headset::tests::a_program_that_cannot_start_counts_as_a_crash ... ok
+test headset::tests::a_failing_dx_leaves_no_jar_and_no_temp_file ... ok
+test headset::tests::check_fails_cleanly_off_android ... ok
+test headset::tests::check_passes_on_the_helpers_exit_status ... ok
+test headset::tests::an_up_to_date_jar_is_not_rebuilt ... ok
+test headset::tests::default_launch_is_app_process_with_the_cached_jar ... ok
+test headset::tests::dropping_keys_stops_the_helper ... ok
+test headset::tests::compiler_errors_are_reported_and_logged_and_leave_no_jar ... ok
+test headset::tests::ensure_starts_one_helper_and_leaves_it_alone ... ok
+test headset::tests::missing_tools_say_how_to_get_them ... ok
+test headset::tests::off_android_there_is_nothing_to_start ... ok
+test headset::tests::changed_source_makes_the_jar_stale ... ok
+test headset::tests::the_check_launch_ends_in_check_and_ignores_the_off_switch ... ok
+test headset::tests::background_compilers_inherit_little_cores ... ok
+test headset::tests::the_embedded_source_compiles_with_the_real_tools ... ignored
+test headset::tests::the_off_switch_wins ... ok
+test headset::tests::xdg_cache_and_an_explicit_jar_are_honoured ... ok
+test install::tests::ensure_is_a_noop_when_stages_exist ... ok
+test headset::tests::helper_inherits_little_cores_without_repinning_the_caller ... ok
+test install::tests::unzip_lands_in_dest_whatever_its_name ... ok
+test kokoro::preparation_tests::malformed_voice_files_return_errors_without_reusing_cached_data ... ok
+test install::tests::unzip_leaves_no_part_files ... ok
+test kokoro::preparation_tests::preparation_preserves_tokens_truncation_and_the_style_row ... ok
+test kokoro::preparation_tests::voice_cache_follows_edits_switches_and_deletion ... ok
+test markdown::tests::emphasis_markers_are_not_spoken ... ok
+test markdown::tests::arithmetic_and_identifiers_survive ... ok
+test markdown::tests::escapes_yield_the_literal_character ... ok
+test markdown::tests::emphasis_pairs_across_a_line_break ... ok
+test markdown::tests::fenced_code_disappears_but_prose_stays ... ok
+test markdown::tests::headings_become_sentences ... ok
+test markdown::tests::inline_code_keeps_its_content ... ok
+test markdown::tests::html_tags_go_but_generics_and_comparisons_stay ... ok
+test markdown::tests::named_symbols_are_not_spoken ... ok
+test markdown::tests::links_read_their_text_and_images_vanish ... ok
+test markdown::tests::nested_bullet_runs_are_not_spoken ... ok
+test markdown::tests::ordered_list_numbers_are_kept ... ok
+test markdown::tests::quotes_checkboxes_and_footnotes_lose_their_markers ... ok
+test markdown::tests::stripping_is_idempotent ... ok
+test markdown::tests::numeric_and_pause_symbols_survive ... ok
+test markdown::tests::tables_and_rules_are_dropped ... ok
+test markdown::tests::unterminated_constructs_are_handled ... ok
+test playback::tests::a_failed_write_does_not_create_a_new_audio_tail ... ok
+test playback::tests::a_failed_write_keeps_the_fade_for_the_retry ... ok
+test playback::tests::a_held_sink_stays_open ... ok
+test playback::tests::a_pause_between_two_sentences_still_pauses ... ok
+test playback::tests::a_cancel_plays_the_earcon_on_its_own_sink_and_leaves_the_history_alone ... ok
+test playback::tests::a_restart_fades_in_the_first_slice_only_and_the_history_stays_exact ... ok
+test playback::tests::a_pause_timeout_cancels_silently ... ok
+test playback::tests::append_records_one_mark_per_chunk ... ok
+test playback::tests::back_after_everything_has_played_replays_the_last_sentence ... ok
+test playback::tests::back_in_the_middle_restarts_the_sentence ... ok
+test headset::tests::the_helpers_output_goes_to_the_log ... ok
+test playback::tests::back_right_after_a_sentence_started_goes_to_the_previous_one ... ok
+test playback::tests::back_with_nothing_retained_is_an_error ... ok
+test playback::tests::back_while_paused_resumes_from_the_earlier_sentence ... ok
+test playback::tests::cancel_drops_the_rest_but_keeps_the_heard_sentence_for_back ... ok
+test playback::tests::cancel_stops_the_running_job_and_drops_queued_chunks ... ok
+test playback::tests::cancel_truncates_later_sentences ... ok
+test playback::tests::clear_forgets_but_keeps_numbering ... ok
+test playback::tests::blocking_wait_handles_notifications_before_and_after_it_starts ... ok
+test playback::tests::compaction_is_lazy_and_keeps_absolute_numbers ... ok
+test playback::tests::controls_after_the_thread_exits_fail_cleanly ... ok
+test playback::tests::earcons_are_on_unless_switched_off_in_the_environment ... ok
+test playback::tests::deadlines_follow_the_state ... ok
+test playback::tests::fade_in_ramps_from_exact_silence_and_leaves_the_rest_alone ... ok
+test playback::tests::idle_sink_closes_but_history_stays_for_the_window ... ok
+test playback::tests::ingesting_without_writing_does_not_move_the_audible_cursor ... ok
+test playback::tests::inbox_is_empty_once_everything_is_taken ... ok
+test playback::tests::long_pause_becomes_a_cancel ... ok
+test playback::tests::parse_secs_accepts_only_positive_finite_numbers ... ok
+test playback::tests::pause_and_toggle_when_idle_say_nothing_is_playing ... ok
+test playback::tests::pause_keeps_synthesized_audio_and_resume_loses_nothing ... ok
+test playback::tests::pause_rolls_back_by_the_sink_lag_and_resume_snaps_to_the_sentence ... ok
+test playback::tests::peek_and_commit_walk_forward ... ok
+test playback::tests::plain_playback_and_a_disabled_fade_are_untouched ... ok
+test playback::tests::played_cap_limits_how_far_back_you_can_go ... ok
+test playback::tests::plays_a_sentence_in_slices_from_the_start ... ok
+test playback::tests::prev_sentence_start_finds_the_one_before ... ok
+test playback::tests::push_blocked_on_a_full_queue_is_released_by_a_cancel ... ok
+test playback::tests::queued_but_untaken_audio_counts_as_playing_and_a_cancel_clears_it ... ok
+test playback::tests::repeated_back_walks_one_sentence_each ... ok
+test playback::tests::resume_after_a_pause_fades_in_too ... ok
+test playback::tests::resume_far_into_a_sentence_replays_one_second ... ok
+test playback::tests::rewind_goes_back_by_seconds_and_clamps ... ok
+test playback::tests::seek_clamps_to_retained_range ... ok
+test playback::tests::sentence_navigation_respects_the_floor ... ok
+test playback::tests::session_buffered_secs_tracks_the_playhead_and_a_rewind_replays ... ok
+test playback::tests::session_control_round_trip ... ok
+test playback::tests::session_plays_everything_pushed_then_finishes ... ok
+test playback::tests::sink_tail_uses_write_completion_and_is_reset_on_respawn ... ok
+test playback::tests::snapshots_only_expose_state_published_with_the_change_counter ... ok
+test playback::tests::spawn_failure_drops_the_audio_instead_of_looping ... ok
+test playback::tests::status_refresh_bumps_the_counter_only_on_a_real_change ... ok
+test playback::tests::status_with_only_an_inbox_is_playing ... ok
+test playback::tests::the_cancel_earcon_is_short_quiet_clickless_and_falls ... ok
+test playback::tests::toggle_flips_between_pause_and_resume ... ok
+test playback::tests::truncate_after_chunk_keeps_the_sentence_being_heard ... ok
+test playback::tests::no_earcon_when_disabled_or_when_there_was_nothing_to_cancel ... ok
+test playback::tests::warming_a_drained_sink_does_not_move_the_cursor_or_revive_its_tail ... ok
+test serve::tests::a_failed_enqueue_notifies_watchers_when_pending_returns_to_zero ... ok
+test serve::tests::a_voice_that_is_not_a_verb_is_still_speech ... ok
+test serve::tests::control_verbs_parse ... ok
+test serve::tests::control_verbs_reject_a_body_and_bad_seconds ... ok
+test serve::tests::idle_timeout_default_is_thirty_minutes ... ok
+test serve::tests::idle_timeout_garbage_falls_back_to_default ... ok
+test serve::tests::idle_timeout_parses_seconds ... ok
+test serve::tests::idle_timeout_zero_or_off_disables ... ok
+test serve::tests::sink_idle_default_is_five_seconds ... ok
+test serve::tests::sink_idle_garbage_falls_back_to_default ... ok
+test serve::tests::sink_idle_parses_milliseconds ... ok
+test serve::tests::speech_header_and_defaults ... ok
+test serve::tests::the_last_pending_job_wakes_and_closes_an_empty_watch ... ok
+test tests::all_punctuation_input_is_entirely_unspeakable ... ok
+test headset::tests::prepare_builds_in_the_background_and_ensure_waits_for_it ... ok
+test playback::tests::wait_change_times_out_and_wakes_on_a_change_or_a_nudge ... ok
+test tests::default_pa_android_sink_detection ... ok
+test tests::gap_clock_counts_only_underruns ... ok
+test tests::gap_clock_one_second_hole ... ok
+test tests::leading_dash_text_phonemizes ... ok
+test tests::pa_default_script_replaced_cases ... ok
+test tests::pipe_lag_matches_the_measurements ... ok
+test tests::pipe_size_setting ... ok
+test tests::pulseaudio_start_does_not_pin_idle ... ok
+test tests::code_with_letters_is_still_spoken ... ok
+test headset::tests::a_helper_that_exited_cleanly_is_started_again ... ok
+test tests::stripped_markdown_leaves_no_unspeakable_chunks ... ok
+test tract_backend::cpuset_tests::android_auto_threads_use_full_mid_cluster ... ok
+test tract_backend::cpuset_tests::explicit_filters_to_online ... ok
+test tract_backend::cpuset_tests::four_plus_four_auto_keeps_bigs ... ok
+test tract_backend::cpuset_tests::fp16_filter_is_gemm_only ... ok
+test tract_backend::cpuset_tests::fp16_propagates_to_gemm_bias_and_fuses_into_opt_matmul ... ok
+test tract_backend::cpuset_tests::fp16_propagation_guards_keep_unsafe_nodes_in_f32 ... ok
+test tract_backend::cpuset_tests::governor_choose_pool ... ok
+test tract_backend::cpuset_tests::homogeneous_does_not_pin ... ok
+test tract_backend::cpuset_tests::parse_lists ... ok
+test tract_backend::cpuset_tests::s10e_auto_is_three_golds ... ok
+test tract_backend::cpuset_tests::s1_auto_is_little_on_android_only ... ok
+test tract_backend::cpuset_tests::thermal_hold_hysteresis ... ok
+test tests::voice_errors_are_not_swallowed ... ok
+test tests::punctuation_only_chunks_are_unspeakable ... ok
+test tests::code_interleaved_with_prose_keeps_the_prose ... ok
+test control::tests::watch_stays_through_the_window_then_closes ... ok
+test playback::tests::a_watcher_sees_playing_paused_playing_idle_and_the_window_close ... ok
+test headset::tests::a_helper_that_keeps_crashing_is_given_up_on ... ok
+
+test result: ok. 156 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.27s

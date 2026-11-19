@@ -1,0 +1,28 @@
+[ryk-serve] compiling pipeline from /data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx ...
+[kokoro] tract executor: 3 threads on 4-6 (governor Thermal), cool 2 threads on 4-5
+[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten
+[kokoro] fp16 stage2: 486 of 1272 nodes translated
+[kokoro] stage2: compiled one symbolic plan (length-independent)
+[kokoro] fp16 stage1: 327 of 1117 nodes translated
+[kokoro] stage1 F16 dense kernel: arm64fp16_mmm_f16_16x8_a55
+[kokoro] stage1: compiled one symbolic plan (length-independent)
+[ryk-serve] pipeline ready in 4.23s
+[ryk-serve] audio sink grace 5s after last sample
+[kokoro] stage1 lookahead on cpus 0-3
+[ryk-serve] headset control on (/data/data/com.termux/files/home/PRJ/kukuryku/tools/bench_out/battery-live-8501a62/keys.jar)
+[kokoro] playback pinned to cpus 0-3
+[kokoro] accept loop pinned to cpus 0-3
+[ryk-serve] listening on /data/data/com.termux/files/usr/tmp/ryk-live-13943.sock (idle timeout 2s)
+[ryk-serve] queued utterance (312 chars)
+[kokoro] headset helper pinned to cpus 0-3
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 6 sentence(s)
+[kokoro] no PulseAudio server running; starting one (pulseaudio --start)
+[ryk-serve] watch connection opened
+[kokoro] [1/6] 47 tokens | 2.90s audio | prep 0.39s | infer 2.39s | RTF 0.825 | gap 0.00s
+[kokoro] first audio at 2.83s
+[kokoro] [2/6] 49 tokens | 3.27s audio | prep 0.12s | infer 2.66s | RTF 0.812 | gap 0.00s
+[kokoro] [3/6] 55 tokens | 3.42s audio | prep 0.12s | infer 2.87s | RTF 0.837 | gap 0.00s
+[kokoro] [4/6] 57 tokens | 3.52s audio | prep 0.14s | infer 2.82s | RTF 0.801 | gap 0.00s
+[kokoro] [5/6] 54 tokens | 3.62s audio | prep 0.16s | infer 2.85s | RTF 0.787 | gap 0.00s
+[kokoro] [6/6] 50 tokens | 3.50s audio | prep 0.14s | infer 2.78s | RTF 0.795 | gap 0.00s
+[kokoro] done: 20.25s audio | infer 16.37s | RTF 0.809 | wall 13.10s | wall RTF 0.647 | gap 0.00s | total 13.10s

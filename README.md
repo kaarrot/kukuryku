@@ -528,9 +528,16 @@ Read **`infer RTF`** for pure synthesis speed and **`wall RTF`** for synthesis +
 first-sample latency. Prefix with `KOKORO_GOVERNOR=off` to isolate full-pool speed from the
 governor's thermal/pacing decisions.
 
-Fastest on Android: override the 3-gold default to use all four gold cores (adds the prime core
+On the **Pixel 11 Pro (Tensor G6)**, the same lighthouse test and identical executable measured
+mean infer RTF **0.306** and wall RTF **0.263**, versus **0.780 / 0.672** on the Snapdragon
+S10e (about **2.55×** faster synthesis). See the [device comparison](docs/pixel11-pro-vs-s10e.md)
+for repeated measurements, longer playback, settings and limits.
+
+On the **Snapdragon S10e**, override the 3-gold default to use all four gold cores (adds the prime core
 `cpu7`, ~4% faster on SD855). It is not the default because it costs battery and heat: on a
 3-sentence paragraph it used ~7% more CPU time than the 3-gold pool and peaked at 85 °C.
+CPU IDs differ across phones: the Pixel defaults to stage 1 on `0-1` and stage 2 on `2-5`
+with four workers. The explicit override below is for the S10e.
 
 ```bash
 KOKORO_TRACT_CPUSET=4-7 KOKORO_TRACT_THREADS=4 target/release/ryk -v "The old lighthouse keeper climbed the winding staircase every single evening at dusk. Carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night."

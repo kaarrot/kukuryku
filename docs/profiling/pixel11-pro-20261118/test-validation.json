@@ -1,0 +1,10 @@
+{
+  "command": "OPENSSL_DIR=/data/data/com.termux/files/usr CARGO_BUILD_JOBS=2 cargo test --release --locked --offline --lib",
+  "source_commit": "e03d0e33b13fbfe4db7c03f8039ee0764ba15010",
+  "cargo_lock_sha256": "a5379f63e5ea193f9761da382a6e1b175e60aefb01dbe4863cb62b358e7bd239",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (built from a source tarball)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: aarch64-linux-android\nrelease: 1.99.1\nLLVM version: 21.1.8",
+  "result": "ok. 156 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.27s",
+  "build": "Finished `release` profile [optimized] target(s) in 6m 17s",
+  "environment_note": "The first attempt could not locate the existing Termux OpenSSL. Rerunning with OPENSSL_DIR pointing to the Termux prefix passed; no package or source change was needed.",
+  "ignored": "headset::tests::the_embedded_source_compiles_with_the_real_tools"
+}

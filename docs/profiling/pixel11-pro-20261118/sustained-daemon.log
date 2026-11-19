@@ -1,0 +1,62 @@
+[ryk-serve] compiling pipeline from /data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx ...
+[kokoro] tract executor: 4 threads on 2-5 (governor Thermal), cool 2 threads on 2-3
+[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten
+[kokoro] fp16 stage2: 486 of 1272 nodes translated
+[kokoro] stage2: compiled one symbolic plan (length-independent)
+[kokoro] fp16 stage1: 327 of 1117 nodes translated
+[kokoro] stage1 F16 dense kernel: arm64fp16_mmm_f16_16x8_a55
+[kokoro] stage1: compiled one symbolic plan (length-independent)
+[ryk-serve] pipeline ready in 1.63s
+[ryk-serve] audio sink grace 5s after last sample
+[kokoro] stage1 lookahead on cpus 0-1
+[ryk-serve] headset control off: RYK_HEADSET is off
+[kokoro] accept loop pinned to cpus 0-1
+[ryk-serve] listening on /data/data/com.termux/files/usr/tmp/ryk-phone-4654.sock (no idle timeout)
+[kokoro] playback pinned to cpus 0-1
+[ryk-serve] queued utterance (2271 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 40 sentence(s)
+[kokoro] no PulseAudio server running; starting one (pulseaudio --start)
+[kokoro] [1/40] 56 tokens | 3.38s audio | prep 0.05s | infer 1.21s | RTF 0.358 | gap 0.00s
+[kokoro] first audio at 1.26s
+[kokoro] [2/40] 47 tokens | 3.17s audio | prep 0.04s | infer 1.00s | RTF 0.315 | gap 0.00s
+[kokoro] [3/40] 63 tokens | 4.12s audio | prep 0.05s | infer 1.26s | RTF 0.306 | gap 0.00s
+[kokoro] [4/40] 67 tokens | 4.15s audio | prep 0.05s | infer 1.32s | RTF 0.318 | gap 0.00s
+[kokoro] [5/40] 52 tokens | 3.17s audio | prep 0.05s | infer 1.02s | RTF 0.322 | gap 0.00s
+[kokoro] [6/40] 56 tokens | 3.38s audio | prep 0.05s | infer 1.12s | RTF 0.333 | gap 0.00s
+[kokoro] [7/40] 47 tokens | 3.17s audio | prep 0.04s | infer 1.01s | RTF 0.319 | gap 0.00s
+[kokoro] [8/40] 63 tokens | 4.12s audio | prep 0.05s | infer 1.30s | RTF 0.314 | gap 0.00s
+[kokoro] [9/40] 67 tokens | 4.15s audio | prep 0.05s | infer 1.39s | RTF 0.334 | gap 0.00s
+[kokoro] 25.6s of audio queued; waiting until under 20s
+[kokoro] [10/40] 52 tokens | 3.17s audio | prep 0.05s | infer 1.12s | RTF 0.352 | gap 0.00s
+[kokoro] [11/40] 56 tokens | 3.38s audio | prep 0.04s | infer 1.05s | RTF 0.310 | gap 0.00s
+[kokoro] [12/40] 47 tokens | 3.17s audio | prep 0.06s | infer 1.24s | RTF 0.389 | gap 0.00s
+[kokoro] [13/40] 63 tokens | 4.12s audio | prep 0.05s | infer 1.28s | RTF 0.309 | gap 0.00s
+[kokoro] [14/40] 67 tokens | 4.15s audio | prep 0.05s | infer 1.46s | RTF 0.351 | gap 0.00s
+[kokoro] [15/40] 52 tokens | 3.17s audio | prep 0.05s | infer 1.05s | RTF 0.330 | gap 0.00s
+[kokoro] [16/40] 56 tokens | 3.38s audio | prep 0.05s | infer 1.23s | RTF 0.364 | gap 0.00s
+[kokoro] [17/40] 47 tokens | 3.17s audio | prep 0.05s | infer 1.08s | RTF 0.341 | gap 0.00s
+[kokoro] [18/40] 63 tokens | 4.12s audio | prep 0.12s | infer 3.26s | RTF 0.791 | gap 0.00s
+[kokoro] [19/40] 67 tokens | 4.15s audio | prep 0.08s | infer 3.30s | RTF 0.794 | gap 0.00s
+[kokoro] [20/40] 52 tokens | 3.17s audio | prep 0.13s | infer 2.88s | RTF 0.907 | gap 0.00s
+[kokoro] [21/40] 56 tokens | 3.38s audio | prep 0.06s | infer 2.79s | RTF 0.826 | gap 0.00s
+[kokoro] [22/40] 47 tokens | 3.17s audio | prep 0.13s | infer 2.25s | RTF 0.710 | gap 0.00s
+[kokoro] [23/40] 63 tokens | 4.12s audio | prep 0.10s | infer 3.23s | RTF 0.782 | gap 0.00s
+[kokoro] [24/40] 67 tokens | 4.15s audio | prep 0.10s | infer 2.95s | RTF 0.710 | gap 0.00s
+[kokoro] [25/40] 52 tokens | 3.17s audio | prep 0.09s | infer 2.67s | RTF 0.840 | gap 0.00s
+[kokoro] [26/40] 56 tokens | 3.38s audio | prep 0.10s | infer 2.84s | RTF 0.842 | gap 0.00s
+[kokoro] [27/40] 47 tokens | 3.17s audio | prep 0.10s | infer 2.53s | RTF 0.797 | gap 0.00s
+[kokoro] [28/40] 63 tokens | 4.12s audio | prep 0.12s | infer 3.07s | RTF 0.744 | gap 0.00s
+[kokoro] [29/40] 67 tokens | 4.15s audio | prep 0.12s | infer 4.05s | RTF 0.975 | gap 0.00s
+[kokoro] [30/40] 52 tokens | 3.17s audio | prep 0.08s | infer 2.79s | RTF 0.877 | gap 0.00s
+[kokoro] [31/40] 56 tokens | 3.38s audio | prep 0.13s | infer 2.71s | RTF 0.804 | gap 0.00s
+[kokoro] [32/40] 47 tokens | 3.17s audio | prep 0.11s | infer 2.43s | RTF 0.765 | gap 0.00s
+[kokoro] [33/40] 63 tokens | 4.12s audio | prep 0.08s | infer 3.12s | RTF 0.756 | gap 0.00s
+[kokoro] [34/40] 67 tokens | 4.15s audio | prep 0.06s | infer 1.33s | RTF 0.321 | gap 0.00s
+[kokoro] [35/40] 52 tokens | 3.17s audio | prep 0.05s | infer 0.99s | RTF 0.311 | gap 0.00s
+[kokoro] [36/40] 56 tokens | 3.38s audio | prep 0.05s | infer 1.31s | RTF 0.388 | gap 0.00s
+[kokoro] [37/40] 47 tokens | 3.17s audio | prep 0.05s | infer 2.33s | RTF 0.733 | gap 0.00s
+[kokoro] [38/40] 63 tokens | 4.12s audio | prep 0.06s | infer 1.44s | RTF 0.348 | gap 0.00s
+[kokoro] [39/40] 67 tokens | 4.15s audio | prep 0.05s | infer 1.30s | RTF 0.314 | gap 0.00s
+[kokoro] [40/40] 52 tokens | 3.17s audio | prep 0.06s | infer 1.26s | RTF 0.397 | gap 0.00s
+[kokoro] done: 144.00s audio | infer 76.94s | RTF 0.534 | wall 123.25s | wall RTF 0.856 | gap 0.00s | total 123.25s
+[kokoro] audio sink idle; closing

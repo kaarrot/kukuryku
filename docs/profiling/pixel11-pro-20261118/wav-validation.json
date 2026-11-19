@@ -1,0 +1,41 @@
+[
+  {
+    "file": "run-1.wav",
+    "sample_rate": 24000,
+    "channels": 1,
+    "samples": 355200,
+    "duration_s": 14.8,
+    "peak": 0.648406982421875,
+    "rms": 0.07269248366946084,
+    "correlation_to_s10e_pcm": 1.0,
+    "max_abs_difference_pcm16": 0,
+    "sha256": "3fc162486385224c5629041031565649b686c374e631d0c6b223fcd6787593fe",
+    "reference_sha256": "3fc162486385224c5629041031565649b686c374e631d0c6b223fcd6787593fe"
+  },
+  {
+    "file": "run-2.wav",
+    "sample_rate": 24000,
+    "channels": 1,
+    "samples": 355200,
+    "duration_s": 14.8,
+    "peak": 0.648406982421875,
+    "rms": 0.07269248366946084,
+    "correlation_to_s10e_pcm": 1.0,
+    "max_abs_difference_pcm16": 0,
+    "sha256": "3fc162486385224c5629041031565649b686c374e631d0c6b223fcd6787593fe",
+    "reference_sha256": "3fc162486385224c5629041031565649b686c374e631d0c6b223fcd6787593fe"
+  },
+  {
+    "file": "run-3.wav",
+    "sample_rate": 24000,
+    "channels": 1,
+    "samples": 355200,
+    "duration_s": 14.8,
+    "peak": 0.648406982421875,
+    "rms": 0.07269248366946084,
+    "correlation_to_s10e_pcm": 1.0,
+    "max_abs_difference_pcm16": 0,
+    "sha256": "3fc162486385224c5629041031565649b686c374e631d0c6b223fcd6787593fe",
+    "reference_sha256": "3fc162486385224c5629041031565649b686c374e631d0c6b223fcd6787593fe"
+  }
+]

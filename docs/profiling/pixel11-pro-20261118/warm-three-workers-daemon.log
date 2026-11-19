@@ -1,0 +1,71 @@
+[ryk-serve] compiling pipeline from /data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx ...
+[kokoro] KOKORO_TRACT_THREADS=3; governor pool switch disabled (cpuset 2-4)
+[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten
+[kokoro] fp16 stage2: 486 of 1272 nodes translated
+[kokoro] stage2: compiled one symbolic plan (length-independent)
+[kokoro] fp16 stage1: 327 of 1117 nodes translated
+[kokoro] stage1 F16 dense kernel: arm64fp16_mmm_f16_16x8_a55
+[kokoro] stage1: compiled one symbolic plan (length-independent)
+[ryk-serve] pipeline ready in 1.63s
+[ryk-serve] audio sink grace 0s after last sample
+[kokoro] stage1 lookahead on cpus 1
+[ryk-serve] headset control off: RYK_HEADSET is off
+[kokoro] accept loop pinned to cpus 0-1
+[ryk-serve] listening on /data/data/com.termux/files/usr/tmp/ryk-phone-30507.sock (no idle timeout)
+[kokoro] playback pinned to cpus 0-1
+[ryk-serve] queued utterance (368 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.04s | infer 0.66s | RTF 0.450 | gap 0.00s
+[kokoro] first audio at 0.71s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.04s | infer 2.68s | RTF 0.399 | gap 0.71s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.04s | infer 5.60s | RTF 0.383 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 8.94s | RTF 0.392 | wall 7.43s | wall RTF 0.326 | gap 0.71s | total 7.43s
+[kokoro] audio sink idle; closing
+[ryk-serve] queued utterance (368 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.04s | infer 0.62s | RTF 0.421 | gap 0.00s
+[kokoro] first audio at 0.67s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.04s | infer 2.59s | RTF 0.387 | gap 0.64s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.04s | infer 5.48s | RTF 0.375 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 8.70s | RTF 0.381 | wall 7.19s | wall RTF 0.315 | gap 0.64s | total 7.19s
+[kokoro] audio sink idle; closing
+[ryk-serve] queued utterance (368 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.04s | infer 0.64s | RTF 0.437 | gap 0.00s
+[kokoro] first audio at 0.71s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.04s | infer 2.79s | RTF 0.417 | gap 0.82s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.04s | infer 5.61s | RTF 0.384 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 9.05s | RTF 0.397 | wall 7.55s | wall RTF 0.331 | gap 0.82s | total 7.55s
+[kokoro] audio sink idle; closing
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[ryk-serve] queued utterance (368 chars)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.05s | infer 0.63s | RTF 0.425 | gap 0.00s
+[kokoro] first audio at 0.68s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.03s | infer 2.61s | RTF 0.389 | gap 0.65s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.04s | infer 5.55s | RTF 0.379 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 8.78s | RTF 0.385 | wall 7.27s | wall RTF 0.319 | gap 0.65s | total 7.27s
+[kokoro] audio sink idle; closing
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[ryk-serve] queued utterance (368 chars)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.06s | infer 0.66s | RTF 0.445 | gap 0.00s
+[kokoro] first audio at 0.74s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.03s | infer 2.69s | RTF 0.402 | gap 0.73s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.06s | infer 5.83s | RTF 0.398 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 9.18s | RTF 0.403 | wall 7.70s | wall RTF 0.338 | gap 0.73s | total 7.70s
+[kokoro] audio sink idle; closing
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[ryk-serve] queued utterance (368 chars)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.03s | infer 0.73s | RTF 0.494 | gap 0.00s
+[kokoro] first audio at 0.78s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.04s | infer 2.69s | RTF 0.401 | gap 0.69s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.05s | infer 5.56s | RTF 0.380 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 8.97s | RTF 0.393 | wall 7.44s | wall RTF 0.326 | gap 0.69s | total 7.44s
+[kokoro] audio sink idle; closing
+[ryk-serve] queued utterance (368 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 3 sentence(s)
+[kokoro] [1/3] 11 tokens | 1.48s audio | prep 0.04s | infer 0.64s | RTF 0.432 | gap 0.00s
+[kokoro] first audio at 0.70s
+[kokoro] [2/3] 114 tokens | 6.70s audio | prep 0.04s | infer 2.54s | RTF 0.378 | gap 0.57s
+[kokoro] [3/3] 242 tokens | 14.62s audio | prep 0.05s | infer 5.56s | RTF 0.380 | gap 0.00s
+[kokoro] done: 22.80s audio | infer 8.74s | RTF 0.383 | wall 7.22s | wall RTF 0.317 | gap 0.57s | total 7.22s
+[kokoro] audio sink idle; closing

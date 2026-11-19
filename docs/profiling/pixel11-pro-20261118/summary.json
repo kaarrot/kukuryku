@@ -1,0 +1,315 @@
+{
+  "smoke": {
+    "runs": 3,
+    "audio_s": {
+      "mean": 14.8,
+      "min": 14.8,
+      "max": 14.8
+    },
+    "infer_s": {
+      "mean": 4.526666666666666,
+      "min": 4.49,
+      "max": 4.59
+    },
+    "infer_rtf": {
+      "mean": 0.30566666666666664,
+      "min": 0.303,
+      "max": 0.31
+    },
+    "synthesis_wall_s": {
+      "mean": 3.9,
+      "min": 3.87,
+      "max": 3.94
+    },
+    "synthesis_wall_rtf": {
+      "mean": 0.26333333333333336,
+      "min": 0.261,
+      "max": 0.266
+    },
+    "estimated_gap_s": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "first_audio_from_synthesis_start_s": {
+      "mean": 1.8,
+      "min": 1.78,
+      "max": 1.84
+    },
+    "elapsed_through_drain_s": {
+      "mean": 18.611310977333535,
+      "min": 18.561589085002197,
+      "max": 18.684774787005153
+    },
+    "cpu_s": {
+      "mean": 15.447758333333331,
+      "min": 15.409335,
+      "max": 15.515329
+    },
+    "cpu_s_per_audio_s": {
+      "mean": 1.043767454954955,
+      "min": 1.0411712837837839,
+      "max": 1.0483330405405404
+    },
+    "sampled_peak_rss_bytes": {
+      "mean": 682377216,
+      "min": 677904384,
+      "max": 690577408
+    }
+  },
+  "warm-three-workers": {
+    "runs": 6,
+    "audio_s": {
+      "mean": 22.8,
+      "min": 22.8,
+      "max": 22.8
+    },
+    "infer_s": {
+      "mean": 8.903333333333332,
+      "min": 8.7,
+      "max": 9.18
+    },
+    "infer_rtf": {
+      "mean": 0.39033333333333337,
+      "min": 0.381,
+      "max": 0.403
+    },
+    "synthesis_wall_s": {
+      "mean": 7.395,
+      "min": 7.19,
+      "max": 7.7
+    },
+    "synthesis_wall_rtf": {
+      "mean": 0.32433333333333336,
+      "min": 0.315,
+      "max": 0.338
+    },
+    "estimated_gap_s": {
+      "mean": 0.6833333333333333,
+      "min": 0.57,
+      "max": 0.82
+    },
+    "first_audio_from_synthesis_start_s": {
+      "mean": 0.7133333333333334,
+      "min": 0.67,
+      "max": 0.78
+    },
+    "elapsed_through_drain_s": {
+      "mean": 7.672451809664683,
+      "min": 7.503775006989599,
+      "max": 7.998519376997137
+    },
+    "cpu_s": {
+      "mean": 18.708333333333332,
+      "min": 18.599999999999994,
+      "max": 18.909999999999997
+    },
+    "cpu_s_per_audio_s": {
+      "mean": 0.8205409356725145,
+      "min": 0.8157894736842103,
+      "max": 0.8293859649122806
+    },
+    "sampled_peak_rss_bytes": {
+      "mean": 557417130.6666666,
+      "min": 541712384,
+      "max": 568049664
+    }
+  },
+  "warm-real": {
+    "runs": 3,
+    "audio_s": {
+      "mean": 20.25,
+      "min": 20.25,
+      "max": 20.25
+    },
+    "infer_s": {
+      "mean": 6.473333333333334,
+      "min": 6.45,
+      "max": 6.49
+    },
+    "infer_rtf": {
+      "mean": 0.31933333333333336,
+      "min": 0.318,
+      "max": 0.32
+    },
+    "synthesis_wall_s": {
+      "mean": 5.23,
+      "min": 5.21,
+      "max": 5.25
+    },
+    "synthesis_wall_rtf": {
+      "mean": 0.258,
+      "min": 0.257,
+      "max": 0.259
+    },
+    "estimated_gap_s": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "first_audio_from_synthesis_start_s": {
+      "mean": 1.0566666666666666,
+      "min": 1.04,
+      "max": 1.08
+    },
+    "elapsed_through_drain_s": {
+      "mean": 26.225767537999975,
+      "min": 26.183968728000764,
+      "max": 26.285336435001227
+    },
+    "cpu_s": {
+      "mean": 17.03666666666667,
+      "min": 16.97,
+      "max": 17.160000000000004
+    },
+    "cpu_s_per_audio_s": {
+      "mean": 0.8413168724279836,
+      "min": 0.8380246913580246,
+      "max": 0.8474074074074076
+    },
+    "sampled_peak_rss_bytes": {
+      "mean": 399501994.6666667,
+      "min": 385888256,
+      "max": 407248896
+    }
+  },
+  "long-single": {
+    "runs": 3,
+    "audio_s": {
+      "mean": 14.62,
+      "min": 14.62,
+      "max": 14.62
+    },
+    "infer_s": {
+      "mean": 4.536666666666667,
+      "min": 4.48,
+      "max": 4.6
+    },
+    "infer_rtf": {
+      "mean": 0.30966666666666665,
+      "min": 0.306,
+      "max": 0.314
+    },
+    "synthesis_wall_s": {
+      "mean": 4.6066666666666665,
+      "min": 4.55,
+      "max": 4.67
+    },
+    "synthesis_wall_rtf": {
+      "mean": 0.315,
+      "min": 0.311,
+      "max": 0.319
+    },
+    "estimated_gap_s": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "first_audio_from_synthesis_start_s": {
+      "mean": 4.6066666666666665,
+      "min": 4.55,
+      "max": 4.67
+    },
+    "elapsed_through_drain_s": {
+      "mean": 4.867851030328893,
+      "min": 4.822041021994664,
+      "max": 4.936366801994154
+    },
+    "cpu_s": {
+      "mean": 11.81,
+      "min": 11.729999999999999,
+      "max": 11.880000000000003
+    },
+    "cpu_s_per_audio_s": {
+      "mean": 0.8077975376196991,
+      "min": 0.8023255813953488,
+      "max": 0.8125854993160057
+    },
+    "sampled_peak_rss_bytes": {
+      "mean": 554101418.6666666,
+      "min": 551706624,
+      "max": 556716032
+    }
+  },
+  "sustained": {
+    "runs": 1,
+    "audio_s": {
+      "mean": 144.0,
+      "min": 144.0,
+      "max": 144.0
+    },
+    "infer_s": {
+      "mean": 76.94,
+      "min": 76.94,
+      "max": 76.94
+    },
+    "infer_rtf": {
+      "mean": 0.534,
+      "min": 0.534,
+      "max": 0.534
+    },
+    "synthesis_wall_s": {
+      "mean": 123.25,
+      "min": 123.25,
+      "max": 123.25
+    },
+    "synthesis_wall_rtf": {
+      "mean": 0.856,
+      "min": 0.856,
+      "max": 0.856
+    },
+    "estimated_gap_s": {
+      "mean": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "first_audio_from_synthesis_start_s": {
+      "mean": 1.26,
+      "min": 1.26,
+      "max": 1.26
+    },
+    "elapsed_through_drain_s": {
+      "mean": 150.21677427800023,
+      "min": 150.21677427800023,
+      "max": 150.21677427800023
+    },
+    "cpu_s": {
+      "mean": 194.43,
+      "min": 194.43,
+      "max": 194.43
+    },
+    "cpu_s_per_audio_s": {
+      "mean": 1.3502083333333335,
+      "min": 1.3502083333333335,
+      "max": 1.3502083333333335
+    },
+    "sampled_peak_rss_bytes": {
+      "mean": 400080896,
+      "min": 400080896,
+      "max": 400080896
+    }
+  },
+  "comparisons": {
+    "lighthouse_infer_speedup": 2.551799345692476,
+    "lighthouse_synthesis_wall_speedup": 2.551898734177215,
+    "lighthouse_whole_command_reduction_percent": 23.54207297098173,
+    "worker_matched_infer_speedup": 2.024338172502135,
+    "worker_matched_synthesis_wall_speedup": 1.9022376084095127
+  },
+  "sustained_chunks": {
+    "count": 40,
+    "infer_rtf_min": 0.306,
+    "infer_rtf_max": 0.975,
+    "chunks_at_or_above_rtf_one": 0,
+    "paragraph_infer_rtf": [
+      0.3229571984435798,
+      0.330183435241801,
+      0.33796553640911614,
+      0.6531406336853807,
+      0.7720956086714841,
+      0.8493607559755418,
+      0.5881045025013896,
+      0.424680377987771
+    ]
+  }
+}

@@ -1,0 +1,218 @@
+{
+  "device": "Samsung SM-G970U / Galaxy S10e",
+  "soc": "Snapdragon 855",
+  "android": "12 / SDK 31",
+  "same_binary_smoke": {
+    "binary_sha256": "13287858ddbfc3178f0ac79b103e15edaeed732d2d911bdb387faf42fd0cd64f",
+    "source_commit": "8501a62",
+    "conditions": "Discharging",
+    "elapsed_s": 24.34189848002279,
+    "cpu_s": 30.927108999999998,
+    "metrics": {
+      "audio_s": 14.8,
+      "infer_s": 11.54,
+      "infer_rtf": 0.78,
+      "synthesis_wall_s": 9.95,
+      "synthesis_wall_rtf": 0.672,
+      "estimated_gap_s": 0.0,
+      "first_audio_from_synthesis_start_s": 4.71,
+      "chunks": [
+        {
+          "index": 1,
+          "count": 2,
+          "tokens": 86,
+          "audio_s": 5.5,
+          "prep_s": 0.47,
+          "infer_s": 4.2,
+          "infer_rtf": 0.763,
+          "gap_s": 0.0
+        },
+        {
+          "index": 2,
+          "count": 2,
+          "tokens": 155,
+          "audio_s": 9.3,
+          "prep_s": 0.14,
+          "infer_s": 7.35,
+          "infer_rtf": 0.79,
+          "gap_s": 0.0
+        }
+      ]
+    },
+    "source": "docs/battery-validation-8501a62.md and migrated tools/bench_out/battery-live-8501a62/rtf-smoke.{json,log}"
+  },
+  "first_real_daemon_request": {
+    "metrics": {
+      "audio_s": 20.25,
+      "infer_s": 16.37,
+      "infer_rtf": 0.809,
+      "synthesis_wall_s": 13.1,
+      "synthesis_wall_rtf": 0.647,
+      "estimated_gap_s": 0.0,
+      "first_audio_from_synthesis_start_s": 2.83,
+      "chunks": [
+        {
+          "index": 1,
+          "count": 6,
+          "tokens": 47,
+          "audio_s": 2.9,
+          "prep_s": 0.39,
+          "infer_s": 2.39,
+          "infer_rtf": 0.825,
+          "gap_s": 0.0
+        },
+        {
+          "index": 2,
+          "count": 6,
+          "tokens": 49,
+          "audio_s": 3.27,
+          "prep_s": 0.12,
+          "infer_s": 2.66,
+          "infer_rtf": 0.812,
+          "gap_s": 0.0
+        },
+        {
+          "index": 3,
+          "count": 6,
+          "tokens": 55,
+          "audio_s": 3.42,
+          "prep_s": 0.12,
+          "infer_s": 2.87,
+          "infer_rtf": 0.837,
+          "gap_s": 0.0
+        },
+        {
+          "index": 4,
+          "count": 6,
+          "tokens": 57,
+          "audio_s": 3.52,
+          "prep_s": 0.14,
+          "infer_s": 2.82,
+          "infer_rtf": 0.801,
+          "gap_s": 0.0
+        },
+        {
+          "index": 5,
+          "count": 6,
+          "tokens": 54,
+          "audio_s": 3.62,
+          "prep_s": 0.16,
+          "infer_s": 2.85,
+          "infer_rtf": 0.787,
+          "gap_s": 0.0
+        },
+        {
+          "index": 6,
+          "count": 6,
+          "tokens": 50,
+          "audio_s": 3.5,
+          "prep_s": 0.14,
+          "infer_s": 2.78,
+          "infer_rtf": 0.795,
+          "gap_s": 0.0
+        }
+      ]
+    },
+    "source": "migrated tools/bench_out/battery-live-8501a62/live-daemon.log",
+    "note": "First request after compilation, without a separate full-corpus warmup; committed prose reports wall RTF 0.644, raw log reports 0.647."
+  },
+  "warm_corpus": {
+    "binary": {
+      "path": "tools/bench_out/resize-8f4cf95/ryk-resize-bounded",
+      "sha256": "7afe5677789c2d2a3bfb4d9c5d7c2a9e2804bcf8f64169ee36b46741cb31226f"
+    },
+    "source_commit": "cd78298 (Resize implementation, before daemon follow-ups)",
+    "stage1_cpuset": "1",
+    "stage2_cpuset": "4-6",
+    "governor": "off",
+    "sink": "discard; CPU comparison only",
+    "conditions": "Charging; measured gold temperature <=50 C at start",
+    "source": "docs/profiling/resize-8f4cf95/warm-bounded.json, B arms",
+    "runs": [
+      {
+        "round": 1,
+        "audio_s": 22.8,
+        "cpu_s": 35.4,
+        "cpu_s_per_audio_s": 1.5526315789473684,
+        "infer_s": 17.97,
+        "infer_rtf": 0.788,
+        "synthesis_wall_s": 14.0,
+        "elapsed_s": 15.077819318015827,
+        "estimated_gap_s": 4.4,
+        "start_gold_c": 39.0,
+        "end_gold_c": 45.9,
+        "synthesis_wall_rtf": 0.6140350877192983
+      },
+      {
+        "round": 2,
+        "audio_s": 22.8,
+        "cpu_s": 35.44,
+        "cpu_s_per_audio_s": 1.5543859649122806,
+        "infer_s": 18.01,
+        "infer_rtf": 0.79,
+        "synthesis_wall_s": 14.06,
+        "elapsed_s": 15.042167493986199,
+        "estimated_gap_s": 4.49,
+        "start_gold_c": 39.0,
+        "end_gold_c": 47.4,
+        "synthesis_wall_rtf": 0.6166666666666667
+      },
+      {
+        "round": 3,
+        "audio_s": 22.8,
+        "cpu_s": 35.20000000000002,
+        "cpu_s_per_audio_s": 1.5438596491228078,
+        "infer_s": 17.81,
+        "infer_rtf": 0.781,
+        "synthesis_wall_s": 13.86,
+        "elapsed_s": 15.089195620006649,
+        "estimated_gap_s": 4.31,
+        "start_gold_c": 39.8,
+        "end_gold_c": 46.7,
+        "synthesis_wall_rtf": 0.6078947368421053
+      },
+      {
+        "round": 4,
+        "audio_s": 22.8,
+        "cpu_s": 35.41,
+        "cpu_s_per_audio_s": 1.5530701754385963,
+        "infer_s": 18.38,
+        "infer_rtf": 0.806,
+        "synthesis_wall_s": 14.42,
+        "elapsed_s": 15.054998953011818,
+        "estimated_gap_s": 4.78,
+        "start_gold_c": 38.6,
+        "end_gold_c": 48.6,
+        "synthesis_wall_rtf": 0.6324561403508772
+      },
+      {
+        "round": 5,
+        "audio_s": 22.8,
+        "cpu_s": 35.47999999999999,
+        "cpu_s_per_audio_s": 1.5561403508771925,
+        "infer_s": 18.08,
+        "infer_rtf": 0.793,
+        "synthesis_wall_s": 14.15,
+        "elapsed_s": 15.044407546025468,
+        "estimated_gap_s": 4.5,
+        "start_gold_c": 39.8,
+        "end_gold_c": 47.4,
+        "synthesis_wall_rtf": 0.6206140350877193
+      },
+      {
+        "round": 6,
+        "audio_s": 22.8,
+        "cpu_s": 35.360000000000014,
+        "cpu_s_per_audio_s": 1.5508771929824567,
+        "infer_s": 17.86,
+        "infer_rtf": 0.783,
+        "synthesis_wall_s": 13.91,
+        "elapsed_s": 15.077077234018361,
+        "estimated_gap_s": 4.32,
+        "start_gold_c": 39.8,
+        "end_gold_c": 46.7,
+        "synthesis_wall_rtf": 0.6100877192982456
+      }
+    ]
+  }
+}

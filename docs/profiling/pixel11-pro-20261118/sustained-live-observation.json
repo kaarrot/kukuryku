@@ -1,0 +1,46 @@
+{
+  "cpu0": {
+    "cpufreq/scaling_cur_freq": "1632000",
+    "cpufreq/scaling_max_freq": "2649000"
+  },
+  "cpu1": {
+    "cpufreq/scaling_cur_freq": "394000",
+    "cpufreq/scaling_max_freq": "2649000"
+  },
+  "cpu2": {
+    "cpufreq/scaling_cur_freq": "1574000",
+    "cpufreq/scaling_max_freq": "3379000"
+  },
+  "cpu3": {
+    "cpufreq/scaling_cur_freq": "1574000",
+    "cpufreq/scaling_max_freq": "3379000"
+  },
+  "cpu4": {
+    "cpufreq/scaling_cur_freq": "1574000",
+    "cpufreq/scaling_max_freq": "3379000"
+  },
+  "cpu5": {
+    "cpufreq/scaling_cur_freq": "1574000",
+    "cpufreq/scaling_max_freq": "3379000"
+  },
+  "cpu6": {
+    "cpufreq/scaling_cur_freq": "788000",
+    "cpufreq/scaling_max_freq": "4109000"
+  },
+  "battery": {
+    "present": true,
+    "technology": "Li-ion",
+    "health": "GOOD",
+    "plugged": "UNPLUGGED",
+    "status": "DISCHARGING",
+    "temperature": 33.3,
+    "voltage": 4058,
+    "current": -478125,
+    "current_average": -451562,
+    "percentage": 66,
+    "level": 66,
+    "scale": 100,
+    "charge_counter": 3172500,
+    "cycle": 2
+  }
+}

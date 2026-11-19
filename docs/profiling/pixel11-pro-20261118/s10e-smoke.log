@@ -1,0 +1,19 @@
+[kokoro] backend: tract (pure Rust, two-stage split)
+[kokoro] resolving assets...
+[kokoro] loading split model (stage1.onnx + stage2.onnx) from /data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx
+[kokoro] playback pinned to cpus 0-3
+[kokoro] tract executor: 3 threads on 4-6 (governor Thermal), cool 2 threads on 4-5
+[kokoro] no PulseAudio server running; starting one (pulseaudio --start)
+[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten
+[kokoro] fp16 stage2: 486 of 1272 nodes translated
+[kokoro] stage2: compiled one symbolic plan (length-independent)
+[kokoro] fp16 stage1: 327 of 1117 nodes translated
+[kokoro] stage1 F16 dense kernel: arm64fp16_mmm_f16_16x8_a55
+[kokoro] stage1: compiled one symbolic plan (length-independent)
+[kokoro] 2 sentence chunk(s)
+[kokoro] stage1 lookahead on cpus 0-3
+[kokoro] [1/2] 86 tokens | 5.50s audio | prep 0.47s | infer 4.20s | RTF 0.763 | gap 0.00s
+[kokoro] first audio at 4.71s
+[kokoro] [2/2] 155 tokens | 9.30s audio | prep 0.14s | infer 7.35s | RTF 0.790 | gap 0.00s
+[kokoro] wrote /data/data/com.termux/files/home/PRJ/kukuryku/tools/bench_out/battery-live-8501a62/rtf-smoke.wav
+[kokoro] done: 14.80s audio | infer 11.54s | RTF 0.780 | wall 9.95s | wall RTF 0.672 | gap 0.00s | total 24.27s

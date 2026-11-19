@@ -1,0 +1,12 @@
+[ryk-serve] queued utterance (312 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 6 sentence(s)
+[kokoro] no PulseAudio server running; starting one (pulseaudio --start)
+[kokoro] [1/6] 47 tokens | 2.90s audio | prep 0.06s | infer 1.06s | RTF 0.366 | gap 0.00s
+[kokoro] first audio at 1.12s
+[kokoro] [2/6] 49 tokens | 3.27s audio | prep 0.04s | infer 1.04s | RTF 0.318 | gap 0.00s
+[kokoro] [3/6] 55 tokens | 3.42s audio | prep 0.05s | infer 1.15s | RTF 0.335 | gap 0.00s
+[kokoro] [4/6] 57 tokens | 3.52s audio | prep 0.05s | infer 1.14s | RTF 0.325 | gap 0.00s
+[kokoro] [5/6] 54 tokens | 3.62s audio | prep 0.05s | infer 1.12s | RTF 0.309 | gap 0.00s
+[kokoro] [6/6] 50 tokens | 3.50s audio | prep 0.05s | infer 1.06s | RTF 0.301 | gap 0.00s
+[kokoro] done: 20.25s audio | infer 6.57s | RTF 0.325 | wall 5.34s | wall RTF 0.264 | gap 0.00s | total 5.34s
+[kokoro] audio sink idle; closing

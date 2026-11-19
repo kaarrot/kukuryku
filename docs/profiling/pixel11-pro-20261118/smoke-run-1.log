@@ -1,0 +1,19 @@
+[kokoro] backend: tract (pure Rust, two-stage split)
+[kokoro] resolving assets...
+[kokoro] loading split model (stage1.onnx + stage2.onnx) from /data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx
+[kokoro] playback pinned to cpus 0-1
+[kokoro] tract executor: 4 threads on 2-5 (governor Thermal), cool 2 threads on 2-3
+[kokoro] no PulseAudio server running; starting one (pulseaudio --start)
+[kokoro] FP16 GEMM is on: casting f32 weights to f16 in memory; stage1.onnx/stage2.onnx are not rewritten
+[kokoro] fp16 stage2: 486 of 1272 nodes translated
+[kokoro] stage2: compiled one symbolic plan (length-independent)
+[kokoro] fp16 stage1: 327 of 1117 nodes translated
+[kokoro] stage1 F16 dense kernel: arm64fp16_mmm_f16_16x8_a55
+[kokoro] stage1: compiled one symbolic plan (length-independent)
+[kokoro] 2 sentence chunk(s)
+[kokoro] stage1 lookahead on cpus 0-1
+[kokoro] [1/2] 86 tokens | 5.50s audio | prep 0.06s | infer 1.72s | RTF 0.313 | gap 0.00s
+[kokoro] first audio at 1.78s
+[kokoro] [2/2] 155 tokens | 9.30s audio | prep 0.05s | infer 2.78s | RTF 0.299 | gap 0.00s
+[kokoro] wrote /data/data/com.termux/files/home/PRJ/kukuryku/tools/bench_out/pixel11-pro-20261118/smoke/run-1.wav
+[kokoro] done: 14.80s audio | infer 4.50s | RTF 0.304 | wall 3.89s | wall RTF 0.263 | gap 0.00s | total 18.39s

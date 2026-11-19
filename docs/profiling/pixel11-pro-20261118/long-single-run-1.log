@@ -1,0 +1,6 @@
+[ryk-serve] queued utterance (243 chars)
+[ryk-serve] speak: voice=af_heart lang=en-us speed=1 1 sentence(s)
+[kokoro] [1/1] 242 tokens | 14.62s audio | prep 0.06s | infer 4.48s | RTF 0.306 | gap 0.00s
+[kokoro] first audio at 4.55s
+[kokoro] done: 14.62s audio | infer 4.48s | RTF 0.306 | wall 4.55s | wall RTF 0.311 | gap 0.00s | total 4.55s
+[kokoro] audio sink idle; closing

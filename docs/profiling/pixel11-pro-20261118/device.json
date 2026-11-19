@@ -1,0 +1,8 @@
+{
+  "ro.product.model": "Pixel 11 Pro",
+  "ro.product.device": "grizzly",
+  "ro.soc.model": "Tensor G6",
+  "ro.board.platform": "malibu",
+  "ro.build.version.release": "17",
+  "ro.build.version.sdk": "37"
+}

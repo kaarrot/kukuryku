@@ -1,0 +1,1960 @@
+{
+  "runner": "tools/bench_phone.py",
+  "runner_sha256": "9305b942dee0b766c96a0ff4b9e60019a23c7ab526084bfb4f96714c314552d6",
+  "campaigns": {
+    "smoke": {
+      "started_utc": "2026-11-19T06:10:45.504676+00:00",
+      "command": [
+        "tools/bench_phone.py",
+        "--mode",
+        "oneshot",
+        "--sink",
+        "real",
+        "--repeats",
+        "3",
+        "--rest-secs",
+        "10",
+        "--wav",
+        "--text-file",
+        "tools/bench_out/pixel11-pro-20261118/workloads/lighthouse.txt",
+        "--out",
+        "tools/bench_out/pixel11-pro-20261118/smoke",
+        "--conditions",
+        "Unplugged; Battery Saver off (user confirmed); first run after release unit build; screen/background apps not controlled"
+      ],
+      "conditions": "Unplugged; Battery Saver off (user confirmed); first run after release unit build; screen/background apps not controlled",
+      "source_commit": {
+        "returncode": 0,
+        "stdout": "e03d0e33b13fbfe4db7c03f8039ee0764ba15010",
+        "stderr": ""
+      },
+      "binary": {
+        "path": "/data/data/com.termux/files/home/bin/ryk",
+        "sha256": "13287858ddbfc3178f0ac79b103e15edaeed732d2d911bdb387faf42fd0cd64f"
+      },
+      "assets": {
+        "stage1.onnx": "3a1b51c923fa40e3c6f426086921669cc6b721eb76ee3fddc729f9c0588f28fe",
+        "stage2.onnx": "3bc46807560edbb7df5ff364deb15bb08c4961c8fdaa96bffa783dfb045f565c",
+        "voices/af_heart.bin": "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"
+      },
+      "model": {
+        "returncode": 0,
+        "stdout": "Pixel 11 Pro",
+        "stderr": ""
+      },
+      "soc": {
+        "returncode": 0,
+        "stdout": "Tensor G6",
+        "stderr": ""
+      },
+      "android": {
+        "returncode": 0,
+        "stdout": "17",
+        "stderr": ""
+      },
+      "kernel": {
+        "returncode": 0,
+        "stdout": "Linux localhost 6.12.69-android16-6-g70777328ed0e-ab16108597-4k #1 SMP PREEMPT Tue Aug 18 04:34:09 UTC 2026 aarch64 Android",
+        "stderr": ""
+      },
+      "topology": {
+        "cpu0": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu1": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu2": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3148000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu3": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3148000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu4": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3148000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu5": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3148000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu6": {
+          "cpu_capacity": "1024",
+          "cpufreq/cpuinfo_max_freq": "4109000",
+          "cpufreq/scaling_max_freq": "2496000",
+          "cpufreq/related_cpus": "6",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "2"
+        }
+      },
+      "original_observer_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "observer_cpuset": [
+        0
+      ],
+      "espeak": {
+        "returncode": 0,
+        "stdout": "eSpeak NG text-to-speech: 1.52.0  Data at: /data/data/com.termux/files/usr/share/espeak-ng-data",
+        "stderr": ""
+      },
+      "battery_before": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 35.6,\n  \"voltage\": 4047,\n  \"current\": -845312,\n  \"current_average\": -348437,\n  \"percentage\": 68,\n  \"level\": 68,\n  \"scale\": 100,\n  \"charge_counter\": 3260000,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "environment": {
+        "KOKORO_TRACT_DIR": "/data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx",
+        "KOKORO_VOICE": "af_heart",
+        "KOKORO_LANG": "en-us",
+        "KOKORO_SPEED": "1.0",
+        "KOKORO_VERBOSE": "1",
+        "RYK_HEADSET": "0",
+        "RYK_NOTIFY": "0",
+        "RYK_EARCONS": "0",
+        "RYK_IDLE_TIMEOUT": "off"
+      },
+      "mode": "oneshot",
+      "sink": "real",
+      "warmups": 0,
+      "rest_secs": 10.0,
+      "text": "The old lighthouse keeper climbed the winding staircase every single evening at dusk. Carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night.",
+      "cpu_time_scope": "process plus waited-for children; excludes detached PulseAudio",
+      "thermal_sysfs_readable": false,
+      "runs": [
+        {
+          "audio_s": 14.8,
+          "infer_s": 4.5,
+          "infer_rtf": 0.304,
+          "synthesis_wall_s": 3.89,
+          "synthesis_wall_rtf": 0.263,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.78,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 2,
+              "tokens": 86,
+              "audio_s": 5.5,
+              "prep_s": 0.06,
+              "infer_s": 1.72,
+              "infer_rtf": 0.313,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 2,
+              "tokens": 155,
+              "audio_s": 9.3,
+              "prep_s": 0.05,
+              "infer_s": 2.78,
+              "infer_rtf": 0.299,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 1,
+          "elapsed_through_drain_s": 18.561589085002197,
+          "cpu_s": 15.515329,
+          "cpu_s_per_audio_s": 1.0483330405405404,
+          "observed_first_audio_log_from_request_s": 3.592312515989761,
+          "sampled_peak_rss_bytes": 677904384
+        },
+        {
+          "audio_s": 14.8,
+          "infer_s": 4.59,
+          "infer_rtf": 0.31,
+          "synthesis_wall_s": 3.94,
+          "synthesis_wall_rtf": 0.266,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.84,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 2,
+              "tokens": 86,
+              "audio_s": 5.5,
+              "prep_s": 0.06,
+              "infer_s": 1.78,
+              "infer_rtf": 0.323,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 2,
+              "tokens": 155,
+              "audio_s": 9.3,
+              "prep_s": 0.05,
+              "infer_s": 2.81,
+              "infer_rtf": 0.302,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 2,
+          "elapsed_through_drain_s": 18.684774787005153,
+          "cpu_s": 15.409335,
+          "cpu_s_per_audio_s": 1.0411712837837839,
+          "observed_first_audio_log_from_request_s": 3.5787514129915508,
+          "sampled_peak_rss_bytes": 690577408
+        },
+        {
+          "audio_s": 14.8,
+          "infer_s": 4.49,
+          "infer_rtf": 0.303,
+          "synthesis_wall_s": 3.87,
+          "synthesis_wall_rtf": 0.261,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.78,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 2,
+              "tokens": 86,
+              "audio_s": 5.5,
+              "prep_s": 0.07,
+              "infer_s": 1.71,
+              "infer_rtf": 0.31,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 2,
+              "tokens": 155,
+              "audio_s": 9.3,
+              "prep_s": 0.05,
+              "infer_s": 2.78,
+              "infer_rtf": 0.299,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 3,
+          "elapsed_through_drain_s": 18.587569059993257,
+          "cpu_s": 15.418610999999995,
+          "cpu_s_per_audio_s": 1.0417980405405403,
+          "observed_first_audio_log_from_request_s": 3.582825655990746,
+          "sampled_peak_rss_bytes": 678649856
+        }
+      ],
+      "battery_after": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 34.2,\n  \"voltage\": 4033,\n  \"current\": -566406,\n  \"current_average\": -376562,\n  \"percentage\": 67,\n  \"level\": 67,\n  \"scale\": 100,\n  \"charge_counter\": 3247500,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "completed_utc": "2026-11-19T06:12:12.334692+00:00"
+    },
+    "warm-three-workers": {
+      "started_utc": "2026-11-19T06:12:37.847226+00:00",
+      "command": [
+        "tools/bench_phone.py",
+        "--mode",
+        "warm",
+        "--sink",
+        "discard",
+        "--repeats",
+        "6",
+        "--rest-secs",
+        "3",
+        "--text-file",
+        "tools/bench_out/pixel11-pro-20261118/workloads/warm-corpus.txt",
+        "--out",
+        "tools/bench_out/pixel11-pro-20261118/warm-three-workers",
+        "--env",
+        "KOKORO_GOVERNOR=off",
+        "--env",
+        "KOKORO_TRACT_FP16=1",
+        "--env",
+        "KOKORO_TRACT_S1_CPUSET=1",
+        "--env",
+        "KOKORO_TRACT_CPUSET=2-4",
+        "--env",
+        "KOKORO_TRACT_THREADS=3",
+        "--conditions",
+        "Unplugged; Battery Saver off; S10e-matched worker count and corpus; CPU groups mapped to Pixel topology"
+      ],
+      "conditions": "Unplugged; Battery Saver off; S10e-matched worker count and corpus; CPU groups mapped to Pixel topology",
+      "source_commit": {
+        "returncode": 0,
+        "stdout": "e03d0e33b13fbfe4db7c03f8039ee0764ba15010",
+        "stderr": ""
+      },
+      "binary": {
+        "path": "/data/data/com.termux/files/home/bin/ryk",
+        "sha256": "13287858ddbfc3178f0ac79b103e15edaeed732d2d911bdb387faf42fd0cd64f"
+      },
+      "assets": {
+        "stage1.onnx": "3a1b51c923fa40e3c6f426086921669cc6b721eb76ee3fddc729f9c0588f28fe",
+        "stage2.onnx": "3bc46807560edbb7df5ff364deb15bb08c4961c8fdaa96bffa783dfb045f565c",
+        "voices/af_heart.bin": "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"
+      },
+      "model": {
+        "returncode": 0,
+        "stdout": "Pixel 11 Pro",
+        "stderr": ""
+      },
+      "soc": {
+        "returncode": 0,
+        "stdout": "Tensor G6",
+        "stderr": ""
+      },
+      "android": {
+        "returncode": 0,
+        "stdout": "17",
+        "stderr": ""
+      },
+      "kernel": {
+        "returncode": 0,
+        "stdout": "Linux localhost 6.12.69-android16-6-g70777328ed0e-ab16108597-4k #1 SMP PREEMPT Tue Aug 18 04:34:09 UTC 2026 aarch64 Android",
+        "stderr": ""
+      },
+      "topology": {
+        "cpu0": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu1": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu2": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu3": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu4": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu5": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu6": {
+          "cpu_capacity": "1024",
+          "cpufreq/cpuinfo_max_freq": "4109000",
+          "cpufreq/scaling_max_freq": "4109000",
+          "cpufreq/related_cpus": "6",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "2"
+        }
+      },
+      "original_observer_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "observer_cpuset": [
+        0
+      ],
+      "espeak": {
+        "returncode": 0,
+        "stdout": "eSpeak NG text-to-speech: 1.52.0  Data at: /data/data/com.termux/files/usr/share/espeak-ng-data",
+        "stderr": ""
+      },
+      "battery_before": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 34.2,\n  \"voltage\": 4033,\n  \"current\": -460156,\n  \"current_average\": -260156,\n  \"percentage\": 67,\n  \"level\": 67,\n  \"scale\": 100,\n  \"charge_counter\": 3247500,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "environment": {
+        "KOKORO_TRACT_DIR": "/data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx",
+        "KOKORO_VOICE": "af_heart",
+        "KOKORO_LANG": "en-us",
+        "KOKORO_SPEED": "1.0",
+        "KOKORO_VERBOSE": "1",
+        "RYK_HEADSET": "0",
+        "RYK_NOTIFY": "0",
+        "RYK_EARCONS": "0",
+        "RYK_IDLE_TIMEOUT": "off",
+        "KOKORO_GOVERNOR": "off",
+        "KOKORO_TRACT_FP16": "1",
+        "KOKORO_TRACT_S1_CPUSET": "1",
+        "KOKORO_TRACT_CPUSET": "2-4",
+        "KOKORO_TRACT_THREADS": "3",
+        "RYK_SINK_IDLE_MS": "200"
+      },
+      "mode": "warm",
+      "sink": "discard",
+      "warmups": 1,
+      "rest_secs": 3.0,
+      "text": "Hello there. She stood at the old lighthouse and watched the fishing boats return slowly to the quiet harbour before sunset. The old lighthouse keeper climbed the winding staircase every single evening at dusk, carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night.",
+      "cpu_time_scope": "process plus waited-for children; excludes detached PulseAudio",
+      "thermal_sysfs_readable": false,
+      "runs": [
+        {
+          "audio_s": 22.8,
+          "infer_s": 8.7,
+          "infer_rtf": 0.381,
+          "synthesis_wall_s": 7.19,
+          "synthesis_wall_rtf": 0.315,
+          "estimated_gap_s": 0.64,
+          "first_audio_from_synthesis_start_s": 0.67,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 3,
+              "tokens": 11,
+              "audio_s": 1.48,
+              "prep_s": 0.04,
+              "infer_s": 0.62,
+              "infer_rtf": 0.421,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 3,
+              "tokens": 114,
+              "audio_s": 6.7,
+              "prep_s": 0.04,
+              "infer_s": 2.59,
+              "infer_rtf": 0.387,
+              "gap_s": 0.64
+            },
+            {
+              "index": 3,
+              "count": 3,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.04,
+              "infer_s": 5.48,
+              "infer_rtf": 0.375,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 1,
+          "elapsed_through_drain_s": 7.503775006989599,
+          "cpu_s": 18.7,
+          "cpu_s_per_audio_s": 0.8201754385964912,
+          "observed_first_audio_log_from_request_s": 0.7090710060001584,
+          "sampled_peak_rss_bytes": 541712384
+        },
+        {
+          "audio_s": 22.8,
+          "infer_s": 9.05,
+          "infer_rtf": 0.397,
+          "synthesis_wall_s": 7.55,
+          "synthesis_wall_rtf": 0.331,
+          "estimated_gap_s": 0.82,
+          "first_audio_from_synthesis_start_s": 0.71,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 3,
+              "tokens": 11,
+              "audio_s": 1.48,
+              "prep_s": 0.04,
+              "infer_s": 0.64,
+              "infer_rtf": 0.437,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 3,
+              "tokens": 114,
+              "audio_s": 6.7,
+              "prep_s": 0.04,
+              "infer_s": 2.79,
+              "infer_rtf": 0.417,
+              "gap_s": 0.82
+            },
+            {
+              "index": 3,
+              "count": 3,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.04,
+              "infer_s": 5.61,
+              "infer_rtf": 0.384,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 2,
+          "elapsed_through_drain_s": 7.814424655007315,
+          "cpu_s": 18.740000000000002,
+          "cpu_s_per_audio_s": 0.8219298245614036,
+          "observed_first_audio_log_from_request_s": 0.8109327919955831,
+          "sampled_peak_rss_bytes": 568049664
+        },
+        {
+          "audio_s": 22.8,
+          "infer_s": 8.78,
+          "infer_rtf": 0.385,
+          "synthesis_wall_s": 7.27,
+          "synthesis_wall_rtf": 0.319,
+          "estimated_gap_s": 0.65,
+          "first_audio_from_synthesis_start_s": 0.68,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 3,
+              "tokens": 11,
+              "audio_s": 1.48,
+              "prep_s": 0.05,
+              "infer_s": 0.63,
+              "infer_rtf": 0.425,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 3,
+              "tokens": 114,
+              "audio_s": 6.7,
+              "prep_s": 0.03,
+              "infer_s": 2.61,
+              "infer_rtf": 0.389,
+              "gap_s": 0.65
+            },
+            {
+              "index": 3,
+              "count": 3,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.04,
+              "infer_s": 5.55,
+              "infer_rtf": 0.379,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 3,
+          "elapsed_through_drain_s": 7.509943184995791,
+          "cpu_s": 18.64,
+          "cpu_s_per_audio_s": 0.8175438596491228,
+          "observed_first_audio_log_from_request_s": 0.7083738180081127,
+          "sampled_peak_rss_bytes": 554283008
+        },
+        {
+          "audio_s": 22.8,
+          "infer_s": 9.18,
+          "infer_rtf": 0.403,
+          "synthesis_wall_s": 7.7,
+          "synthesis_wall_rtf": 0.338,
+          "estimated_gap_s": 0.73,
+          "first_audio_from_synthesis_start_s": 0.74,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 3,
+              "tokens": 11,
+              "audio_s": 1.48,
+              "prep_s": 0.06,
+              "infer_s": 0.66,
+              "infer_rtf": 0.445,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 3,
+              "tokens": 114,
+              "audio_s": 6.7,
+              "prep_s": 0.03,
+              "infer_s": 2.69,
+              "infer_rtf": 0.402,
+              "gap_s": 0.73
+            },
+            {
+              "index": 3,
+              "count": 3,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.06,
+              "infer_s": 5.83,
+              "infer_rtf": 0.398,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 4,
+          "elapsed_through_drain_s": 7.998519376997137,
+          "cpu_s": 18.659999999999997,
+          "cpu_s_per_audio_s": 0.8184210526315788,
+          "observed_first_audio_log_from_request_s": 0.8090033490007045,
+          "sampled_peak_rss_bytes": 560480256
+        },
+        {
+          "audio_s": 22.8,
+          "infer_s": 8.97,
+          "infer_rtf": 0.393,
+          "synthesis_wall_s": 7.44,
+          "synthesis_wall_rtf": 0.326,
+          "estimated_gap_s": 0.69,
+          "first_audio_from_synthesis_start_s": 0.78,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 3,
+              "tokens": 11,
+              "audio_s": 1.48,
+              "prep_s": 0.03,
+              "infer_s": 0.73,
+              "infer_rtf": 0.494,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 3,
+              "tokens": 114,
+              "audio_s": 6.7,
+              "prep_s": 0.04,
+              "infer_s": 2.69,
+              "infer_rtf": 0.401,
+              "gap_s": 0.69
+            },
+            {
+              "index": 3,
+              "count": 3,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.05,
+              "infer_s": 5.56,
+              "infer_rtf": 0.38,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 5,
+          "elapsed_through_drain_s": 7.702056099995389,
+          "cpu_s": 18.909999999999997,
+          "cpu_s_per_audio_s": 0.8293859649122806,
+          "observed_first_audio_log_from_request_s": 0.8113334789959481,
+          "sampled_peak_rss_bytes": 559820800
+        },
+        {
+          "audio_s": 22.8,
+          "infer_s": 8.74,
+          "infer_rtf": 0.383,
+          "synthesis_wall_s": 7.22,
+          "synthesis_wall_rtf": 0.317,
+          "estimated_gap_s": 0.57,
+          "first_audio_from_synthesis_start_s": 0.7,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 3,
+              "tokens": 11,
+              "audio_s": 1.48,
+              "prep_s": 0.04,
+              "infer_s": 0.64,
+              "infer_rtf": 0.432,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 3,
+              "tokens": 114,
+              "audio_s": 6.7,
+              "prep_s": 0.04,
+              "infer_s": 2.54,
+              "infer_rtf": 0.378,
+              "gap_s": 0.57
+            },
+            {
+              "index": 3,
+              "count": 3,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.05,
+              "infer_s": 5.56,
+              "infer_rtf": 0.38,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 6,
+          "elapsed_through_drain_s": 7.505992534002871,
+          "cpu_s": 18.599999999999994,
+          "cpu_s_per_audio_s": 0.8157894736842103,
+          "observed_first_audio_log_from_request_s": 0.7073649649973959,
+          "sampled_peak_rss_bytes": 560156672
+        }
+      ],
+      "pipeline_compile_s": 1.63,
+      "battery_after": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 34.2,\n  \"voltage\": 4033,\n  \"current\": -599218,\n  \"current_average\": -1110156,\n  \"percentage\": 67,\n  \"level\": 67,\n  \"scale\": 100,\n  \"charge_counter\": 3227500,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "completed_utc": "2026-11-19T06:13:52.201251+00:00"
+    },
+    "warm-real": {
+      "started_utc": "2026-11-19T06:14:40.033894+00:00",
+      "command": [
+        "tools/bench_phone.py",
+        "--mode",
+        "warm",
+        "--sink",
+        "real",
+        "--repeats",
+        "3",
+        "--rest-secs",
+        "3",
+        "--text-file",
+        "tools/bench_out/pixel11-pro-20261118/workloads/six-sentences.txt",
+        "--out",
+        "tools/bench_out/pixel11-pro-20261118/warm-real",
+        "--conditions",
+        "Unplugged; Battery Saver off; automatic CPU selection and default thermal/pacing governor; full-corpus warmup before three trials"
+      ],
+      "conditions": "Unplugged; Battery Saver off; automatic CPU selection and default thermal/pacing governor; full-corpus warmup before three trials",
+      "source_commit": {
+        "returncode": 0,
+        "stdout": "e03d0e33b13fbfe4db7c03f8039ee0764ba15010",
+        "stderr": ""
+      },
+      "binary": {
+        "path": "/data/data/com.termux/files/home/bin/ryk",
+        "sha256": "13287858ddbfc3178f0ac79b103e15edaeed732d2d911bdb387faf42fd0cd64f"
+      },
+      "assets": {
+        "stage1.onnx": "3a1b51c923fa40e3c6f426086921669cc6b721eb76ee3fddc729f9c0588f28fe",
+        "stage2.onnx": "3bc46807560edbb7df5ff364deb15bb08c4961c8fdaa96bffa783dfb045f565c",
+        "voices/af_heart.bin": "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"
+      },
+      "model": {
+        "returncode": 0,
+        "stdout": "Pixel 11 Pro",
+        "stderr": ""
+      },
+      "soc": {
+        "returncode": 0,
+        "stdout": "Tensor G6",
+        "stderr": ""
+      },
+      "android": {
+        "returncode": 0,
+        "stdout": "17",
+        "stderr": ""
+      },
+      "kernel": {
+        "returncode": 0,
+        "stdout": "Linux localhost 6.12.69-android16-6-g70777328ed0e-ab16108597-4k #1 SMP PREEMPT Tue Aug 18 04:34:09 UTC 2026 aarch64 Android",
+        "stderr": ""
+      },
+      "topology": {
+        "cpu0": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu1": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu2": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu3": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu4": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu5": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu6": {
+          "cpu_capacity": "1024",
+          "cpufreq/cpuinfo_max_freq": "4109000",
+          "cpufreq/scaling_max_freq": "4109000",
+          "cpufreq/related_cpus": "6",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "2"
+        }
+      },
+      "original_observer_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "observer_cpuset": [
+        0
+      ],
+      "espeak": {
+        "returncode": 0,
+        "stdout": "eSpeak NG text-to-speech: 1.52.0  Data at: /data/data/com.termux/files/usr/share/espeak-ng-data",
+        "stderr": ""
+      },
+      "battery_before": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 34.2,\n  \"voltage\": 4033,\n  \"current\": -540625,\n  \"current_average\": -348437,\n  \"percentage\": 67,\n  \"level\": 67,\n  \"scale\": 100,\n  \"charge_counter\": 3222500,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "environment": {
+        "KOKORO_TRACT_DIR": "/data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx",
+        "KOKORO_VOICE": "af_heart",
+        "KOKORO_LANG": "en-us",
+        "KOKORO_SPEED": "1.0",
+        "KOKORO_VERBOSE": "1",
+        "RYK_HEADSET": "0",
+        "RYK_NOTIFY": "0",
+        "RYK_EARCONS": "0",
+        "RYK_IDLE_TIMEOUT": "off"
+      },
+      "mode": "warm",
+      "sink": "real",
+      "warmups": 1,
+      "rest_secs": 3.0,
+      "text": "The first sentence starts our playback test. The second sentence leaves enough speech to pause. The third sentence lets us step back through the history. The fourth sentence helps us check the rewind control. The fifth sentence continues the same quiet reading. The final sentence finishes this part of the test.",
+      "cpu_time_scope": "process plus waited-for children; excludes detached PulseAudio",
+      "thermal_sysfs_readable": false,
+      "runs": [
+        {
+          "audio_s": 20.25,
+          "infer_s": 6.48,
+          "infer_rtf": 0.32,
+          "synthesis_wall_s": 5.25,
+          "synthesis_wall_rtf": 0.259,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.04,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 6,
+              "tokens": 47,
+              "audio_s": 2.9,
+              "prep_s": 0.06,
+              "infer_s": 0.97,
+              "infer_rtf": 0.334,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 6,
+              "tokens": 49,
+              "audio_s": 3.27,
+              "prep_s": 0.04,
+              "infer_s": 1.05,
+              "infer_rtf": 0.319,
+              "gap_s": 0.0
+            },
+            {
+              "index": 3,
+              "count": 6,
+              "tokens": 55,
+              "audio_s": 3.42,
+              "prep_s": 0.05,
+              "infer_s": 1.1,
+              "infer_rtf": 0.32,
+              "gap_s": 0.0
+            },
+            {
+              "index": 4,
+              "count": 6,
+              "tokens": 57,
+              "audio_s": 3.52,
+              "prep_s": 0.05,
+              "infer_s": 1.16,
+              "infer_rtf": 0.328,
+              "gap_s": 0.0
+            },
+            {
+              "index": 5,
+              "count": 6,
+              "tokens": 54,
+              "audio_s": 3.62,
+              "prep_s": 0.05,
+              "infer_s": 1.14,
+              "infer_rtf": 0.314,
+              "gap_s": 0.0
+            },
+            {
+              "index": 6,
+              "count": 6,
+              "tokens": 50,
+              "audio_s": 3.5,
+              "prep_s": 0.05,
+              "infer_s": 1.07,
+              "infer_rtf": 0.306,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 1,
+          "elapsed_through_drain_s": 26.183968728000764,
+          "cpu_s": 16.98,
+          "cpu_s_per_audio_s": 0.8385185185185186,
+          "observed_first_audio_log_from_request_s": 1.1178246210038196,
+          "sampled_peak_rss_bytes": 407248896
+        },
+        {
+          "audio_s": 20.25,
+          "infer_s": 6.49,
+          "infer_rtf": 0.32,
+          "synthesis_wall_s": 5.23,
+          "synthesis_wall_rtf": 0.258,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.08,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 6,
+              "tokens": 47,
+              "audio_s": 2.9,
+              "prep_s": 0.04,
+              "infer_s": 1.04,
+              "infer_rtf": 0.357,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 6,
+              "tokens": 49,
+              "audio_s": 3.27,
+              "prep_s": 0.05,
+              "infer_s": 1.01,
+              "infer_rtf": 0.308,
+              "gap_s": 0.0
+            },
+            {
+              "index": 3,
+              "count": 6,
+              "tokens": 55,
+              "audio_s": 3.42,
+              "prep_s": 0.04,
+              "infer_s": 1.12,
+              "infer_rtf": 0.326,
+              "gap_s": 0.0
+            },
+            {
+              "index": 4,
+              "count": 6,
+              "tokens": 57,
+              "audio_s": 3.52,
+              "prep_s": 0.05,
+              "infer_s": 1.13,
+              "infer_rtf": 0.321,
+              "gap_s": 0.0
+            },
+            {
+              "index": 5,
+              "count": 6,
+              "tokens": 54,
+              "audio_s": 3.62,
+              "prep_s": 0.05,
+              "infer_s": 1.14,
+              "infer_rtf": 0.315,
+              "gap_s": 0.0
+            },
+            {
+              "index": 6,
+              "count": 6,
+              "tokens": 50,
+              "audio_s": 3.5,
+              "prep_s": 0.05,
+              "infer_s": 1.05,
+              "infer_rtf": 0.301,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 2,
+          "elapsed_through_drain_s": 26.285336435001227,
+          "cpu_s": 16.97,
+          "cpu_s_per_audio_s": 0.8380246913580246,
+          "observed_first_audio_log_from_request_s": 1.1211209860048257,
+          "sampled_peak_rss_bytes": 385888256
+        },
+        {
+          "audio_s": 20.25,
+          "infer_s": 6.45,
+          "infer_rtf": 0.318,
+          "synthesis_wall_s": 5.21,
+          "synthesis_wall_rtf": 0.257,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.05,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 6,
+              "tokens": 47,
+              "audio_s": 2.9,
+              "prep_s": 0.06,
+              "infer_s": 0.99,
+              "infer_rtf": 0.342,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 6,
+              "tokens": 49,
+              "audio_s": 3.27,
+              "prep_s": 0.05,
+              "infer_s": 1.03,
+              "infer_rtf": 0.313,
+              "gap_s": 0.0
+            },
+            {
+              "index": 3,
+              "count": 6,
+              "tokens": 55,
+              "audio_s": 3.42,
+              "prep_s": 0.06,
+              "infer_s": 1.12,
+              "infer_rtf": 0.328,
+              "gap_s": 0.0
+            },
+            {
+              "index": 4,
+              "count": 6,
+              "tokens": 57,
+              "audio_s": 3.52,
+              "prep_s": 0.05,
+              "infer_s": 1.12,
+              "infer_rtf": 0.318,
+              "gap_s": 0.0
+            },
+            {
+              "index": 5,
+              "count": 6,
+              "tokens": 54,
+              "audio_s": 3.62,
+              "prep_s": 0.05,
+              "infer_s": 1.11,
+              "infer_rtf": 0.305,
+              "gap_s": 0.0
+            },
+            {
+              "index": 6,
+              "count": 6,
+              "tokens": 50,
+              "audio_s": 3.5,
+              "prep_s": 0.05,
+              "infer_s": 1.08,
+              "infer_rtf": 0.308,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 3,
+          "elapsed_through_drain_s": 26.207997450997937,
+          "cpu_s": 17.160000000000004,
+          "cpu_s_per_audio_s": 0.8474074074074076,
+          "observed_first_audio_log_from_request_s": 1.1252148560015485,
+          "sampled_peak_rss_bytes": 405368832
+        }
+      ],
+      "pipeline_compile_s": 1.66,
+      "battery_after": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 33.3,\n  \"voltage\": 4058,\n  \"current\": -514843,\n  \"current_average\": -307031,\n  \"percentage\": 66,\n  \"level\": 66,\n  \"scale\": 100,\n  \"charge_counter\": 3205000,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "completed_utc": "2026-11-19T06:16:36.724812+00:00"
+    },
+    "long-single": {
+      "started_utc": "2026-11-19T06:17:14.119161+00:00",
+      "command": [
+        "tools/bench_phone.py",
+        "--mode",
+        "warm",
+        "--sink",
+        "discard",
+        "--repeats",
+        "3",
+        "--rest-secs",
+        "3",
+        "--text-file",
+        "tools/bench_out/pixel11-pro-20261118/workloads/single-sentence.txt",
+        "--out",
+        "tools/bench_out/pixel11-pro-20261118/long-single",
+        "--env",
+        "KOKORO_GOVERNOR=off",
+        "--conditions",
+        "Unplugged; Battery Saver off; default CPU selection; one long sentence, with no cross-sentence overlap"
+      ],
+      "conditions": "Unplugged; Battery Saver off; default CPU selection; one long sentence, with no cross-sentence overlap",
+      "source_commit": {
+        "returncode": 0,
+        "stdout": "e03d0e33b13fbfe4db7c03f8039ee0764ba15010",
+        "stderr": ""
+      },
+      "binary": {
+        "path": "/data/data/com.termux/files/home/bin/ryk",
+        "sha256": "13287858ddbfc3178f0ac79b103e15edaeed732d2d911bdb387faf42fd0cd64f"
+      },
+      "assets": {
+        "stage1.onnx": "3a1b51c923fa40e3c6f426086921669cc6b721eb76ee3fddc729f9c0588f28fe",
+        "stage2.onnx": "3bc46807560edbb7df5ff364deb15bb08c4961c8fdaa96bffa783dfb045f565c",
+        "voices/af_heart.bin": "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"
+      },
+      "model": {
+        "returncode": 0,
+        "stdout": "Pixel 11 Pro",
+        "stderr": ""
+      },
+      "soc": {
+        "returncode": 0,
+        "stdout": "Tensor G6",
+        "stderr": ""
+      },
+      "android": {
+        "returncode": 0,
+        "stdout": "17",
+        "stderr": ""
+      },
+      "kernel": {
+        "returncode": 0,
+        "stdout": "Linux localhost 6.12.69-android16-6-g70777328ed0e-ab16108597-4k #1 SMP PREEMPT Tue Aug 18 04:34:09 UTC 2026 aarch64 Android",
+        "stderr": ""
+      },
+      "topology": {
+        "cpu0": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu1": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu2": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu3": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu4": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu5": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu6": {
+          "cpu_capacity": "1024",
+          "cpufreq/cpuinfo_max_freq": "4109000",
+          "cpufreq/scaling_max_freq": "4109000",
+          "cpufreq/related_cpus": "6",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "2"
+        }
+      },
+      "original_observer_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "observer_cpuset": [
+        0
+      ],
+      "espeak": {
+        "returncode": 0,
+        "stdout": "eSpeak NG text-to-speech: 1.52.0  Data at: /data/data/com.termux/files/usr/share/espeak-ng-data",
+        "stderr": ""
+      },
+      "battery_before": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 33.3,\n  \"voltage\": 4058,\n  \"current\": -524218,\n  \"current_average\": -402343,\n  \"percentage\": 66,\n  \"level\": 66,\n  \"scale\": 100,\n  \"charge_counter\": 3200000,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "environment": {
+        "KOKORO_TRACT_DIR": "/data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx",
+        "KOKORO_VOICE": "af_heart",
+        "KOKORO_LANG": "en-us",
+        "KOKORO_SPEED": "1.0",
+        "KOKORO_VERBOSE": "1",
+        "RYK_HEADSET": "0",
+        "RYK_NOTIFY": "0",
+        "RYK_EARCONS": "0",
+        "RYK_IDLE_TIMEOUT": "off",
+        "KOKORO_GOVERNOR": "off",
+        "RYK_SINK_IDLE_MS": "200"
+      },
+      "mode": "warm",
+      "sink": "discard",
+      "warmups": 1,
+      "rest_secs": 3.0,
+      "text": "The old lighthouse keeper climbed the winding staircase every single evening at dusk, carrying his heavy brass lantern up the narrow stone steps to make certain the great lamp would burn steadily and brightly through the long and stormy night.",
+      "cpu_time_scope": "process plus waited-for children; excludes detached PulseAudio",
+      "thermal_sysfs_readable": false,
+      "runs": [
+        {
+          "audio_s": 14.62,
+          "infer_s": 4.48,
+          "infer_rtf": 0.306,
+          "synthesis_wall_s": 4.55,
+          "synthesis_wall_rtf": 0.311,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 4.55,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 1,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.06,
+              "infer_s": 4.48,
+              "infer_rtf": 0.306,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 1,
+          "elapsed_through_drain_s": 4.822041021994664,
+          "cpu_s": 11.729999999999999,
+          "cpu_s_per_audio_s": 0.8023255813953488,
+          "observed_first_audio_log_from_request_s": 4.613764914000058,
+          "sampled_peak_rss_bytes": 551706624
+        },
+        {
+          "audio_s": 14.62,
+          "infer_s": 4.6,
+          "infer_rtf": 0.314,
+          "synthesis_wall_s": 4.67,
+          "synthesis_wall_rtf": 0.319,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 4.67,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 1,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.06,
+              "infer_s": 4.6,
+              "infer_rtf": 0.314,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 2,
+          "elapsed_through_drain_s": 4.936366801994154,
+          "cpu_s": 11.880000000000003,
+          "cpu_s_per_audio_s": 0.8125854993160057,
+          "observed_first_audio_log_from_request_s": 4.729315209988272,
+          "sampled_peak_rss_bytes": 553881600
+        },
+        {
+          "audio_s": 14.62,
+          "infer_s": 4.53,
+          "infer_rtf": 0.309,
+          "synthesis_wall_s": 4.6,
+          "synthesis_wall_rtf": 0.315,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 4.6,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 1,
+              "tokens": 242,
+              "audio_s": 14.62,
+              "prep_s": 0.06,
+              "infer_s": 4.53,
+              "infer_rtf": 0.309,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 3,
+          "elapsed_through_drain_s": 4.845145266997861,
+          "cpu_s": 11.82,
+          "cpu_s_per_audio_s": 0.8084815321477429,
+          "observed_first_audio_log_from_request_s": 4.637926164010423,
+          "sampled_peak_rss_bytes": 556716032
+        }
+      ],
+      "pipeline_compile_s": 1.65,
+      "battery_after": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 33.3,\n  \"voltage\": 4058,\n  \"current\": -538281,\n  \"current_average\": -1127343,\n  \"percentage\": 66,\n  \"level\": 66,\n  \"scale\": 100,\n  \"charge_counter\": 3192500,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "completed_utc": "2026-11-19T06:17:45.307517+00:00"
+    },
+    "sustained": {
+      "started_utc": "2026-11-19T06:18:24.100574+00:00",
+      "command": [
+        "tools/bench_phone.py",
+        "--mode",
+        "warm",
+        "--warmups",
+        "0",
+        "--sink",
+        "real",
+        "--repeats",
+        "1",
+        "--rest-secs",
+        "3",
+        "--text-file",
+        "tools/bench_out/pixel11-pro-20261118/workloads/sustained.txt",
+        "--out",
+        "tools/bench_out/pixel11-pro-20261118/sustained",
+        "--conditions",
+        "Unplugged; Battery Saver off; default automatic topology and thermal/pacing governor; no playback controls or separate corpus warmup"
+      ],
+      "conditions": "Unplugged; Battery Saver off; default automatic topology and thermal/pacing governor; no playback controls or separate corpus warmup",
+      "source_commit": {
+        "returncode": 0,
+        "stdout": "e03d0e33b13fbfe4db7c03f8039ee0764ba15010",
+        "stderr": ""
+      },
+      "binary": {
+        "path": "/data/data/com.termux/files/home/bin/ryk",
+        "sha256": "13287858ddbfc3178f0ac79b103e15edaeed732d2d911bdb387faf42fd0cd64f"
+      },
+      "assets": {
+        "stage1.onnx": "3a1b51c923fa40e3c6f426086921669cc6b721eb76ee3fddc729f9c0588f28fe",
+        "stage2.onnx": "3bc46807560edbb7df5ff364deb15bb08c4961c8fdaa96bffa783dfb045f565c",
+        "voices/af_heart.bin": "d583ccff3cdca2f7fae535cb998ac07e9fcb90f09737b9a41fa2734ec44a8f0b"
+      },
+      "model": {
+        "returncode": 0,
+        "stdout": "Pixel 11 Pro",
+        "stderr": ""
+      },
+      "soc": {
+        "returncode": 0,
+        "stdout": "Tensor G6",
+        "stderr": ""
+      },
+      "android": {
+        "returncode": 0,
+        "stdout": "17",
+        "stderr": ""
+      },
+      "kernel": {
+        "returncode": 0,
+        "stdout": "Linux localhost 6.12.69-android16-6-g70777328ed0e-ab16108597-4k #1 SMP PREEMPT Tue Aug 18 04:34:09 UTC 2026 aarch64 Android",
+        "stderr": ""
+      },
+      "topology": {
+        "cpu0": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu1": {
+          "cpu_capacity": "627",
+          "cpufreq/cpuinfo_max_freq": "2649000",
+          "cpufreq/scaling_max_freq": "2649000",
+          "cpufreq/related_cpus": "0 1",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "0"
+        },
+        "cpu2": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu3": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu4": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu5": {
+          "cpu_capacity": "800",
+          "cpufreq/cpuinfo_max_freq": "3379000",
+          "cpufreq/scaling_max_freq": "3379000",
+          "cpufreq/related_cpus": "2 3 4 5",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "1"
+        },
+        "cpu6": {
+          "cpu_capacity": "1024",
+          "cpufreq/cpuinfo_max_freq": "4109000",
+          "cpufreq/scaling_max_freq": "4109000",
+          "cpufreq/related_cpus": "6",
+          "cpufreq/scaling_governor": "sched_pixel",
+          "topology/cluster_id": "2"
+        }
+      },
+      "original_observer_affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "observer_cpuset": [
+        0
+      ],
+      "espeak": {
+        "returncode": 0,
+        "stdout": "eSpeak NG text-to-speech: 1.52.0  Data at: /data/data/com.termux/files/usr/share/espeak-ng-data",
+        "stderr": ""
+      },
+      "battery_before": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 33.3,\n  \"voltage\": 4058,\n  \"current\": -438281,\n  \"current_average\": -412500,\n  \"percentage\": 66,\n  \"level\": 66,\n  \"scale\": 100,\n  \"charge_counter\": 3187500,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "environment": {
+        "KOKORO_TRACT_DIR": "/data/data/com.termux/files/home/.local/share/kukuryku/kokoro-onyx",
+        "KOKORO_VOICE": "af_heart",
+        "KOKORO_LANG": "en-us",
+        "KOKORO_SPEED": "1.0",
+        "KOKORO_VERBOSE": "1",
+        "RYK_HEADSET": "0",
+        "RYK_NOTIFY": "0",
+        "RYK_EARCONS": "0",
+        "RYK_IDLE_TIMEOUT": "off"
+      },
+      "mode": "warm",
+      "sink": "real",
+      "warmups": 0,
+      "rest_secs": 3.0,
+      "text": "She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound. She stood at the lighthouse and watched the boats come in. The wind was cold and the light turned slowly. A child on the pier waved once and then ran back to the road. By evening the fog had covered the rocks and the bell started up. They stayed until the last boat was only a sound.",
+      "cpu_time_scope": "process plus waited-for children; excludes detached PulseAudio",
+      "thermal_sysfs_readable": false,
+      "runs": [
+        {
+          "audio_s": 144.0,
+          "infer_s": 76.94,
+          "infer_rtf": 0.534,
+          "synthesis_wall_s": 123.25,
+          "synthesis_wall_rtf": 0.856,
+          "estimated_gap_s": 0.0,
+          "first_audio_from_synthesis_start_s": 1.26,
+          "chunks": [
+            {
+              "index": 1,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.05,
+              "infer_s": 1.21,
+              "infer_rtf": 0.358,
+              "gap_s": 0.0
+            },
+            {
+              "index": 2,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.04,
+              "infer_s": 1.0,
+              "infer_rtf": 0.315,
+              "gap_s": 0.0
+            },
+            {
+              "index": 3,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.05,
+              "infer_s": 1.26,
+              "infer_rtf": 0.306,
+              "gap_s": 0.0
+            },
+            {
+              "index": 4,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.05,
+              "infer_s": 1.32,
+              "infer_rtf": 0.318,
+              "gap_s": 0.0
+            },
+            {
+              "index": 5,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.05,
+              "infer_s": 1.02,
+              "infer_rtf": 0.322,
+              "gap_s": 0.0
+            },
+            {
+              "index": 6,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.05,
+              "infer_s": 1.12,
+              "infer_rtf": 0.333,
+              "gap_s": 0.0
+            },
+            {
+              "index": 7,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.04,
+              "infer_s": 1.01,
+              "infer_rtf": 0.319,
+              "gap_s": 0.0
+            },
+            {
+              "index": 8,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.05,
+              "infer_s": 1.3,
+              "infer_rtf": 0.314,
+              "gap_s": 0.0
+            },
+            {
+              "index": 9,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.05,
+              "infer_s": 1.39,
+              "infer_rtf": 0.334,
+              "gap_s": 0.0
+            },
+            {
+              "index": 10,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.05,
+              "infer_s": 1.12,
+              "infer_rtf": 0.352,
+              "gap_s": 0.0
+            },
+            {
+              "index": 11,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.04,
+              "infer_s": 1.05,
+              "infer_rtf": 0.31,
+              "gap_s": 0.0
+            },
+            {
+              "index": 12,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.06,
+              "infer_s": 1.24,
+              "infer_rtf": 0.389,
+              "gap_s": 0.0
+            },
+            {
+              "index": 13,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.05,
+              "infer_s": 1.28,
+              "infer_rtf": 0.309,
+              "gap_s": 0.0
+            },
+            {
+              "index": 14,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.05,
+              "infer_s": 1.46,
+              "infer_rtf": 0.351,
+              "gap_s": 0.0
+            },
+            {
+              "index": 15,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.05,
+              "infer_s": 1.05,
+              "infer_rtf": 0.33,
+              "gap_s": 0.0
+            },
+            {
+              "index": 16,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.05,
+              "infer_s": 1.23,
+              "infer_rtf": 0.364,
+              "gap_s": 0.0
+            },
+            {
+              "index": 17,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.05,
+              "infer_s": 1.08,
+              "infer_rtf": 0.341,
+              "gap_s": 0.0
+            },
+            {
+              "index": 18,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.12,
+              "infer_s": 3.26,
+              "infer_rtf": 0.791,
+              "gap_s": 0.0
+            },
+            {
+              "index": 19,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.08,
+              "infer_s": 3.3,
+              "infer_rtf": 0.794,
+              "gap_s": 0.0
+            },
+            {
+              "index": 20,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.13,
+              "infer_s": 2.88,
+              "infer_rtf": 0.907,
+              "gap_s": 0.0
+            },
+            {
+              "index": 21,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.06,
+              "infer_s": 2.79,
+              "infer_rtf": 0.826,
+              "gap_s": 0.0
+            },
+            {
+              "index": 22,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.13,
+              "infer_s": 2.25,
+              "infer_rtf": 0.71,
+              "gap_s": 0.0
+            },
+            {
+              "index": 23,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.1,
+              "infer_s": 3.23,
+              "infer_rtf": 0.782,
+              "gap_s": 0.0
+            },
+            {
+              "index": 24,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.1,
+              "infer_s": 2.95,
+              "infer_rtf": 0.71,
+              "gap_s": 0.0
+            },
+            {
+              "index": 25,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.09,
+              "infer_s": 2.67,
+              "infer_rtf": 0.84,
+              "gap_s": 0.0
+            },
+            {
+              "index": 26,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.1,
+              "infer_s": 2.84,
+              "infer_rtf": 0.842,
+              "gap_s": 0.0
+            },
+            {
+              "index": 27,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.1,
+              "infer_s": 2.53,
+              "infer_rtf": 0.797,
+              "gap_s": 0.0
+            },
+            {
+              "index": 28,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.12,
+              "infer_s": 3.07,
+              "infer_rtf": 0.744,
+              "gap_s": 0.0
+            },
+            {
+              "index": 29,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.12,
+              "infer_s": 4.05,
+              "infer_rtf": 0.975,
+              "gap_s": 0.0
+            },
+            {
+              "index": 30,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.08,
+              "infer_s": 2.79,
+              "infer_rtf": 0.877,
+              "gap_s": 0.0
+            },
+            {
+              "index": 31,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.13,
+              "infer_s": 2.71,
+              "infer_rtf": 0.804,
+              "gap_s": 0.0
+            },
+            {
+              "index": 32,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.11,
+              "infer_s": 2.43,
+              "infer_rtf": 0.765,
+              "gap_s": 0.0
+            },
+            {
+              "index": 33,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.08,
+              "infer_s": 3.12,
+              "infer_rtf": 0.756,
+              "gap_s": 0.0
+            },
+            {
+              "index": 34,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.06,
+              "infer_s": 1.33,
+              "infer_rtf": 0.321,
+              "gap_s": 0.0
+            },
+            {
+              "index": 35,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.05,
+              "infer_s": 0.99,
+              "infer_rtf": 0.311,
+              "gap_s": 0.0
+            },
+            {
+              "index": 36,
+              "count": 40,
+              "tokens": 56,
+              "audio_s": 3.38,
+              "prep_s": 0.05,
+              "infer_s": 1.31,
+              "infer_rtf": 0.388,
+              "gap_s": 0.0
+            },
+            {
+              "index": 37,
+              "count": 40,
+              "tokens": 47,
+              "audio_s": 3.17,
+              "prep_s": 0.05,
+              "infer_s": 2.33,
+              "infer_rtf": 0.733,
+              "gap_s": 0.0
+            },
+            {
+              "index": 38,
+              "count": 40,
+              "tokens": 63,
+              "audio_s": 4.12,
+              "prep_s": 0.06,
+              "infer_s": 1.44,
+              "infer_rtf": 0.348,
+              "gap_s": 0.0
+            },
+            {
+              "index": 39,
+              "count": 40,
+              "tokens": 67,
+              "audio_s": 4.15,
+              "prep_s": 0.05,
+              "infer_s": 1.3,
+              "infer_rtf": 0.314,
+              "gap_s": 0.0
+            },
+            {
+              "index": 40,
+              "count": 40,
+              "tokens": 52,
+              "audio_s": 3.17,
+              "prep_s": 0.06,
+              "infer_s": 1.26,
+              "infer_rtf": 0.397,
+              "gap_s": 0.0
+            }
+          ],
+          "run": 1,
+          "elapsed_through_drain_s": 150.21677427800023,
+          "cpu_s": 194.43,
+          "cpu_s_per_audio_s": 1.3502083333333335,
+          "observed_first_audio_log_from_request_s": 1.3280165709875291,
+          "sampled_peak_rss_bytes": 400080896
+        }
+      ],
+      "pipeline_compile_s": 1.63,
+      "battery_after": {
+        "returncode": 0,
+        "stdout": "{\n  \"present\": true,\n  \"technology\": \"Li-ion\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"UNPLUGGED\",\n  \"status\": \"DISCHARGING\",\n  \"temperature\": 33.3,\n  \"voltage\": 4058,\n  \"current\": -1703906,\n  \"current_average\": -297656,\n  \"percentage\": 66,\n  \"level\": 66,\n  \"scale\": 100,\n  \"charge_counter\": 3165000,\n  \"cycle\": 2\n}",
+        "stderr": ""
+      },
+      "completed_utc": "2026-11-19T06:20:59.891786+00:00"
+    }
+  }
+}
